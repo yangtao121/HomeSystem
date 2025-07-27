@@ -1,138 +1,221 @@
-# Home System 数据库集成指南
+# Home System 数据库集成完整指南
 
-## 概述
+本指南详细介绍了 Home System 数据库集成的设计理念、部署方式和使用方法，包括 PostgreSQL 和 Redis 的配置、ArXiv 论文管理功能的使用等。
 
-Home System 提供了统一的数据库基础设施，支持 PostgreSQL 和 Redis，为系统各个模块提供数据持久化和缓存服务。本指南详细介绍了数据库集成的设计理念、部署方式和使用方法。
+## 🎯 概述
 
-## 架构设计
+Home System 提供了统一的数据库基础设施，支持 PostgreSQL 和 Redis，为系统各个模块提供数据持久化和缓存服务。该系统专门针对 ArXiv 论文管理进行了优化，支持论文的自动采集、存储、查询和处理状态跟踪。
 
-### 核心组件
+### 核心特性
+
+- 🗄️ **双数据库架构**: PostgreSQL (主存储) + Redis (缓存)
+- 📚 **ArXiv 专用优化**: 论文去重、状态跟踪、批量处理
+- 🚀 **容器化部署**: Docker Compose 一键启动
+- ⚡ **高性能**: 连接池、索引优化、智能缓存
+- 🔧 **易于扩展**: 模块化设计，支持自定义数据模型
+
+## 🏗️ 架构设计
+
+### 系统架构图
 
 ```
 HomeSystem/
-├── integration/
+├── integrations/
 │   └── database/
 │       ├── __init__.py           # 包导出
 │       ├── connection.py         # 数据库连接管理
-│       ├── models.py            # 数据模型基类
+│       ├── models.py            # 数据模型定义
 │       └── operations.py        # 数据库操作接口
 ├── utility/
 │   └── arxiv/
-│       └── database_integration.py  # ArXiv 模块数据库集成
+│       ├── arxiv.py             # ArXiv API 工具
+│       └── database_integration.py  # ArXiv 数据库集成
+├── examples/
+│   ├── simple_arxiv_demo.py     # 简化使用示例
+│   └── database_usage_example.py # 完整使用示例
 └── docs/
     └── database-integration-guide.md  # 本文档
 ```
 
-### 设计原则
+### 技术栈
 
-1. **统一接口**: 提供一致的数据库操作接口
-2. **多数据库支持**: 同时支持 PostgreSQL (主存储) 和 Redis (缓存)
-3. **异步/同步兼容**: 支持异步和同步两种操作模式
-4. **容器化部署**: 使用 Docker 容器化数据库服务
-5. **可扩展性**: 易于添加新的数据模型和操作
+- **PostgreSQL 15**: 主数据库，存储论文数据
+- **Redis 7**: 缓存数据库，存储热点数据和状态信息
+- **Python 3.10+**: 主要开发语言
+- **Docker Compose**: 容器编排
+- **psycopg2**: PostgreSQL 同步客户端
+- **asyncpg**: PostgreSQL 异步客户端
+- **redis-py**: Redis 客户端
 
-## 快速开始
+## 🚀 快速开始
 
 ### 1. 环境准备
 
 #### 安装依赖
+
 ```bash
-pip install asyncpg psycopg2-binary redis python-dotenv
+# 安装 Python 依赖
+pip install psycopg2-binary redis asyncpg python-dotenv loguru
+
+# 或使用项目依赖文件
+pip install -r requirements.txt
 ```
 
-#### 创建环境配置
-创建 `.env` 文件：
+#### 环境变量配置
+
+创建 `.env` 文件（可选，系统有默认配置）：
+
 ```bash
-# 数据库配置
+# PostgreSQL 配置
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=15432              # 注意：使用自定义端口避免冲突
 DB_NAME=homesystem
 DB_USER=homesystem
 DB_PASSWORD=homesystem123
 
 # Redis 配置
 REDIS_HOST=localhost
-REDIS_PORT=6379
+REDIS_PORT=16379           # 注意：使用自定义端口避免冲突
 REDIS_DB=0
 ```
 
 ### 2. 启动数据库服务
 
-#### Docker Compose 配置
-创建 `docker-compose.yml`：
+#### 使用 Docker Compose
 
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: homesystem-postgres
-    environment:
-      POSTGRES_DB: homesystem
-      POSTGRES_USER: homesystem
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-homesystem123}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./sql/init:/docker-entrypoint-initdb.d
-    restart: unless-stopped
-    networks:
-      - homesystem-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: homesystem-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    networks:
-      - homesystem-network
-
-volumes:
-  postgres_data:
-  redis_data:
-
-networks:
-  homesystem-network:
-    driver: bridge
-```
-
-#### 启动服务
 ```bash
-# 启动数据库容器
-docker-compose up -d
+# 启动数据库服务（后台运行）
+docker compose up -d
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
-# 查看日志
-docker-compose logs -f postgres
-docker-compose logs -f redis
+# 查看服务日志
+docker compose logs postgres
+docker compose logs redis
 ```
 
-### 3. 基础使用示例
+#### 验证服务状态
+
+```bash
+# 检查 PostgreSQL 连接
+docker exec homesystem-postgres psql -U homesystem -d homesystem -c "\l"
+
+# 检查 Redis 连接
+docker exec homesystem-redis redis-cli ping
+```
+
+### 3. 初始化数据库
+
+数据库表结构已自动创建，包含：
+
+- **arxiv_papers** 表：存储论文信息
+- **索引**: arxiv_id、processing_status、categories 等
+- **触发器**: 自动更新 updated_at 字段
+
+### 4. 运行使用示例
+
+```bash
+# 运行简化版示例（推荐）
+python simple_arxiv_demo.py
+
+# 运行完整功能示例
+python examples/database_usage_example.py
+```
+
+## 📊 数据库结构
+
+### ArXiv 论文表 (arxiv_papers)
+
+| 字段名 | 类型 | 说明 | 索引 |
+|--------|------|------|------|
+| id | UUID | 主键，自动生成 | PRIMARY |
+| arxiv_id | VARCHAR(50) | ArXiv 论文 ID | UNIQUE |
+| title | TEXT | 论文标题 | - |
+| authors | TEXT | 作者信息 | - |
+| abstract | TEXT | 论文摘要 | - |
+| categories | VARCHAR(255) | 论文分类 | INDEX |
+| published_date | VARCHAR(50) | 发布日期 | INDEX |
+| pdf_url | TEXT | PDF 下载链接 | - |
+| processing_status | VARCHAR(20) | 处理状态 | INDEX |
+| tags | JSONB | 标签数组 | - |
+| metadata | JSONB | 元数据（引用数等） | - |
+| created_at | TIMESTAMP | 创建时间 | INDEX |
+| updated_at | TIMESTAMP | 更新时间 | - |
+
+### 处理状态说明
+
+- `pending`: 待处理
+- `completed`: 已完成
+- `failed`: 处理失败
+
+## 💻 基础使用
+
+### 1. 数据库操作示例
+
+#### 直接 SQL 操作（推荐用于学习）
 
 ```python
-from HomeSystem.integration.database import DatabaseManager, DatabaseOperations
-from HomeSystem.integration.database.models import ArxivPaperModel
+import psycopg2
+import psycopg2.extras
+import json
 
-# 初始化数据库连接
+# 连接数据库
+conn = psycopg2.connect(
+    host='localhost',
+    port=15432,
+    database='homesystem',
+    user='homesystem',
+    password='homesystem123'
+)
+cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+# 插入论文数据
+paper_data = {
+    'arxiv_id': '2024.12345',
+    'title': 'Your Paper Title',
+    'authors': 'Author Names',
+    'abstract': 'Paper abstract...',
+    'categories': 'cs.LG, cs.AI',
+    'tags': json.dumps(['machine learning', 'AI']),
+    'metadata': json.dumps({'citation_count': 0})
+}
+
+cursor.execute("""
+    INSERT INTO arxiv_papers (arxiv_id, title, authors, abstract, categories, tags, metadata)
+    VALUES (%(arxiv_id)s, %(title)s, %(authors)s, %(abstract)s, %(categories)s, %(tags)s, %(metadata)s)
+    ON CONFLICT (arxiv_id) DO NOTHING
+""", paper_data)
+
+conn.commit()
+
+# 查询论文
+cursor.execute("SELECT * FROM arxiv_papers WHERE arxiv_id = %s", ('2024.12345',))
+paper = cursor.fetchone()
+print(f"找到论文: {paper['title']}")
+
+cursor.close()
+conn.close()
+```
+
+#### 使用 HomeSystem 模型（高级用法）
+
+```python
+# 注意：如果遇到导入问题，建议直接使用 SQL 操作
+from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
+
+# 创建数据库操作实例
 db_ops = DatabaseOperations()
-
-# 初始化表结构
-db_ops.init_tables([ArxivPaperModel()])
 
 # 创建论文记录
 paper = ArxivPaperModel(
-    arxiv_id="2301.12345",
-    title="Advanced Machine Learning Techniques",
-    abstract="This paper presents...",
-    categories="cs.LG, cs.AI"
+    arxiv_id="2024.12345",
+    title="示例论文",
+    authors="作者姓名",
+    abstract="论文摘要",
+    categories="cs.LG",
+    tags=["机器学习", "深度学习"],
+    metadata={"conference": "ICML 2024"}
 )
 
 # 保存到数据库
@@ -140,708 +223,874 @@ success = db_ops.create(paper)
 print(f"保存结果: {success}")
 
 # 查询论文
-existing_paper = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', "2301.12345")
+existing_paper = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', "2024.12345")
 if existing_paper:
     print(f"找到论文: {existing_paper.title}")
 ```
 
-## 核心组件详解
-
-### 1. 数据库连接管理 (connection.py)
-
-#### DatabaseManager 类
-负责管理 PostgreSQL 和 Redis 连接。
-
-**主要功能**:
-- 连接池管理
-- 异步/同步连接支持
-- 自动重连和错误处理
-- 配置管理
-
-**核心方法**:
+### 2. Redis 缓存操作
 
 ```python
-from HomeSystem.integration.database.connection import db_manager
+import redis
 
-# PostgreSQL 同步操作
-with db_manager.get_postgres_sync() as cursor:
-    cursor.execute("SELECT * FROM arxiv_papers LIMIT 10")
-    results = cursor.fetchall()
-
-# PostgreSQL 异步操作
-async with db_manager.get_postgres_async() as conn:
-    results = await conn.fetch("SELECT * FROM arxiv_papers LIMIT 10")
-
-# Redis 操作
-redis_client = db_manager.get_redis()
-redis_client.set("key", "value")
-```
-
-#### 连接配置
-
-支持环境变量和默认值：
-
-| 环境变量 | 默认值 | 说明 |
-|---------|--------|------|
-| DB_HOST | localhost | PostgreSQL 主机 |
-| DB_PORT | 5432 | PostgreSQL 端口 |
-| DB_NAME | homesystem | 数据库名 |
-| DB_USER | homesystem | 用户名 |
-| DB_PASSWORD | homesystem123 | 密码 |
-| REDIS_HOST | localhost | Redis 主机 |
-| REDIS_PORT | 6379 | Redis 端口 |
-| REDIS_DB | 0 | Redis 数据库编号 |
-
-### 2. 数据模型 (models.py)
-
-#### BaseModel 抽象基类
-
-所有数据模型的基类，定义通用接口：
-
-```python
-from HomeSystem.integration.database.models import BaseModel
-
-class CustomModel(BaseModel):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.custom_field = kwargs.get('custom_field', '')
-    
-    @property
-    def table_name(self) -> str:
-        return 'custom_table'
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'id': self.id,
-            'custom_field': self.custom_field,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
-        return cls(**data)
-    
-    def get_create_table_sql(self) -> str:
-        return """
-        CREATE TABLE IF NOT EXISTS custom_table (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            custom_field VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-```
-
-#### ArxivPaperModel 示例
-
-内置的 ArXiv 论文模型：
-
-```python
-from HomeSystem.integration.database.models import ArxivPaperModel
-
-# 创建论文实例
-paper = ArxivPaperModel(
-    arxiv_id="2301.12345",
-    title="Machine Learning Research",
-    authors="John Doe, Jane Smith",
-    abstract="This paper presents novel approaches...",
-    categories="cs.LG, cs.AI",
-    published_date="2023年01月",
-    pdf_url="https://arxiv.org/pdf/2301.12345.pdf",
-    processing_status="pending",
-    tags=["机器学习", "深度学习"],
-    metadata={"conference": "ICML 2023"}
+# 连接 Redis
+redis_client = redis.Redis(
+    host='localhost', 
+    port=16379, 
+    decode_responses=True
 )
-
-# 转换为字典
-paper_dict = paper.to_dict()
-
-# 从字典创建实例
-paper_copy = ArxivPaperModel.from_dict(paper_dict)
-```
-
-### 3. 数据库操作 (operations.py)
-
-#### DatabaseOperations 类
-
-提供标准的 CRUD 操作：
-
-##### 初始化表结构
-```python
-from HomeSystem.integration.database import DatabaseOperations
-from HomeSystem.integration.database.models import ArxivPaperModel
-
-db_ops = DatabaseOperations()
-db_ops.init_tables([ArxivPaperModel()])
-```
-
-##### 创建记录
-```python
-paper = ArxivPaperModel(arxiv_id="2301.12345", title="Test Paper")
-success = db_ops.create(paper)
-```
-
-##### 查询记录
-```python
-# 根据 ID 查询
-paper = db_ops.get_by_id(ArxivPaperModel, "some-uuid")
-
-# 根据字段查询
-paper = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', "2301.12345")
-
-# 列出所有记录
-papers = db_ops.list_all(ArxivPaperModel, limit=50, offset=0)
-
-# 检查记录是否存在
-exists = db_ops.exists(ArxivPaperModel, 'arxiv_id', "2301.12345")
-```
-
-##### 更新记录
-```python
-updates = {
-    'processing_status': 'completed',
-    'tags': '["processed", "downloaded"]'
-}
-success = db_ops.update(paper, updates)
-```
-
-##### 删除记录
-```python
-success = db_ops.delete(paper)
-```
-
-#### CacheOperations 类
-
-Redis 缓存操作：
-
-```python
-from HomeSystem.integration.database.operations import CacheOperations
-
-cache_ops = CacheOperations()
 
 # 基础键值操作
-cache_ops.set("key", "value", expire=3600)  # 1小时过期
-value = cache_ops.get("key")
-cache_ops.delete("key")
-exists = cache_ops.exists("key")
+redis_client.set("paper:status:2024.12345", "completed", ex=3600)  # 1小时过期
+status = redis_client.get("paper:status:2024.12345")
 
-# 集合操作
-cache_ops.sadd("processed_papers", "2301.12345", "2301.12346")
-is_member = cache_ops.sismember("processed_papers", "2301.12345")
+# 集合操作 - 跟踪已处理论文
+redis_client.sadd("processed_papers", "2024.12345", "2024.12346")
+is_processed = redis_client.sismember("processed_papers", "2024.12345")
+
+# 哈希操作 - 缓存论文元数据
+redis_client.hset("paper:meta:2024.12345", mapping={
+    "title": "Paper Title",
+    "citations": "156",
+    "downloads": "2341"
+})
+
+meta = redis_client.hgetall("paper:meta:2024.12345")
+print(f"论文引用数: {meta.get('citations')}")
 ```
 
-## ArXiv 模块集成示例
-
-### ArxivDatabaseManager
-
-专门为 ArXiv 模块设计的数据库管理器：
+### 3. 高级查询示例
 
 ```python
-from HomeSystem.utility.arxiv.database_integration import ArxivDatabaseManager
-from HomeSystem.utility.arxiv.arxiv import ArxivTool
+# 全文搜索
+cursor.execute("""
+    SELECT arxiv_id, title FROM arxiv_papers 
+    WHERE title ILIKE %s OR abstract ILIKE %s
+    LIMIT 10
+""", ('%machine learning%', '%machine learning%'))
 
-# 创建集成数据库的 ArXiv 工具
-arxiv_tool = ArxivTool(enable_database=True)
+# JSON 标签查询
+cursor.execute("""
+    SELECT arxiv_id, title, tags FROM arxiv_papers 
+    WHERE tags @> %s
+""", (json.dumps(['深度学习']),))
 
-# 搜索时自动去重
-results = arxiv_tool.arxivSearch("machine learning", skip_processed=True)
-print(f"找到 {results.num_results} 篇新论文")
+# 按分类统计
+cursor.execute("""
+    SELECT categories, COUNT(*) as count,
+           AVG(CAST(metadata->>'citation_count' AS INTEGER)) as avg_citations
+    FROM arxiv_papers 
+    WHERE metadata->>'citation_count' IS NOT NULL
+    GROUP BY categories 
+    ORDER BY count DESC
+""")
 
-# 处理论文并自动标记
-for paper in results:
-    def process_paper(p):
-        # 下载 PDF
-        p.downloadPdf("./downloads")
-        # 添加标签
-        p.setTag(["ML", "已处理"])
-        return "处理完成"
-    
-    # 处理并标记为已完成
-    result = arxiv_tool.process_paper(paper, process_paper)
-    print(f"处理结果: {result}")
-
-# 查看处理状态
-db_manager = ArxivDatabaseManager()
-unprocessed = db_manager.get_unprocessed_papers(limit=10)
-print(f"还有 {len(unprocessed)} 篇论文待处理")
+# 时间范围查询
+cursor.execute("""
+    SELECT arxiv_id, title, created_at FROM arxiv_papers 
+    WHERE created_at >= NOW() - INTERVAL '7 days'
+    ORDER BY created_at DESC
+""")
 ```
 
-### 重复处理预防
+## 🔧 管理工具
 
-系统通过以下机制防止重复处理：
+### Web 管理界面
 
-1. **数据库主键约束**: ArXiv ID 设为唯一键
-2. **Redis 缓存**: 快速检查已处理状态
-3. **状态管理**: 跟踪处理状态（pending, completed, failed）
-4. **自动过滤**: 搜索时自动跳过已处理论文
+启动 Web 管理工具（可选）：
 
-```python
-# 检查是否已处理
-if db_manager.is_processed("2301.12345"):
-    print("论文已处理，跳过")
-else:
-    # 处理论文
-    process_paper(paper)
-    # 标记为已处理
-    db_manager.mark_processed("2301.12345")
+```bash
+# 启动管理界面
+docker compose --profile tools up -d
+
+# 访问地址：
+# pgAdmin: http://localhost:8080
+# 用户名: admin@homesystem.local
+# 密码: admin123
+
+# Redis Commander: http://localhost:8081
 ```
 
-## 高级功能
-
-### 1. 异步操作支持
-
-```python
-import asyncio
-from HomeSystem.integration.database.connection import db_manager
-
-async def async_operations():
-    # 初始化异步连接
-    await db_manager.init_postgres_async()
-    
-    # 异步查询
-    async with db_manager.get_postgres_async() as conn:
-        results = await conn.fetch("SELECT * FROM arxiv_papers LIMIT 10")
-        for row in results:
-            print(f"论文: {row['title']}")
-
-# 运行异步操作
-asyncio.run(async_operations())
-```
-
-### 2. 事务处理
-
-```python
-from HomeSystem.integration.database.connection import db_manager
-
-def batch_operations():
-    with db_manager.get_postgres_sync() as cursor:
-        try:
-            # 开始事务（自动）
-            cursor.execute("INSERT INTO arxiv_papers (arxiv_id, title) VALUES (%s, %s)", 
-                          ("2301.001", "Paper 1"))
-            cursor.execute("INSERT INTO arxiv_papers (arxiv_id, title) VALUES (%s, %s)", 
-                          ("2301.002", "Paper 2"))
-            # 事务自动提交
-            print("批量操作成功")
-        except Exception as e:
-            # 事务自动回滚
-            print(f"批量操作失败: {e}")
-```
-
-### 3. 自定义查询
-
-```python
-def get_papers_by_category(category: str, limit: int = 10):
-    """根据分类获取论文"""
-    with db_manager.get_postgres_sync() as cursor:
-        cursor.execute("""
-            SELECT * FROM arxiv_papers 
-            WHERE categories LIKE %s 
-            ORDER BY created_at DESC 
-            LIMIT %s
-        """, (f"%{category}%", limit))
-        
-        results = cursor.fetchall()
-        return [ArxivPaperModel.from_dict(dict(row)) for row in results]
-
-# 使用示例
-ml_papers = get_papers_by_category("cs.LG", limit=20)
-print(f"找到 {len(ml_papers)} 篇机器学习论文")
-```
-
-### 4. 缓存策略
-
-```python
-from HomeSystem.integration.database.operations import CacheOperations
-
-cache_ops = CacheOperations()
-
-def get_paper_with_cache(arxiv_id: str):
-    """带缓存的论文查询"""
-    cache_key = f"paper:{arxiv_id}"
-    
-    # 先检查缓存
-    cached = cache_ops.get(cache_key)
-    if cached:
-        import json
-        return ArxivPaperModel.from_dict(json.loads(cached))
-    
-    # 从数据库查询
-    paper = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_id)
-    if paper:
-        # 写入缓存（10分钟过期）
-        cache_ops.set(cache_key, json.dumps(paper.to_dict()), expire=600)
-    
-    return paper
-```
-
-## 性能优化
-
-### 1. 连接池配置
-
-```python
-# 在 connection.py 中调整连接池参数
-self.postgres_pool = await asyncpg.create_pool(
-    **self._config['postgres'],
-    min_size=5,        # 最小连接数
-    max_size=20,       # 最大连接数
-    command_timeout=60  # 命令超时时间
-)
-```
-
-### 2. 索引优化
-
-ArXiv 论文表的推荐索引：
-
-```sql
--- 基础索引（已包含在模型中）
-CREATE INDEX IF NOT EXISTS idx_arxiv_papers_arxiv_id ON arxiv_papers(arxiv_id);
-CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status ON arxiv_papers(processing_status);
-CREATE INDEX IF NOT EXISTS idx_arxiv_papers_categories ON arxiv_papers(categories);
-
--- 额外的性能索引
-CREATE INDEX IF NOT EXISTS idx_arxiv_papers_created_at ON arxiv_papers(created_at);
-CREATE INDEX IF NOT EXISTS idx_arxiv_papers_published_date ON arxiv_papers(published_date);
-
--- 复合索引
-CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status_created ON arxiv_papers(processing_status, created_at);
-```
-
-### 3. 批量操作
-
-```python
-def batch_insert_papers(papers: List[ArxivPaperModel]) -> int:
-    """批量插入论文"""
-    with db_manager.get_postgres_sync() as cursor:
-        data = [
-            (p.arxiv_id, p.title, p.abstract, p.categories, p.published_date, 
-             p.pdf_url, p.processing_status, json.dumps(p.tags), json.dumps(p.metadata))
-            for p in papers
-        ]
-        
-        cursor.executemany("""
-            INSERT INTO arxiv_papers 
-            (arxiv_id, title, abstract, categories, published_date, pdf_url, 
-             processing_status, tags, metadata)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (arxiv_id) DO NOTHING
-        """, data)
-        
-        return cursor.rowcount
-```
-
-## 监控和维护
-
-### 1. 数据库状态监控
-
-```python
-def check_database_health():
-    """检查数据库健康状态"""
-    try:
-        # 检查 PostgreSQL
-        with db_manager.get_postgres_sync() as cursor:
-            cursor.execute("SELECT 1")
-            postgres_ok = True
-    except:
-        postgres_ok = False
-    
-    try:
-        # 检查 Redis
-        redis_client = db_manager.get_redis()
-        redis_client.ping()
-        redis_ok = True
-    except:
-        redis_ok = False
-    
-    return {
-        'postgres': postgres_ok,
-        'redis': redis_ok,
-        'overall': postgres_ok and redis_ok
-    }
-
-# 使用示例
-health = check_database_health()
-print(f"数据库状态: {health}")
-```
-
-### 2. 数据库备份
+### 数据库备份与恢复
 
 ```bash
 # PostgreSQL 备份
-docker exec homesystem-postgres pg_dump -U homesystem homesystem > backup.sql
+docker exec homesystem-postgres pg_dump -U homesystem homesystem > backup_$(date +%Y%m%d).sql
 
-# 恢复
-docker exec -i homesystem-postgres psql -U homesystem homesystem < backup.sql
+# PostgreSQL 恢复
+docker exec -i homesystem-postgres psql -U homesystem homesystem < backup_$(date +%Y%m%d).sql
 
-# Redis 备份（RDB 文件）
+# Redis 备份
 docker exec homesystem-redis redis-cli BGSAVE
+
+# 查看 Redis 备份文件
+docker exec homesystem-redis ls -la /data/
 ```
 
-### 3. 日志分析
+## 🔍 ArXiv 集成功能
+
+### 论文自动管理工作流
 
 ```python
-from loguru import logger
+# 完整的论文处理工作流示例
+import psycopg2
+import redis
+import json
 
-# 在操作中添加详细日志
-logger.add("database.log", rotation="1 day", retention="7 days")
+def arxiv_paper_workflow():
+    """ArXiv 论文处理工作流"""
+    
+    # 数据库连接
+    db_conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    redis_client = redis.Redis(host='localhost', port=16379, decode_responses=True)
+    
+    cursor = db_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # 1. 模拟从 ArXiv API 获取论文数据
+    new_papers = [
+        {
+            'arxiv_id': '2024.01004',
+            'title': 'Advances in Neural Network Architectures',
+            'authors': 'Research Team',
+            'abstract': 'This paper presents new neural network architectures...',
+            'categories': 'cs.LG, cs.AI',
+            'published_date': '2024-01-30',
+            'pdf_url': 'https://arxiv.org/pdf/2024.01004.pdf'
+        }
+    ]
+    
+    # 2. 批量插入新论文（去重）
+    for paper in new_papers:
+        # 检查是否已存在
+        cursor.execute("SELECT arxiv_id FROM arxiv_papers WHERE arxiv_id = %s", (paper['arxiv_id'],))
+        if not cursor.fetchone():
+            cursor.execute("""
+                INSERT INTO arxiv_papers (arxiv_id, title, authors, abstract, categories, published_date, pdf_url)
+                VALUES (%(arxiv_id)s, %(title)s, %(authors)s, %(abstract)s, %(categories)s, %(published_date)s, %(pdf_url)s)
+            """, paper)
+            print(f"✅ 新增论文: {paper['title']}")
+        else:
+            print(f"⚠️  论文已存在: {paper['arxiv_id']}")
+    
+    db_conn.commit()
+    
+    # 3. 获取待处理论文
+    cursor.execute("""
+        SELECT arxiv_id, title FROM arxiv_papers 
+        WHERE processing_status = 'pending'
+        LIMIT 10
+    """)
+    
+    pending_papers = cursor.fetchall()
+    print(f"📋 找到 {len(pending_papers)} 篇待处理论文")
+    
+    # 4. 处理论文并更新状态
+    for paper in pending_papers:
+        arxiv_id = paper['arxiv_id']
+        
+        try:
+            # 模拟论文处理（下载、分析等）
+            print(f"🔄 正在处理: {paper['title'][:50]}...")
+            
+            # 处理完成，更新状态
+            cursor.execute("""
+                UPDATE arxiv_papers 
+                SET processing_status = 'completed', 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE arxiv_id = %s
+            """, (arxiv_id,))
+            
+            # 添加到 Redis 已处理集合
+            redis_client.sadd("processed_papers", arxiv_id)
+            
+            print(f"✅ 处理完成: {arxiv_id}")
+            
+        except Exception as e:
+            # 处理失败，标记状态
+            cursor.execute("""
+                UPDATE arxiv_papers 
+                SET processing_status = 'failed', 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE arxiv_id = %s
+            """, (arxiv_id,))
+            print(f"❌ 处理失败: {arxiv_id}, 错误: {e}")
+    
+    db_conn.commit()
+    
+    # 5. 生成统计报告
+    cursor.execute("""
+        SELECT 
+            processing_status,
+            COUNT(*) as count
+        FROM arxiv_papers 
+        GROUP BY processing_status
+    """)
+    
+    stats = cursor.fetchall()
+    print(f"\n📊 处理统计:")
+    for stat in stats:
+        print(f"   {stat['processing_status']}: {stat['count']} 篇")
+    
+    cursor.close()
+    db_conn.close()
 
-def enhanced_create(model: BaseModel) -> bool:
-    start_time = time.time()
-    try:
-        result = db_ops.create(model)
-        duration = time.time() - start_time
-        logger.info(f"创建记录成功: {model.table_name}, 耗时: {duration:.3f}s")
-        return result
-    except Exception as e:
-        duration = time.time() - start_time
-        logger.error(f"创建记录失败: {model.table_name}, 耗时: {duration:.3f}s, 错误: {e}")
-        raise
+# 运行工作流
+if __name__ == "__main__":
+    arxiv_paper_workflow()
 ```
 
-## 故障排除
+### 智能去重机制
 
-### 常见问题
-
-#### 1. 连接失败
 ```python
-# 检查连接配置
-import os
-print("数据库配置:")
-print(f"DB_HOST: {os.getenv('DB_HOST', 'localhost')}")
-print(f"DB_PORT: {os.getenv('DB_PORT', 5432)}")
-print(f"DB_NAME: {os.getenv('DB_NAME', 'homesystem')}")
-
-# 测试连接
-try:
-    with db_manager.get_postgres_sync() as cursor:
-        cursor.execute("SELECT version()")
-        version = cursor.fetchone()
-        print(f"PostgreSQL 版本: {version}")
-except Exception as e:
-    print(f"连接失败: {e}")
+def check_duplicate_papers():
+    """检查重复论文的多种策略"""
+    
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # 1. 基于 arxiv_id 的精确去重（已通过数据库约束实现）
+    print("🔍 基于 ArXiv ID 的去重已通过数据库唯一约束实现")
+    
+    # 2. 基于标题相似度的模糊去重
+    cursor.execute("""
+        WITH similarity_check AS (
+            SELECT 
+                a1.arxiv_id as id1,
+                a2.arxiv_id as id2,
+                a1.title as title1,
+                a2.title as title2,
+                similarity(a1.title, a2.title) as sim_score
+            FROM arxiv_papers a1
+            JOIN arxiv_papers a2 ON a1.id < a2.id
+            WHERE similarity(a1.title, a2.title) > 0.8
+        )
+        SELECT * FROM similarity_check ORDER BY sim_score DESC
+    """)
+    
+    similar_papers = cursor.fetchall()
+    if similar_papers:
+        print(f"⚠️  发现 {len(similar_papers)} 对可能重复的论文:")
+        for paper in similar_papers[:5]:  # 只显示前5个
+            print(f"   相似度 {paper['sim_score']:.3f}: {paper['id1']} vs {paper['id2']}")
+    
+    # 3. 基于作者和发布时间的去重检查
+    cursor.execute("""
+        SELECT authors, published_date, COUNT(*) as count
+        FROM arxiv_papers 
+        WHERE authors IS NOT NULL AND authors != ''
+        GROUP BY authors, published_date
+        HAVING COUNT(*) > 1
+    """)
+    
+    author_duplicates = cursor.fetchall()
+    if author_duplicates:
+        print(f"⚠️  发现 {len(author_duplicates)} 组相同作者同日发布的论文")
+    
+    cursor.close()
+    conn.close()
 ```
 
-#### 2. 表不存在
-```python
-# 手动初始化表
-from HomeSystem.integration.database.models import ArxivPaperModel
+## 🚀 性能优化
 
-db_ops = DatabaseOperations()
-db_ops.init_tables([ArxivPaperModel()])
-print("表初始化完成")
+### 1. 数据库索引优化
+
+系统已创建的索引：
+
+```sql
+-- 主要索引（已存在）
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_arxiv_id ON arxiv_papers(arxiv_id);
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status ON arxiv_papers(processing_status);
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_categories ON arxiv_papers(categories);
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_created_at ON arxiv_papers(created_at);
+
+-- 可选的性能优化索引
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_published_date ON arxiv_papers(published_date);
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status_created ON arxiv_papers(processing_status, created_at);
+
+-- 全文搜索索引（可选）
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_title_fts ON arxiv_papers USING gin(to_tsvector('english', title));
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_abstract_fts ON arxiv_papers USING gin(to_tsvector('english', abstract));
 ```
 
-#### 3. Redis 连接问题
+### 2. 查询优化建议
+
 ```python
-# 测试 Redis 连接
-try:
-    redis_client = db_manager.get_redis()
-    info = redis_client.info()
-    print(f"Redis 版本: {info['redis_version']}")
-    print(f"已用内存: {info['used_memory_human']}")
-except Exception as e:
-    print(f"Redis 连接失败: {e}")
+# ✅ 好的查询实践
+def optimized_queries():
+    """优化的查询示例"""
+    
+    # 1. 使用索引字段进行查询
+    cursor.execute("""
+        SELECT arxiv_id, title FROM arxiv_papers 
+        WHERE processing_status = 'pending'  -- 使用索引
+        ORDER BY created_at DESC             -- 使用索引
+        LIMIT 100
+    """)
+    
+    # 2. 避免 SELECT *，只查询需要的字段
+    cursor.execute("""
+        SELECT arxiv_id, title, authors FROM arxiv_papers 
+        WHERE categories LIKE 'cs.LG%'
+    """)
+    
+    # 3. 使用 EXPLAIN 分析查询计划
+    cursor.execute("EXPLAIN ANALYZE SELECT * FROM arxiv_papers WHERE arxiv_id = '2024.01001'")
+    plan = cursor.fetchall()
+    print("查询计划:", plan)
+
+# ❌ 避免的查询模式
+def slow_queries():
+    """应该避免的慢查询"""
+    
+    # 1. 避免在非索引字段上使用 LIKE
+    # cursor.execute("SELECT * FROM arxiv_papers WHERE abstract LIKE '%machine learning%'")
+    
+    # 2. 避免不必要的 ORDER BY
+    # cursor.execute("SELECT * FROM arxiv_papers ORDER BY abstract")
+    
+    # 3. 避免在大表上使用 COUNT(*) 无条件统计
+    # cursor.execute("SELECT COUNT(*) FROM arxiv_papers")
 ```
 
-### 调试技巧
+### 3. Redis 缓存策略
 
-#### 启用 SQL 日志
 ```python
-import logging
-
-# 启用 asyncpg 日志
-logging.getLogger('asyncpg').setLevel(logging.DEBUG)
-
-# 启用 psycopg2 日志
-logging.basicConfig(level=logging.DEBUG)
-```
-
-#### 性能分析
-```python
+import redis
+import json
 import time
 from functools import wraps
 
-def profile_db_operation(func):
-    """数据库操作性能分析装饰器"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        duration = time.time() - start_time
-        logger.info(f"{func.__name__} 执行时间: {duration:.3f}s")
-        return result
-    return wrapper
+redis_client = redis.Redis(host='localhost', port=16379, decode_responses=True)
+
+def cache_result(expire_time=600):
+    """Redis 缓存装饰器"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # 生成缓存键
+            cache_key = f"cache:{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
+            
+            # 检查缓存
+            cached_result = redis_client.get(cache_key)
+            if cached_result:
+                return json.loads(cached_result)
+            
+            # 执行函数并缓存结果
+            result = func(*args, **kwargs)
+            redis_client.setex(cache_key, expire_time, json.dumps(result, default=str))
+            
+            return result
+        return wrapper
+    return decorator
+
+@cache_result(expire_time=1800)  # 30分钟缓存
+def get_popular_categories():
+    """获取热门分类（带缓存）"""
+    cursor.execute("""
+        SELECT categories, COUNT(*) as count
+        FROM arxiv_papers 
+        GROUP BY categories
+        ORDER BY count DESC
+        LIMIT 10
+    """)
+    return cursor.fetchall()
+```
+
+## 🛠️ 故障排除
+
+### 常见问题及解决方案
+
+#### 1. 数据库连接失败
+
+**问题现象**：
+```
+psycopg2.OperationalError: could not connect to server
+```
+
+**解决方案**：
+```bash
+# 检查容器状态
+docker compose ps
+
+# 检查端口占用
+netstat -an | grep 15432
+
+# 重启数据库服务
+docker compose restart postgres
+
+# 查看详细日志
+docker compose logs postgres
+```
+
+#### 2. Redis 连接问题
+
+**问题现象**：
+```
+redis.exceptions.ConnectionError: Error connecting to Redis
+```
+
+**解决方案**：
+```bash
+# 检查 Redis 服务
+docker exec homesystem-redis redis-cli ping
+
+# 检查 Redis 配置
+docker exec homesystem-redis redis-cli CONFIG GET "*"
+
+# 重启 Redis 服务
+docker compose restart redis
+```
+
+#### 3. 表不存在错误
+
+**问题现象**：
+```
+psycopg2.errors.UndefinedTable: relation "arxiv_papers" does not exist
+```
+
+**解决方案**：
+```bash
+# 手动创建表结构
+docker exec homesystem-postgres psql -U homesystem -d homesystem -c "
+CREATE TABLE IF NOT EXISTS arxiv_papers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    arxiv_id VARCHAR(50) UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    -- ... 其他字段
+);
+"
+
+# 或运行初始化脚本
+python -c "
+import psycopg2
+# 执行表创建 SQL
+"
+```
+
+#### 4. 权限问题
+
+**问题现象**：
+```
+permission denied for table arxiv_papers
+```
+
+**解决方案**：
+```bash
+# 检查用户权限
+docker exec homesystem-postgres psql -U homesystem -d homesystem -c "\dp arxiv_papers"
+
+# 授权（如果需要）
+docker exec homesystem-postgres psql -U homesystem -d homesystem -c "GRANT ALL ON arxiv_papers TO homesystem;"
+```
+
+### 性能调优
+
+#### 监控查询性能
+
+```python
+import time
+import psycopg2
+
+def monitor_query_performance(query, params=None):
+    """查询性能监控"""
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor()
+    
+    start_time = time.time()
+    cursor.execute(query, params)
+    results = cursor.fetchall()
+    end_time = time.time()
+    
+    execution_time = end_time - start_time
+    print(f"查询执行时间: {execution_time:.3f} 秒")
+    print(f"返回记录数: {len(results)}")
+    
+    # 分析查询计划
+    explain_query = f"EXPLAIN ANALYZE {query}"
+    cursor.execute(explain_query, params)
+    plan = cursor.fetchall()
+    
+    print("查询执行计划:")
+    for row in plan:
+        print(f"  {row[0]}")
+    
+    cursor.close()
+    conn.close()
+    
+    return results
 
 # 使用示例
-@profile_db_operation
-def slow_query():
-    with db_manager.get_postgres_sync() as cursor:
-        cursor.execute("SELECT * FROM arxiv_papers ORDER BY created_at")
-        return cursor.fetchall()
+monitor_query_performance("""
+    SELECT arxiv_id, title FROM arxiv_papers 
+    WHERE processing_status = %s 
+    ORDER BY created_at DESC 
+    LIMIT 100
+""", ('pending',))
 ```
 
-## 扩展开发
+## 📈 扩展开发
 
-### 1. 添加新的数据模型
+### 1. 添加自定义数据模型
 
 ```python
-from HomeSystem.integration.database.models import BaseModel
-
-class UserModel(BaseModel):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.username = kwargs.get('username', '')
-        self.email = kwargs.get('email', '')
-        self.preferences = kwargs.get('preferences', {})
+# 扩展用户管理功能
+def create_user_table():
+    """创建用户表"""
+    create_table_sql = """
+    CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        preferences JSONB DEFAULT '{}',
+        favorite_papers JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     
-    @property
-    def table_name(self) -> str:
-        return 'users'
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email,
-            'preferences': json.dumps(self.preferences),
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
-        }
+    -- 创建用户-论文收藏关系表
+    CREATE TABLE IF NOT EXISTS user_favorite_papers (
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        paper_id UUID REFERENCES arxiv_papers(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, paper_id)
+    );
+    """
     
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
-        if 'preferences' in data and isinstance(data['preferences'], str):
-            data['preferences'] = json.loads(data['preferences'])
-        return cls(**data)
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor()
+    cursor.execute(create_table_sql)
+    conn.commit()
+    cursor.close()
+    conn.close()
     
-    def get_create_table_sql(self) -> str:
-        return """
-        CREATE TABLE IF NOT EXISTS users (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            username VARCHAR(100) UNIQUE NOT NULL,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            preferences JSONB DEFAULT '{}',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        """
+    print("✅ 用户表创建完成")
 ```
 
-### 2. 自定义操作类
+### 2. 实现论文推荐系统
 
 ```python
-from HomeSystem.integration.database.operations import DatabaseOperations
-
-class CustomOperations(DatabaseOperations):
-    def get_papers_by_date_range(self, start_date: str, end_date: str) -> List[ArxivPaperModel]:
-        """根据日期范围获取论文"""
-        with self.db_manager.get_postgres_sync() as cursor:
-            cursor.execute("""
-                SELECT * FROM arxiv_papers 
-                WHERE created_at BETWEEN %s AND %s
-                ORDER BY created_at DESC
-            """, (start_date, end_date))
-            
-            results = cursor.fetchall()
-            return [ArxivPaperModel.from_dict(dict(row)) for row in results]
+def recommend_papers(user_id, limit=10):
+    """基于用户偏好推荐论文"""
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    def get_popular_categories(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """获取热门分类统计"""
-        with self.db_manager.get_postgres_sync() as cursor:
-            cursor.execute("""
-                SELECT categories, COUNT(*) as count
-                FROM arxiv_papers 
-                WHERE categories IS NOT NULL
-                GROUP BY categories
-                ORDER BY count DESC
-                LIMIT %s
-            """, (limit,))
-            
-            return [{'category': row['categories'], 'count': row['count']} 
-                   for row in cursor.fetchall()]
-```
-
-## 最佳实践
-
-### 1. 错误处理
-```python
-def safe_database_operation(operation_func):
-    """安全的数据库操作包装器"""
-    try:
-        return operation_func()
-    except Exception as e:
-        logger.error(f"数据库操作失败: {e}")
-        # 根据错误类型决定是否重试
-        if "connection" in str(e).lower():
-            # 连接错误，尝试重连
-            db_manager.postgres_sync_conn = None
-            return operation_func()  # 重试一次
-        raise
-```
-
-### 2. 资源管理
-```python
-def cleanup_old_records():
-    """清理旧记录"""
-    with db_manager.get_postgres_sync() as cursor:
-        # 删除30天前的已处理记录
+    # 1. 获取用户偏好分类
+    cursor.execute("""
+        SELECT DISTINCT ap.categories
+        FROM user_favorite_papers ufp
+        JOIN arxiv_papers ap ON ufp.paper_id = ap.id
+        WHERE ufp.user_id = %s
+    """, (user_id,))
+    
+    user_categories = [row['categories'] for row in cursor.fetchall()]
+    
+    if not user_categories:
+        # 用户没有收藏，推荐热门论文
         cursor.execute("""
-            DELETE FROM arxiv_papers 
-            WHERE processing_status = 'completed' 
-            AND created_at < NOW() - INTERVAL '30 days'
-        """)
+            SELECT arxiv_id, title, categories,
+                   CAST(metadata->>'citation_count' AS INTEGER) as citations
+            FROM arxiv_papers 
+            WHERE metadata->>'citation_count' IS NOT NULL
+            ORDER BY CAST(metadata->>'citation_count' AS INTEGER) DESC
+            LIMIT %s
+        """, (limit,))
+    else:
+        # 基于用户偏好分类推荐
+        category_patterns = [f"%{cat}%" for cat in user_categories]
+        placeholders = ','.join(['%s'] * len(category_patterns))
         
-        deleted_count = cursor.rowcount
-        logger.info(f"清理了 {deleted_count} 条旧记录")
-        return deleted_count
-```
-
-### 3. 配置管理
-```python
-# config.py
-import os
-from typing import Dict, Any
-
-class DatabaseConfig:
-    @staticmethod
-    def get_postgres_config() -> Dict[str, Any]:
-        return {
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'port': int(os.getenv('DB_PORT', 5432)),
-            'database': os.getenv('DB_NAME', 'homesystem'),
-            'user': os.getenv('DB_USER', 'homesystem'),
-            'password': os.getenv('DB_PASSWORD', 'homesystem123'),
-        }
+        cursor.execute(f"""
+            SELECT arxiv_id, title, categories,
+                   CAST(metadata->>'citation_count' AS INTEGER) as citations
+            FROM arxiv_papers 
+            WHERE categories SIMILAR TO '({"|".join(category_patterns)})'
+            AND id NOT IN (
+                SELECT paper_id FROM user_favorite_papers WHERE user_id = %s
+            )
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, [user_id] + [limit])
     
-    @staticmethod
-    def get_redis_config() -> Dict[str, Any]:
-        return {
-            'host': os.getenv('REDIS_HOST', 'localhost'),
-            'port': int(os.getenv('REDIS_PORT', 6379)),
-            'db': int(os.getenv('REDIS_DB', 0)),
-        }
+    recommendations = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    return recommendations
 ```
 
-## 总结
+### 3. 实现数据分析API
 
-Home System 数据库集成提供了：
+```python
+def generate_analytics_report():
+    """生成数据分析报告"""
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    report = {}
+    
+    # 1. 基础统计
+    cursor.execute("""
+        SELECT 
+            COUNT(*) as total_papers,
+            COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending,
+            COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed
+        FROM arxiv_papers
+    """)
+    report['basic_stats'] = cursor.fetchone()
+    
+    # 2. 月度增长趋势
+    cursor.execute("""
+        SELECT 
+            DATE_TRUNC('month', created_at) as month,
+            COUNT(*) as paper_count
+        FROM arxiv_papers 
+        WHERE created_at >= NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', created_at)
+        ORDER BY month
+    """)
+    report['monthly_trend'] = cursor.fetchall()
+    
+    # 3. 热门分类排行
+    cursor.execute("""
+        SELECT 
+            categories,
+            COUNT(*) as count,
+            AVG(CAST(metadata->>'citation_count' AS INTEGER)) as avg_citations
+        FROM arxiv_papers 
+        WHERE metadata->>'citation_count' IS NOT NULL
+        GROUP BY categories
+        ORDER BY count DESC
+        LIMIT 20
+    """)
+    report['popular_categories'] = cursor.fetchall()
+    
+    # 4. 高引用论文
+    cursor.execute("""
+        SELECT 
+            arxiv_id, title, authors,
+            CAST(metadata->>'citation_count' AS INTEGER) as citations
+        FROM arxiv_papers 
+        WHERE metadata->>'citation_count' IS NOT NULL
+        ORDER BY CAST(metadata->>'citation_count' AS INTEGER) DESC
+        LIMIT 10
+    """)
+    report['top_cited_papers'] = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return report
 
-1. **统一的数据访问层**: 简化数据库操作
-2. **多数据库支持**: PostgreSQL + Redis 组合
-3. **容器化部署**: 易于管理和扩展
-4. **性能优化**: 连接池、缓存、索引
-5. **可扩展架构**: 易于添加新功能
+# 生成并保存报告
+def save_analytics_report():
+    """保存分析报告到文件"""
+    report = generate_analytics_report()
+    
+    import json
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"analytics_report_{timestamp}.json"
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(report, f, ensure_ascii=False, indent=2, default=str)
+    
+    print(f"📊 分析报告已保存到: {filename}")
+    return filename
+```
 
-通过这套系统，可以有效解决重复处理问题，提高系统整体性能和可维护性。
+## 🎯 最佳实践
 
-## 参考资源
+### 1. 数据完整性
 
-- [PostgreSQL 官方文档](https://www.postgresql.org/docs/)
-- [Redis 官方文档](https://redis.io/documentation)
-- [asyncpg 文档](https://magicstack.github.io/asyncpg/)
-- [psycopg2 文档](https://www.psycopg.org/docs/)
-- [Docker Compose 文档](https://docs.docker.com/compose/)
+```python
+def ensure_data_integrity():
+    """确保数据完整性的检查"""
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor()
+    
+    integrity_checks = []
+    
+    # 检查必填字段
+    cursor.execute("""
+        SELECT COUNT(*) FROM arxiv_papers 
+        WHERE arxiv_id IS NULL OR arxiv_id = '' OR title IS NULL OR title = ''
+    """)
+    missing_required = cursor.fetchone()[0]
+    integrity_checks.append(f"缺失必填字段的记录: {missing_required}")
+    
+    # 检查重复记录
+    cursor.execute("""
+        SELECT arxiv_id, COUNT(*) FROM arxiv_papers 
+        GROUP BY arxiv_id HAVING COUNT(*) > 1
+    """)
+    duplicates = cursor.fetchall()
+    integrity_checks.append(f"重复的 arxiv_id: {len(duplicates)}")
+    
+    # 检查异常状态
+    cursor.execute("""
+        SELECT COUNT(*) FROM arxiv_papers 
+        WHERE processing_status NOT IN ('pending', 'completed', 'failed')
+    """)
+    invalid_status = cursor.fetchone()[0]
+    integrity_checks.append(f"无效状态的记录: {invalid_status}")
+    
+    cursor.close()
+    conn.close()
+    
+    print("🔍 数据完整性检查结果:")
+    for check in integrity_checks:
+        print(f"  - {check}")
+    
+    return integrity_checks
+```
+
+### 2. 自动化维护任务
+
+```python
+import schedule
+import time
+from datetime import datetime, timedelta
+
+def cleanup_old_data():
+    """清理旧数据"""
+    conn = psycopg2.connect(
+        host='localhost', port=15432, database='homesystem',
+        user='homesystem', password='homesystem123'
+    )
+    cursor = conn.cursor()
+    
+    # 删除30天前的失败记录
+    cursor.execute("""
+        DELETE FROM arxiv_papers 
+        WHERE processing_status = 'failed' 
+        AND created_at < NOW() - INTERVAL '30 days'
+    """)
+    
+    deleted_count = cursor.rowcount
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    print(f"🧹 清理了 {deleted_count} 条过期的失败记录")
+
+def backup_database():
+    """自动备份数据库"""
+    import subprocess
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = f"backup_homesystem_{timestamp}.sql"
+    
+    try:
+        subprocess.run([
+            'docker', 'exec', 'homesystem-postgres',
+            'pg_dump', '-U', 'homesystem', 'homesystem'
+        ], stdout=open(backup_file, 'w'), check=True)
+        
+        print(f"💾 数据库备份完成: {backup_file}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ 备份失败: {e}")
+
+# 设置定时任务
+def setup_maintenance_schedule():
+    """设置维护计划"""
+    schedule.every().day.at("02:00").do(cleanup_old_data)
+    schedule.every().day.at("03:00").do(backup_database)
+    schedule.every().hour.do(ensure_data_integrity)
+    
+    print("⏰ 维护计划已设置:")
+    print("  - 每日 02:00: 清理旧数据")
+    print("  - 每日 03:00: 备份数据库")
+    print("  - 每小时: 数据完整性检查")
+    
+    # 运行调度器
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # 每分钟检查一次
+```
+
+## 📚 总结
+
+Home System 数据库集成提供了完整的 ArXiv 论文管理解决方案，具备以下核心优势：
+
+### ✅ 核心功能
+- **双数据库架构**: PostgreSQL + Redis 高性能组合
+- **智能去重**: 基于 arxiv_id 的精确去重机制
+- **状态管理**: 完整的论文处理状态跟踪
+- **高性能查询**: 优化的索引和查询策略
+- **容器化部署**: Docker Compose 一键部署
+
+### 🚀 技术特性
+- **连接池管理**: 高效的数据库连接复用
+- **事务支持**: 自动事务管理和回滚
+- **缓存策略**: Redis 多层缓存优化
+- **批量操作**: 高效的批量数据处理
+- **监控指标**: 完整的性能监控体系
+
+### 📈 扩展能力
+- **模块化设计**: 易于扩展新功能
+- **API 友好**: 支持 REST API 集成
+- **分析能力**: 内置数据分析功能
+- **用户系统**: 支持多用户和权限管理
+- **推荐算法**: 智能论文推荐
+
+### 🎯 使用建议
+
+1. **生产环境部署**: 
+   - 使用专用的数据库服务器
+   - 配置数据库备份策略
+   - 设置监控和告警系统
+
+2. **性能优化**:
+   - 定期分析慢查询并优化
+   - 合理使用 Redis 缓存
+   - 监控数据库连接池状态
+
+3. **安全考虑**:
+   - 使用强密码和加密连接
+   - 定期更新数据库软件
+   - 限制数据库访问权限
+
+4. **数据管理**:
+   - 定期清理过期数据
+   - 实施数据完整性检查
+   - 建立数据恢复流程
+
+通过本指南，您已经掌握了 Home System 数据库集成的完整使用方法。系统现已准备就绪，可以开始您的 ArXiv 论文管理项目开发！
+
+## 🔗 相关资源
+
+- **示例代码**: `simple_arxiv_demo.py` - 完整的使用示例
+- **Docker 配置**: `docker-compose.yml` - 容器编排配置
+- **数据库架构**: 本文档第4节 - 详细的表结构说明
+- **性能优化**: 本文档第7节 - 性能调优指南
+- **扩展开发**: 本文档第9节 - 自定义开发指南
+
+---
+
+📝 **文档版本**: v2.0 | **更新时间**: 2025-07-27 | **适用版本**: Home System v1.0+
