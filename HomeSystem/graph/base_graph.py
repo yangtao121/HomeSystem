@@ -70,6 +70,40 @@ class BaseGraph(ABC):
         
         return content
 
+    def run(self, input_text: str, thread_id: str = "1"):
+        """
+        运行单次执行模式，区别于chat交互模式
+        
+        Args:
+            input_text: 输入文本
+            thread_id: 线程ID，默认为"1"
+            
+        Returns:
+            str: 原始输出内容，不进行格式化
+        """
+        if self.agent is None:
+            logger.error("Agent is not initialized. Please set the agent before running.")
+            raise ValueError("Agent is not initialized")
+        
+        config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+        input_data = {"messages": [{"role": "user", "content": input_text}]}
+        
+        events = self.agent.stream(
+            input_data,
+            config,
+            stream_mode="values"
+        )
+        
+        # 收集所有非SystemMessage的内容
+        result_content = ""
+        for event in events:
+            message = event["messages"][-1]
+            if not isinstance(message, SystemMessage):
+                if hasattr(message, 'content') and message.content:
+                    result_content = message.content
+        
+        return result_content
+
     def chat(self,):
         logger.info("Starting chat session. Type 'exit' to quit.")
         if self.agent is None:
