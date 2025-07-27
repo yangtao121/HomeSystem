@@ -140,7 +140,7 @@ def demo_basic_operations():
             print(f"     状态: {paper.processing_status}")
         
         # 列出所有论文
-        all_papers = db_ops.list_all(ArxivPaperModel, limit=10)
+        all_papers = db_ops.list_allv (ArxivPaperModel, limit=10)
         print(f"  ✅ 数据库中共有 {len(all_papers)} 篇论文")
         
         # 统计操作

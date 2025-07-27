@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "homesystem"
+version = "0.1.0"
+description = "Home System with ArXiv integration"
+requires-python = ">=3.8"
+dependencies = [
+    "psycopg2-binary",
+    "redis",
+    "requests",
+    "feedparser",
+    "arxiv"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["HomeSystem*"]
+
+[tool.pylsp-mypy]
+enabled = true
+live_mode = true
+
+[tool.pyright]
+include = ["HomeSystem", "examples", "*.py"]
+exclude = ["**/__pycache__", "**/.git"]
+pythonVersion = "3.10"
+pythonPlatform = "Linux"
