@@ -157,7 +157,7 @@ class ArxivData:
 
             # 同时下载到内存和保存到文件
             # 去除标题中的非法字符
-            pdf_title = self.title.replace("/", "_")
+            pdf_title = (self.title or '无标题').replace("/", "_")
             pdf_title = pdf_title.replace(":", "_")
             pdf_title = pdf_title.replace("*", "_")
             pdf_title = pdf_title.replace("?", "_")
@@ -207,20 +207,26 @@ class ArxivData:
         """
         self.pdf = None
     
-    def performOCR(self, max_chars: int = 10000, max_pages: int = None) -> Optional[str]:
+    def performOCR(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
         """
         使用pix2text对PDF进行OCR文字识别，先导出markdown文件再读取内容
+        针对论文分析进行优化，返回完整内容，只限制页数而不限制字符数
         
         Args:
-            max_chars: 最大累计字符数，默认10000字符
-            max_pages: 最大处理页数，默认None（由字符数限制决定）
+            max_pages: 最大处理页数，默认25页（涵盖大部分正常论文）
             
         Returns:
-            str: OCR识别结果文本，如果失败返回None
+            tuple: (OCR识别结果文本, 状态信息字典)
+                - str: OCR识别结果文本，如果失败返回None
+                - dict: 包含状态信息的字典，包含以下键：
+                    - 'total_pages': 总页数
+                    - 'processed_pages': 实际处理页数
+                    - 'is_oversized': 是否超过页数限制（可能是毕业论文等长文档）
+                    - 'char_count': 实际提取的字符数
             
         Raises:
             ValueError: 当PDF内容为空时抛出
-            Exception: 当OCR处理失败时抛出
+            Exception: 当OCR处理失赅时抛出
         """
         if self.pdf is None:
             raise ValueError("PDF内容为空，请先调用downloadPdf方法下载PDF")
@@ -235,7 +241,7 @@ class ArxivData:
             os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
             os.environ['OMP_NUM_THREADS'] = '1'
             
-            logger.info(f"开始对PDF进行OCR识别，使用pix2text，字符限制: {max_chars}")
+            logger.info(f"开始对PDF进行OCR识别，使用pix2text，最大处理{max_pages}页")
             
             # 创建临时目录
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -251,15 +257,16 @@ class ArxivData:
                 
                 logger.info(f"PDF总页数: {total_pages}")
                 
-                # 决定处理的页数
-                if max_pages is None:
-                    # 根据字符限制估算需要处理的页数，保守估计每页800字符
-                    estimated_pages = min(max(1, max_chars // 800), total_pages)
-                    page_numbers = list(range(estimated_pages))
-                else:
-                    page_numbers = list(range(min(max_pages, total_pages)))
+                # 检查是否为超长文档（可能是毕业论文或书籍）
+                is_oversized = total_pages > max_pages
+                if is_oversized:
+                    logger.warning(f"文档页数({total_pages})超过限制({max_pages})，可能是毕业论文或书籍，将只处理前{max_pages}页")
                 
-                logger.info(f"将处理页面: {page_numbers}")
+                # 决定处理的页数
+                pages_to_process = min(max_pages, total_pages)
+                page_numbers = list(range(pages_to_process))
+                
+                logger.info(f"将处理页面: {page_numbers} (共{pages_to_process}页)")
                 
                 # 使用官方方法：初始化pix2text并识别PDF
                 try:
@@ -295,7 +302,7 @@ class ArxivData:
                 
                 logger.info(f"markdown文件已导出到: {output_md_dir}")
                 
-                # 读取生成的markdown文件并限制字符数
+                # 读取生成的markdown文件，不限制字符数
                 all_content = []
                 total_chars = 0
                 
@@ -306,9 +313,6 @@ class ArxivData:
                         md_files = sorted([f for f in files if f.endswith('.md')])
                         
                         for filename in md_files:
-                            if total_chars >= max_chars:
-                                break
-                                
                             filepath = os.path.join(root, filename)
                             try:
                                 with open(filepath, 'r', encoding='utf-8') as f:
@@ -328,34 +332,35 @@ class ArxivData:
                                     
                                     if clean_content:
                                         content_chars = len(clean_content)
-                                        
-                                        # 检查是否会超过字符限制
-                                        if total_chars + content_chars > max_chars:
-                                            # 截取部分内容
-                                            remaining_chars = max_chars - total_chars
-                                            if remaining_chars > 0:
-                                                truncated_content = clean_content[:remaining_chars]
-                                                all_content.append(f"=== {filename} (部分) ===\n{truncated_content}")
-                                                total_chars = max_chars
-                                            break
-                                        else:
-                                            # 添加完整内容
-                                            all_content.append(f"=== {filename} ===\n{clean_content}")
-                                            total_chars += content_chars
+                                        all_content.append(f"=== {filename} ===\n{clean_content}")
+                                        total_chars += content_chars
                                             
                             except Exception as e:
                                 logger.warning(f"读取文件 {filename} 失败: {e}")
                                 continue
                 
-                # 合并所有内容
+                # 合并所有内容并构建状态信息
+                status_info = {
+                    'total_pages': total_pages,
+                    'processed_pages': pages_to_process,
+                    'is_oversized': is_oversized,
+                    'char_count': total_chars
+                }
+                
                 if all_content:
                     self.ocr_result = "\n\n".join(all_content)
-                    logger.info(f"OCR识别完成，处理了 {len(page_numbers)} 页，共提取文本 {total_chars} 个字符")
-                    return self.ocr_result
+                    
+                    # 记录详细信息
+                    status_msg = f"OCR识别完成，处理了 {pages_to_process}/{total_pages} 页，提取文本 {total_chars} 个字符"
+                    if is_oversized:
+                        status_msg += f" (文档超长，可能是毕业论文或书籍)"
+                    
+                    logger.info(status_msg)
+                    return self.ocr_result, status_info
                 else:
                     logger.warning("OCR识别未提取到任何文本")
                     self.ocr_result = ""
-                    return self.ocr_result
+                    return self.ocr_result, status_info
                 
         except Exception as e:
             error_msg = f"OCR识别失败: {str(e)}"
@@ -457,7 +462,10 @@ class ArxivResult:
         print(f"📅 发布时间: {paper.published_date}")
         print(f"🏷️  分类: {paper.categories}")
         print(f"🌐 链接: {paper.link}")
-        print(f"📝 摘要: {paper.snippet[:200]}..." if len(paper.snippet) > 200 else f"📝 摘要: {paper.snippet}")
+        if paper.snippet:
+            print(f"📝 摘要: {paper.snippet[:200]}..." if len(paper.snippet) > 200 else f"📝 摘要: {paper.snippet}")
+        else:
+            print("📝 摘要: 无")
         print(f"📥 PDF: {paper.pdf_link}")
         
         # 显示标签（如果有）
@@ -518,8 +526,8 @@ class ArxivResult:
         print("=" * 60)
         
         for i, paper in enumerate(self.results[:display_count], 1):
-            print(f"{i:2d}. {paper.published_date} | {paper.title[:60]}...")
-            print(f"    🔗 {paper.arxiv_id or '未知ID'} | 🏷️ {paper.categories}")
+            print(f"{i:2d}. {paper.published_date} | {(paper.title or '无标题')[:60]}...")
+            print(f"    🔗 {paper.arxiv_id or '未知ID'} | 🏷️ {paper.categories or '无分类'}")
             print()
         
         if display_count < self.num_results:
@@ -539,7 +547,7 @@ class ArxivResult:
         print("-" * 50)
         
         for i, paper in enumerate(self.results[:display_count], 1):
-            print(f"{i:3d}. {paper.title}")
+            print(f"{i:3d}. {paper.title or '无标题'}")
         
         if display_count < self.num_results:
             print(f"\n... 还有 {self.num_results - display_count} 篇论文")
@@ -824,7 +832,7 @@ if __name__ == "__main__":
     print("="*50)
     
     if results.num_results > 0:
-        test_paper = results.results[1]
+        test_paper = results.results[2]
         print(f"📄 测试论文: {test_paper.title[:60]}...")
         
         try:
@@ -832,13 +840,16 @@ if __name__ == "__main__":
             print("📥 下载PDF中...")
             test_paper.downloadPdf()
             
-            # 执行OCR（限制10K字符）
+            # 执行OCR（不限制字符数，只限制页数）
             print("🔍 执行OCR识别...")
-            ocr_result = test_paper.performOCR(max_chars=10000)
+            ocr_result, status_info = test_paper.performOCR()
             
             if ocr_result:
                 print(f"✅ OCR完成，提取文本: {len(ocr_result)} 字符")
-                print(f"📝 结果预览: {ocr_result[:200]}...")
+                print(f"📄 处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+                if status_info['is_oversized']:
+                    print("⚠️ 文档超长，可能是毕业论文或书籍")
+                print(f"📝 结果预览: {ocr_result}")
             else:
                 print("❌ OCR未提取到文本")
                 
