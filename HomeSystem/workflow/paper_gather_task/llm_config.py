@@ -26,6 +26,13 @@ This is the preliminary screening stage. Please quickly determine:
 2. Whether the research content is relevant
 3. Provide a concise judgment reasoning
 
+IMPORTANT: The relevance_score MUST be a decimal number between 0.0 and 1.0 (e.g., 0.85, 0.92, 0.15).
+- 0.0 = completely irrelevant
+- 0.5 = moderately relevant  
+- 1.0 = extremely relevant
+
+Do NOT use scores like 85, 9, or any number greater than 1.0.
+
 Please make a quick and accurate preliminary judgment based on the abstract content."""
         
         # Create LLM instance
@@ -40,7 +47,9 @@ Please make a quick and accurate preliminary judgment based on the abstract cont
 
 Paper Abstract: {abstract}
 
-Please quickly determine whether this abstract is relevant to the user requirements."""
+Please quickly determine whether this abstract is relevant to the user requirements.
+
+Remember: relevance_score must be between 0.0 and 1.0 (decimal format, not percentage)."""
         
         try:
             messages = [

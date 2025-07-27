@@ -10,7 +10,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))  # 添加上级目录到路径，以便导入 HomeSystem
 from HomeSystem.workflow.task import Task
 from HomeSystem.workflow.engine import WorkflowEngine
-from HomeSystem.workflow.paper_gather_task import PaperGatherTask
+from HomeSystem.workflow import PaperGatherTask
 
 # 配置日志
 logging.basicConfig(
@@ -51,7 +51,7 @@ async def main():
     # 添加任务
     engine.add_task(HelloTask())
     engine.add_task(CounterTask())
-    engine.add_task(PaperGatherTask(interval_seconds=30))  # 每30秒执行一次（用于测试）
+    engine.add_task(PaperGatherTask())  # 每30秒执行一次（用于测试）
     
     print("工作流引擎已启动，任务列表：")
     for task_info in engine.list_tasks():

@@ -1,0 +1,50 @@
+{
+  "model_name": "ollama.Qwen3_30B",
+  "memory_enabled": false,
+  "parallel_execution": true,
+  "validate_results": true,
+  "custom_settings": {
+    "description": "English academic paper analysis agent configuration using parallel LLM extraction",
+    "version": "2.0.0",
+    "extraction_method": "parallel_llm",
+    "supported_fields": [
+      "keywords",
+      "research_background", 
+      "research_objectives",
+      "methods",
+      "key_findings",
+      "conclusions",
+      "limitations",  
+      "future_work"
+    ],
+    "parallel_tools": {
+      "background_objectives_tool": {
+        "fields": ["research_background", "research_objectives"],
+        "description": "Extract research context and goals"
+      },
+      "methods_findings_tool": {
+        "fields": ["methods", "key_findings"],
+        "description": "Extract methodology and results"
+      },
+      "conclusions_future_tool": {
+        "fields": ["conclusions", "limitations", "future_work"],
+        "description": "Extract conclusions and future directions"
+      },
+      "keywords_synthesis_tool": {
+        "fields": ["keywords"],
+        "description": "Synthesize keywords from extracted content",
+        "depends_on": ["research_background", "research_objectives", "methods", "key_findings", "conclusions"]
+      }
+    },
+    "workflow_strategy": {
+      "phase_1": "Parallel extraction of 3 field groups using specialized LLMs",
+      "phase_2": "Keyword synthesis from extracted content to save tokens",
+      "phase_3": "Result aggregation and validation for 8-field output"
+    },
+    "performance_benefits": {
+      "token_efficiency": "Keywords generated from existing content, not original paper",
+      "parallel_speed": "3x faster than iterative approach",
+      "specialization": "Each LLM focuses on specific content types"
+    }
+  }
+}

@@ -5,12 +5,20 @@ from tqdm import tqdm
 import os
 import re
 from datetime import datetime
+import io
+from typing import Optional
 
 import requests
 import xml.etree.ElementTree as ET
 import urllib.parse
 import time
 import feedparser
+
+# OCR 相关导入
+from pix2text import Pix2Text
+import fitz  # PyMuPDF
+from PIL import Image
+import numpy as np
 
 
 class ArxivData:
@@ -42,6 +50,9 @@ class ArxivData:
 
         # 论文的tag
         self.tag: list[str] = []
+        
+        # OCR识别结果
+        self.ocr_result: Optional[str] = None
         
         # 提取ArXiv ID和发布时间
         self.arxiv_id = self._extract_arxiv_id()
@@ -195,6 +206,176 @@ class ArxivData:
         清空PDF内容, 释放内存
         """
         self.pdf = None
+    
+    def performOCR(self, max_chars: int = 10000, max_pages: int = None) -> Optional[str]:
+        """
+        使用pix2text对PDF进行OCR文字识别，先导出markdown文件再读取内容
+        
+        Args:
+            max_chars: 最大累计字符数，默认10000字符
+            max_pages: 最大处理页数，默认None（由字符数限制决定）
+            
+        Returns:
+            str: OCR识别结果文本，如果失败返回None
+            
+        Raises:
+            ValueError: 当PDF内容为空时抛出
+            Exception: 当OCR处理失败时抛出
+        """
+        if self.pdf is None:
+            raise ValueError("PDF内容为空，请先调用downloadPdf方法下载PDF")
+        
+        try:
+            import os
+            import tempfile
+            import shutil
+            
+            # 强制设置CPU模式，避免CUDA相关错误
+            os.environ['CUDA_VISIBLE_DEVICES'] = ''
+            os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+            os.environ['OMP_NUM_THREADS'] = '1'
+            
+            logger.info(f"开始对PDF进行OCR识别，使用pix2text，字符限制: {max_chars}")
+            
+            # 创建临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # 保存PDF到临时文件
+                tmp_pdf_path = os.path.join(temp_dir, 'input.pdf')
+                with open(tmp_pdf_path, 'wb') as f:
+                    f.write(self.pdf)
+                
+                # 使用PyMuPDF检查总页数
+                pdf_document = fitz.open(tmp_pdf_path)
+                total_pages = len(pdf_document)
+                pdf_document.close()
+                
+                logger.info(f"PDF总页数: {total_pages}")
+                
+                # 决定处理的页数
+                if max_pages is None:
+                    # 根据字符限制估算需要处理的页数，保守估计每页800字符
+                    estimated_pages = min(max(1, max_chars // 800), total_pages)
+                    page_numbers = list(range(estimated_pages))
+                else:
+                    page_numbers = list(range(min(max_pages, total_pages)))
+                
+                logger.info(f"将处理页面: {page_numbers}")
+                
+                # 使用官方方法：初始化pix2text并识别PDF
+                try:
+                    # 禁用可能导致问题的组件，只保留文本OCR
+                    config = {
+                        'text_ocr': {'enabled': True},
+                        'layout': {'enabled': True},  # 禁用布局检测
+                        'formula': {'enabled': True},  # 禁用公式识别
+                        'table': {'enabled': True},   # 禁用表格识别
+                        'mfd': {'enabled': True}       # 禁用数学公式检测
+                    }
+                    p2t = Pix2Text.from_config(config=config)
+                    logger.info("使用简化配置初始化pix2text成功")
+                except Exception as e:
+                    logger.warning(f"简化配置初始化失败: {e}，尝试默认配置")
+                    try:
+                        # 使用默认配置
+                        p2t = Pix2Text()
+                        logger.info("使用默认配置初始化pix2text成功")
+                    except Exception as e2:
+                        logger.error(f"默认配置也失败: {e2}")
+                        raise Exception(f"pix2text初始化失败: {e2}")
+                
+                doc = p2t.recognize_pdf(tmp_pdf_path, page_numbers=page_numbers)
+                
+                # 导出markdown到临时目录
+                # output_md_dir = os.path.join(temp_dir, 'output-md')
+
+                # 保存到当前目录下用于debug
+
+                output_md_dir = os.path.join(os.getcwd(), 'output-md')
+                doc.to_markdown(output_md_dir)
+                
+                logger.info(f"markdown文件已导出到: {output_md_dir}")
+                
+                # 读取生成的markdown文件并限制字符数
+                all_content = []
+                total_chars = 0
+                
+                if os.path.exists(output_md_dir):
+                    # 遍历所有markdown文件
+                    for root, dirs, files in os.walk(output_md_dir):
+                        # 按文件名排序以保持页面顺序
+                        md_files = sorted([f for f in files if f.endswith('.md')])
+                        
+                        for filename in md_files:
+                            if total_chars >= max_chars:
+                                break
+                                
+                            filepath = os.path.join(root, filename)
+                            try:
+                                with open(filepath, 'r', encoding='utf-8') as f:
+                                    content = f.read().strip()
+                                
+                                if content:
+                                    # 清理markdown格式，转换为纯文本
+                                    import re
+                                    clean_content = content
+                                    clean_content = re.sub(r'!\[.*?\]\(.*?\)', '', clean_content)  # 移除图片
+                                    clean_content = re.sub(r'\[([^\]]*)\]\([^\)]*\)', r'\1', clean_content)  # 保留链接文本
+                                    clean_content = re.sub(r'#{1,6}\s*', '', clean_content)  # 移除标题标记
+                                    clean_content = re.sub(r'\*{1,2}(.*?)\*{1,2}', r'\1', clean_content)  # 移除粗体/斜体
+                                    clean_content = re.sub(r'`{1,3}(.*?)`{1,3}', r'\1', clean_content)  # 移除代码标记
+                                    clean_content = re.sub(r'\n\s*\n', '\n\n', clean_content)  # 规范化空行
+                                    clean_content = clean_content.strip()
+                                    
+                                    if clean_content:
+                                        content_chars = len(clean_content)
+                                        
+                                        # 检查是否会超过字符限制
+                                        if total_chars + content_chars > max_chars:
+                                            # 截取部分内容
+                                            remaining_chars = max_chars - total_chars
+                                            if remaining_chars > 0:
+                                                truncated_content = clean_content[:remaining_chars]
+                                                all_content.append(f"=== {filename} (部分) ===\n{truncated_content}")
+                                                total_chars = max_chars
+                                            break
+                                        else:
+                                            # 添加完整内容
+                                            all_content.append(f"=== {filename} ===\n{clean_content}")
+                                            total_chars += content_chars
+                                            
+                            except Exception as e:
+                                logger.warning(f"读取文件 {filename} 失败: {e}")
+                                continue
+                
+                # 合并所有内容
+                if all_content:
+                    self.ocr_result = "\n\n".join(all_content)
+                    logger.info(f"OCR识别完成，处理了 {len(page_numbers)} 页，共提取文本 {total_chars} 个字符")
+                    return self.ocr_result
+                else:
+                    logger.warning("OCR识别未提取到任何文本")
+                    self.ocr_result = ""
+                    return self.ocr_result
+                
+        except Exception as e:
+            error_msg = f"OCR识别失败: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+    
+    def getOcrResult(self) -> Optional[str]:
+        """
+        获取OCR识别结果
+        
+        Returns:
+            str: OCR识别结果，如果未进行OCR识别则返回None
+        """
+        return self.ocr_result
+    
+    def clearOcrResult(self):
+        """
+        清空OCR识别结果，释放内存
+        """
+        self.ocr_result = None
 
     def clear_invalid_characters(self, string: str) -> str:
         """
@@ -636,6 +817,35 @@ if __name__ == "__main__":
             print("   未找到符合条件的论文")
     
     print("\n=== 🎉 ArXiv API 重构完成！现在支持丰富的结构化显示功能 ===")
+    
+    # OCR 功能测试
+    print("\n" + "="*50)
+    print("🔍 OCR功能测试")
+    print("="*50)
+    
+    if results.num_results > 0:
+        test_paper = results.results[1]
+        print(f"📄 测试论文: {test_paper.title[:60]}...")
+        
+        try:
+            # 下载PDF
+            print("📥 下载PDF中...")
+            test_paper.downloadPdf()
+            
+            # 执行OCR（限制10K字符）
+            print("🔍 执行OCR识别...")
+            ocr_result = test_paper.performOCR(max_chars=10000)
+            
+            if ocr_result:
+                print(f"✅ OCR完成，提取文本: {len(ocr_result)} 字符")
+                print(f"📝 结果预览: {ocr_result[:200]}...")
+            else:
+                print("❌ OCR未提取到文本")
+                
+        except Exception as e:
+            print(f"❌ OCR测试失败: {str(e)}")
+    
+    print("="*50)
     
     # 使用指南
     print("\n📖 结构化显示功能使用指南:")

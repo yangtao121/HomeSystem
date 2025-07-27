@@ -26,20 +26,18 @@ ArXiv 学术论文搜索和下载工具
 
 from .arxiv import ArxivTool, ArxivData, ArxivResult
 
-# 数据库集成相关导入（可选）
-try:
-    from .database_integration import ArxivDatabaseManager, EnhancedArxivTool
-    __all__ = [
-        "ArxivTool",
-        "EnhancedArxivTool", 
-        "ArxivData",
-        "ArxivResult",
-        "ArxivDatabaseManager"
-    ]
-except ImportError:
-    # 如果数据库依赖不可用，只导出基础功能
-    __all__ = [
-        "ArxivTool",
-        "ArxivData", 
-        "ArxivResult"
-    ]
+# 数据库集成相关导入（暂时禁用）
+# 由于路径解析问题，暂时禁用数据库集成功能
+# try:
+#     from .database_integration import ArxivDatabaseManager
+#     DATABASE_AVAILABLE = True
+# except Exception:
+#     DATABASE_AVAILABLE = False
+
+__all__ = [
+    "ArxivTool",
+    "ArxivData", 
+    "ArxivResult"
+]
+
+# 注意：如需数据库集成功能，请确保数据库模块路径正确配置

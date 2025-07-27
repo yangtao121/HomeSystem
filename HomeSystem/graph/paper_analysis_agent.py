@@ -1,7 +1,7 @@
 """
 论文分析Agent
 
-基于LangGraph的英文论文分析智能体，专门用于提取和分析学术论文的结构化信息。
+基于LangGraph的英文论文分析智能体，使用并行LLM提取不同字段组，提高效率。
 """
 from .llm_factory import llm_factory
 from .base_graph import BaseGraph
@@ -16,17 +16,27 @@ import json
 from pathlib import Path
 from loguru import logger
 
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
+# from langchain_core.messages import AIMessage  # Not used in parallel implementation
 
 
 class PaperAnalysisState(TypedDict):
     """论文分析状态"""
     paper_text: str  # 输入的论文文本
-    iteration_round: Annotated[int, operator.add]  # 当前迭代轮次
-    analysis_result: Optional[Dict[str, Any]]  # 分析结果
-    quality_assessment: Optional[Dict[str, Any]]  # 质量评估结果
-    iteration_history: Annotated[List[Dict[str, Any]], operator.add]  # 迭代历史
-    final_result: Optional[Dict[str, Any]]  # 最终结果
+    
+    # 并行提取的字段组
+    background_objectives_result: Optional[Dict[str, Any]]  # 背景和目标
+    methods_findings_result: Optional[Dict[str, Any]]      # 方法和发现
+    conclusions_future_result: Optional[Dict[str, Any]]    # 结论、限制和未来工作
+    
+    # 合成的关键词
+    keywords_result: Optional[Dict[str, Any]]
+    
+    # 最终聚合结果
+    final_result: Optional[Dict[str, Any]]
+    
+    # 执行状态跟踪
+    parallel_tasks_completed: Annotated[int, operator.add]
+    extraction_errors: Annotated[List[str], operator.add]
 
 
 class PaperAnalysisConfig:
@@ -34,17 +44,15 @@ class PaperAnalysisConfig:
     
     def __init__(self, 
                  model_name: str = "ollama.Qwen3_30B",
-                 max_iterations: int = 3,
-                 quality_threshold: float = 8.0,
                  memory_enabled: bool = False,
-                 auto_improve: bool = True,
+                 parallel_execution: bool = True,
+                 validate_results: bool = True,
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.model_name = model_name
-        self.max_iterations = max_iterations
-        self.quality_threshold = quality_threshold  # 质量阈值，超过此值则接受结果
         self.memory_enabled = memory_enabled
-        self.auto_improve = auto_improve  # 是否自动进行迭代改进
+        self.parallel_execution = parallel_execution  # 是否启用并行执行
+        self.validate_results = validate_results      # 是否验证结果完整性
         self.custom_settings = custom_settings or {}
     
     @classmethod
@@ -62,10 +70,9 @@ class PaperAnalysisConfig:
         """保存配置到文件"""
         config_data = {
             'model_name': self.model_name,
-            'max_iterations': self.max_iterations,
-            'quality_threshold': self.quality_threshold,
             'memory_enabled': self.memory_enabled,
-            'auto_improve': self.auto_improve,
+            'parallel_execution': self.parallel_execution,
+            'validate_results': self.validate_results,
             'custom_settings': self.custom_settings
         }
         
@@ -83,9 +90,9 @@ class PaperAnalysisAgent(BaseGraph):
     
     功能：
     1. 接收OCR处理后的英文论文全文
-    2. 使用LLM进行结构化分析，提取8个关键字段
-    3. 通过迭代优化提高分析质量
-    4. 输出标准化的JSON格式结果
+    2. 使用3个LLM并行提取不同字段组
+    3. 从已提取字段合成关键词
+    4. 聚合所有结果为标准化的8字段JSON格式
     """
     
     def __init__(self, 
@@ -109,8 +116,10 @@ class PaperAnalysisAgent(BaseGraph):
         
         # 创建分析工具
         self.tools = create_paper_analysis_tools(self.llm)
-        self.structured_analysis_tool = self.tools[0]  # StructuredAnalysisTool
-        self.quality_assessment_tool = self.tools[1]  # QualityAssessmentTool
+        self.background_objectives_tool = self.tools[0]  # BackgroundObjectivesTool
+        self.methods_findings_tool = self.tools[1]       # MethodsFindingsTool
+        self.conclusions_future_tool = self.tools[2]     # ConclusionsFutureTool
+        self.keywords_synthesis_tool = self.tools[3]     # KeywordsSynthesisTool
         
         # 设置内存管理
         self.memory = MemorySaver() if self.config.memory_enabled else None
@@ -121,227 +130,229 @@ class PaperAnalysisAgent(BaseGraph):
         logger.info("论文分析智能体初始化完成")
     
     def _build_graph(self) -> None:
-        """构建分析工作流图"""
+        """构建并行分析工作流图"""
         # 创建状态图
         graph = StateGraph(PaperAnalysisState)
         
-        # 添加节点
-        graph.add_node("initial_analysis", self._initial_analysis_node)
-        graph.add_node("quality_check", self._quality_check_node)
-        graph.add_node("refinement", self._refinement_node)
-        graph.add_node("finalize", self._finalize_node)
+        # 添加并行提取节点
+        graph.add_node("extract_background_objectives", self._extract_background_objectives_node)
+        graph.add_node("extract_methods_findings", self._extract_methods_findings_node)  
+        graph.add_node("extract_conclusions_future", self._extract_conclusions_future_node)
         
-        # 设置流程
-        graph.add_edge(START, "initial_analysis")
-        graph.add_edge("initial_analysis", "quality_check")
-        graph.add_conditional_edges(
-            "quality_check",
-            self._should_refine,
-            {
-                "refine": "refinement",
-                "finalize": "finalize"
-            }
-        )
-        graph.add_edge("refinement", "quality_check")
-        graph.add_edge("finalize", END)
+        # 添加关键词合成和结果聚合节点
+        graph.add_node("synthesize_keywords", self._synthesize_keywords_node)
+        graph.add_node("aggregate_results", self._aggregate_results_node)
+        
+        # 设置并行流程
+        graph.add_edge(START, "extract_background_objectives")
+        graph.add_edge(START, "extract_methods_findings")
+        graph.add_edge(START, "extract_conclusions_future")
+        
+        # 所有并行提取完成后，进行关键词合成
+        graph.add_edge("extract_background_objectives", "synthesize_keywords")
+        graph.add_edge("extract_methods_findings", "synthesize_keywords") 
+        graph.add_edge("extract_conclusions_future", "synthesize_keywords")
+        
+        # 关键词合成完成后，聚合所有结果
+        graph.add_edge("synthesize_keywords", "aggregate_results")
+        graph.add_edge("aggregate_results", END)
         
         # 编译图
         self.agent = graph.compile(checkpointer=self.memory)
         
-        logger.info("论文分析工作流图构建完成")
+        logger.info("并行论文分析工作流图构建完成")
     
-    def _initial_analysis_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
-        """初始分析节点"""
-        logger.info("开始初始论文分析...")
+    def _extract_background_objectives_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
+        """提取背景和目标节点"""
+        logger.info("开始并行提取：研究背景和目标...")
         
         try:
-            # 使用结构化分析工具进行初始分析
-            result = self.structured_analysis_tool._run(
-                paper_text=state["paper_text"],
-                iteration_round=1
+            result = self.background_objectives_tool._run(paper_text=state["paper_text"])
+            
+            # 尝试解析JSON结果
+            try:
+                parsed_result = json.loads(result)
+                logger.info("背景和目标提取完成")
+                return {
+                    "background_objectives_result": parsed_result,
+                    "parallel_tasks_completed": 1
+                }
+            except json.JSONDecodeError:
+                logger.warning("背景和目标提取结果不是有效JSON格式")
+                return {
+                    "background_objectives_result": {"raw_result": result},
+                    "parallel_tasks_completed": 1
+                }
+                
+        except Exception as e:
+            logger.error(f"背景和目标提取失败: {e}")
+            return {
+                "background_objectives_result": {"error": f"提取失败: {str(e)}"},
+                "parallel_tasks_completed": 1,
+                "extraction_errors": [f"背景和目标提取: {str(e)}"]
+            }
+    
+    def _extract_methods_findings_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
+        """提取方法和发现节点"""
+        logger.info("开始并行提取：研究方法和主要发现...")
+        
+        try:
+            result = self.methods_findings_tool._run(paper_text=state["paper_text"])
+            
+            # 尝试解析JSON结果
+            try:
+                parsed_result = json.loads(result)
+                logger.info("方法和发现提取完成")
+                return {
+                    "methods_findings_result": parsed_result,
+                    "parallel_tasks_completed": 1
+                }
+            except json.JSONDecodeError:
+                logger.warning("方法和发现提取结果不是有效JSON格式")
+                return {
+                    "methods_findings_result": {"raw_result": result},
+                    "parallel_tasks_completed": 1
+                }
+                
+        except Exception as e:
+            logger.error(f"方法和发现提取失败: {e}")
+            return {
+                "methods_findings_result": {"error": f"提取失败: {str(e)}"},
+                "parallel_tasks_completed": 1,
+                "extraction_errors": [f"方法和发现提取: {str(e)}"]
+            }
+    
+    def _extract_conclusions_future_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
+        """提取结论和未来工作节点"""
+        logger.info("开始并行提取：结论、限制和未来工作...")
+        
+        try:
+            result = self.conclusions_future_tool._run(paper_text=state["paper_text"])
+            
+            # 尝试解析JSON结果
+            try:
+                parsed_result = json.loads(result)
+                logger.info("结论和未来工作提取完成")
+                return {
+                    "conclusions_future_result": parsed_result,
+                    "parallel_tasks_completed": 1
+                }
+            except json.JSONDecodeError:
+                logger.warning("结论和未来工作提取结果不是有效JSON格式")
+                return {
+                    "conclusions_future_result": {"raw_result": result},
+                    "parallel_tasks_completed": 1
+                }
+                
+        except Exception as e:
+            logger.error(f"结论和未来工作提取失败: {e}")
+            return {
+                "conclusions_future_result": {"error": f"提取失败: {str(e)}"},
+                "parallel_tasks_completed": 1,
+                "extraction_errors": [f"结论和未来工作提取: {str(e)}"]
+            }
+    
+    def _synthesize_keywords_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
+        """合成关键词节点"""
+        logger.info("开始从已提取字段合成关键词...")
+        
+        try:
+            # 检查所有并行任务是否完成
+            if state.get("parallel_tasks_completed", 0) < 3:
+                logger.warning("并行提取任务未全部完成，等待...")
+                return {}
+            
+            # 提取各个字段的内容
+            background_obj = state.get("background_objectives_result") or {}
+            methods_find = state.get("methods_findings_result") or {}
+            conclusions_fut = state.get("conclusions_future_result") or {}
+            
+            # 提取具体字段内容
+            research_background = background_obj.get("research_background", "")
+            research_objectives = background_obj.get("research_objectives", "")
+            methods = methods_find.get("methods", "")
+            key_findings = methods_find.get("key_findings", "")
+            conclusions = conclusions_fut.get("conclusions", "")
+            
+            # 检查字段完整性
+            if not all([research_background, research_objectives, methods, key_findings, conclusions]):
+                logger.warning("部分字段提取不完整，使用可用内容合成关键词")
+            
+            # 调用关键词合成工具
+            result = self.keywords_synthesis_tool._run(
+                research_background=research_background,
+                research_objectives=research_objectives,
+                methods=methods,
+                key_findings=key_findings,
+                conclusions=conclusions
             )
             
             # 尝试解析JSON结果
             try:
-                analysis_result = json.loads(result)
-                logger.info("初始分析完成，成功提取结构化数据")
+                parsed_result = json.loads(result)
+                logger.info("关键词合成完成")
+                return {"keywords_result": parsed_result}
             except json.JSONDecodeError:
-                logger.warning("初始分析结果不是有效JSON格式，使用原始结果")
-                analysis_result = {"raw_result": result}
-            
-            return {
-                "iteration_round": 1,
-                "analysis_result": analysis_result,
-                "iteration_history": [{
-                    "round": 1,
-                    "type": "initial_analysis",
-                    "result": analysis_result,
-                    "timestamp": self._get_timestamp()
-                }]
-            }
-            
+                logger.warning("关键词合成结果不是有效JSON格式")
+                return {"keywords_result": {"raw_result": result}}
+                
         except Exception as e:
-            logger.error(f"初始分析失败: {e}")
+            logger.error(f"关键词合成失败: {e}")
             return {
-                "iteration_round": 1,
-                "analysis_result": {"error": f"初始分析失败: {str(e)}"},
-                "iteration_history": [{
-                    "round": 1,
-                    "type": "error",
-                    "error": str(e),
-                    "timestamp": self._get_timestamp()
-                }]
+                "keywords_result": {"error": f"合成失败: {str(e)}"},
+                "extraction_errors": [f"关键词合成: {str(e)}"]
             }
     
-    def _quality_check_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
-        """质量检查节点"""
-        logger.info(f"执行第{state['iteration_round']}轮质量检查...")
+    def _aggregate_results_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
+        """聚合结果节点"""
+        logger.info("开始聚合所有提取结果...")
         
         try:
-            if not state.get("analysis_result"):
-                logger.error("没有分析结果可供质量检查")
-                return {"quality_assessment": {"error": "没有分析结果"}}
+            # 提取各个部分的结果
+            background_obj = state.get("background_objectives_result") or {}
+            methods_find = state.get("methods_findings_result") or {}
+            conclusions_fut = state.get("conclusions_future_result") or {}
+            keywords = state.get("keywords_result") or {}
             
-            # 使用质量评估工具
-            assessment_result = self.quality_assessment_tool._run(
-                json.dumps(state["analysis_result"], ensure_ascii=False)
-            )
-            
-            # 尝试解析评估结果
-            try:
-                quality_assessment = json.loads(assessment_result)
-                overall_score = quality_assessment.get("overall_score", 0)
-                recommendation = quality_assessment.get("recommendation", "REFINE")
-                
-                logger.info(f"质量评估完成 - 总分: {overall_score}, 建议: {recommendation}")
-                
-                return {
-                    "quality_assessment": quality_assessment,
-                    "iteration_history": [{
-                        "round": state["iteration_round"],
-                        "type": "quality_check",
-                        "assessment": quality_assessment,
-                        "timestamp": self._get_timestamp()
-                    }]
-                }
-                
-            except json.JSONDecodeError:
-                logger.warning("质量评估结果不是有效JSON格式")
-                return {
-                    "quality_assessment": {"raw_assessment": assessment_result},
-                    "iteration_history": [{
-                        "round": state["iteration_round"],
-                        "type": "quality_check_error",
-                        "error": "JSON解析失败",
-                        "timestamp": self._get_timestamp()
-                    }]
-                }
-                
-        except Exception as e:
-            logger.error(f"质量检查失败: {e}")
-            return {
-                "quality_assessment": {"error": f"质量检查失败: {str(e)}"},
-                "iteration_history": [{
-                    "round": state["iteration_round"],
-                    "type": "error",
-                    "error": str(e),
-                    "timestamp": self._get_timestamp()
-                }]
+            # 构建最终的8字段结构
+            final_analysis = {
+                "keywords": keywords.get("keywords", []),
+                "research_background": background_obj.get("research_background", ""),
+                "research_objectives": background_obj.get("research_objectives", ""),
+                "methods": methods_find.get("methods", ""),
+                "key_findings": methods_find.get("key_findings", ""),
+                "conclusions": conclusions_fut.get("conclusions", ""),
+                "limitations": conclusions_fut.get("limitations", ""),
+                "future_work": conclusions_fut.get("future_work", "")
             }
-    
-    def _refinement_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
-        """改进节点"""
-        new_round = state["iteration_round"] + 1
-        logger.info(f"开始第{new_round}轮分析改进...")
-        
-        try:
-            # 使用结构化分析工具进行改进分析
-            result = self.structured_analysis_tool._run(
-                paper_text=state["paper_text"],
-                iteration_round=new_round,
-                previous_analysis=state.get("analysis_result")
-            )
             
-            # 尝试解析JSON结果
-            try:
-                refined_result = json.loads(result)
-                logger.info(f"第{new_round}轮改进分析完成")
-            except json.JSONDecodeError:
-                logger.warning(f"第{new_round}轮分析结果不是有效JSON格式")
-                refined_result = {"raw_result": result}
+            # 验证结果完整性
+            if self.config.validate_results:
+                missing_fields = [field for field, value in final_analysis.items() 
+                                if not value or (isinstance(value, list) and not value)]
+                if missing_fields:
+                    logger.warning(f"以下字段提取不完整: {missing_fields}")
             
-            return {
-                "iteration_round": 1,  # 增加1轮
-                "analysis_result": refined_result,
-                "iteration_history": [{
-                    "round": new_round,
-                    "type": "refinement",
-                    "result": refined_result,
-                    "timestamp": self._get_timestamp()
-                }]
+            # 构建最终结果
+            final_result = {
+                "analysis": final_analysis,
+                "extraction_method": "parallel_llm",
+                "completed_tasks": state.get("parallel_tasks_completed", 0),
+                "extraction_errors": state.get("extraction_errors", []),
+                "timestamp": self._get_timestamp()
             }
+            
+            logger.info("论文分析聚合完成")
+            return {"final_result": final_result}
             
         except Exception as e:
-            logger.error(f"第{new_round}轮改进分析失败: {e}")
+            logger.error(f"结果聚合失败: {e}")
             return {
-                "iteration_round": 1,
-                "analysis_result": state.get("analysis_result"),  # 保持原结果
-                "iteration_history": [{
-                    "round": new_round,
-                    "type": "error",
-                    "error": str(e),
+                "final_result": {
+                    "error": f"聚合失败: {str(e)}",
                     "timestamp": self._get_timestamp()
-                }]
+                }
             }
-    
-    def _finalize_node(self, state: PaperAnalysisState) -> Dict[str, Any]:
-        """最终化节点"""
-        logger.info("最终化分析结果...")
-        
-        final_result = {
-            "analysis": state.get("analysis_result", {}),
-            "quality_assessment": state.get("quality_assessment", {}),
-            "total_iterations": state["iteration_round"],
-            "iteration_history": state.get("iteration_history", []),
-            "timestamp": self._get_timestamp()
-        }
-        
-        logger.info(f"论文分析完成，共进行{state['iteration_round']}轮迭代")
-        
-        return {"final_result": final_result}
-    
-    def _should_refine(self, state: PaperAnalysisState) -> str:
-        """判断是否需要进一步改进"""
-        # 检查是否达到最大迭代次数
-        if state["iteration_round"] >= self.config.max_iterations:
-            logger.info(f"已达到最大迭代次数({self.config.max_iterations})")
-            return "finalize"
-        
-        # 如果没有质量评估结果，则结束
-        quality_assessment = state.get("quality_assessment")
-        if not quality_assessment:
-            logger.info("没有质量评估结果，结束迭代")
-            return "finalize"
-        
-        # 如果不启用自动改进，则结束
-        if not self.config.auto_improve:
-            logger.info("自动改进功能已禁用，结束迭代")
-            return "finalize"
-        
-        # 检查质量分数
-        overall_score = quality_assessment.get("overall_score", 0)
-        if overall_score >= self.config.quality_threshold:
-            logger.info(f"质量分数({overall_score})达到阈值({self.config.quality_threshold})")
-            return "finalize"
-        
-        # 检查推荐
-        recommendation = quality_assessment.get("recommendation", "REFINE")
-        if recommendation == "ACCEPT":
-            logger.info("质量评估建议接受，结束迭代")
-            return "finalize"
-        
-        logger.info(f"质量分数({overall_score})未达到阈值，继续改进")
-        return "refine"
     
     def _get_timestamp(self) -> str:
         """获取时间戳"""
@@ -358,27 +369,33 @@ class PaperAnalysisAgent(BaseGraph):
         Returns:
             包含分析结果的字典
         """
-        logger.info("开始论文分析...")
+        logger.info("开始并行论文分析...")
         
         try:
             # 创建初始状态
             initial_state: PaperAnalysisState = {
                 "paper_text": paper_text,
-                "iteration_round": 0,
-                "analysis_result": None,
-                "quality_assessment": None,
-                "iteration_history": [],
-                "final_result": None
+                "background_objectives_result": None,
+                "methods_findings_result": None,
+                "conclusions_future_result": None,
+                "keywords_result": None,
+                "final_result": None,
+                "parallel_tasks_completed": 0,
+                "extraction_errors": []
             }
             
             # 配置
-            config_dict = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+            from langchain_core.runnables import RunnableConfig
+            config_dict = RunnableConfig(
+                configurable={"thread_id": thread_id},
+                recursion_limit=100
+            )
             
             # 执行分析
             result = self.agent.invoke(initial_state, config_dict)
             
             if result and "final_result" in result:
-                logger.info("论文分析成功完成")
+                logger.info("并行论文分析成功完成")
                 return result["final_result"]
             else:
                 logger.error("论文分析未能产生有效结果")
@@ -437,6 +454,8 @@ class PaperAnalysisAgent(BaseGraph):
         if 'model_name' in kwargs:
             self.llm = llm_factory.create_llm(model_name=self.config.model_name)
             self.tools = create_paper_analysis_tools(self.llm)
-            self.structured_analysis_tool = self.tools[0]
-            self.quality_assessment_tool = self.tools[1]
+            self.background_objectives_tool = self.tools[0]
+            self.methods_findings_tool = self.tools[1]
+            self.conclusions_future_tool = self.tools[2]
+            self.keywords_synthesis_tool = self.tools[3]
             logger.info("LLM和工具已重新创建")

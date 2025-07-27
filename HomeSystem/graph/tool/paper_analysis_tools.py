@@ -1,10 +1,10 @@
 """
 论文分析工具模块
 
-基于LLM的结构化论文分析工具，用于提取论文的关键信息并进行迭代优化。
+基于LLM的并行结构化论文分析工具，每个工具专门提取特定字段组。
 """
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Type
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -12,204 +12,66 @@ from pydantic import BaseModel, Field
 class PaperAnalysisInput(BaseModel):
     """论文分析工具输入模型"""
     paper_text: str = Field(description="OCR处理后的英文论文全文")
-    iteration_round: int = Field(default=1, description="当前迭代轮次")
-    previous_analysis: Optional[Dict[str, Any]] = Field(default=None, description="上一轮分析结果")
 
 
-class StructuredAnalysisTool(BaseTool):
-    """结构化论文分析工具
+class BackgroundObjectivesTool(BaseTool):
+    """研究背景和目标提取工具"""
     
-    使用LLM提取论文的8个关键字段：
-    - keywords: 关键词列表
-    - research_background: 研究背景
-    - research_objectives: 研究目标
-    - methods: 研究方法
-    - key_findings: 主要发现
-    - conclusions: 结论和贡献
-    - limitations: 研究局限性
-    - future_work: 未来工作方向
-    """
+    name: str = "background_objectives_tool"
+    description: str = "Extract research background and objectives from academic papers"
+    args_schema: Type[BaseModel] = PaperAnalysisInput
+    llm: Any = Field(default=None, exclude=True)
     
-    name: str = "structured_analysis_tool"
-    description: str = "Extract structured information from academic papers using LLM analysis"
-    args_schema = PaperAnalysisInput
+    def __init__(self, llm, **kwargs):
+        super().__init__(**kwargs)
+        object.__setattr__(self, 'llm', llm)
     
-    def __init__(self, llm):
-        super().__init__()
-        self.llm = llm
-    
-    def _get_analysis_prompt(self, paper_text: str, iteration_round: int = 1) -> str:
-        """获取分析提示词"""
-        base_prompt = """
-You are an expert academic paper analyzer. Please carefully read the following English academic paper and extract structured information according to the specified format.
+    def _get_background_objectives_prompt(self, paper_text: str) -> str:
+        """获取背景和目标提取提示词"""
+        return f"""
+You are an expert at analyzing academic papers. Please carefully read the following English academic paper and extract the research background and objectives.
 
 **Paper Text:**
 {paper_text}
 
-**Task:** Extract the following 8 key components from this academic paper:
+**Task:** Extract the following 2 components:
 
-1. **Keywords**: Extract 3-8 most relevant keywords or key phrases that represent the main topics, methods, or concepts in this paper.
+1. **Research Background**: Summarize the research background, including:
+   - The problem context and motivation
+   - Existing work and current state of the field
+   - Gaps or limitations in current approaches
+   - Why this research is needed
 
-2. **Research Background**: Summarize the research background, including the problem context, motivation, and existing work that led to this research.
+2. **Research Objectives**: Clearly state the main research objectives, including:
+   - Primary research goals or questions
+   - What the paper aims to achieve
+   - Specific problems the research addresses
+   - Expected contributions or outcomes
 
-3. **Research Objectives**: Clearly state the main research objectives, goals, or research questions that this paper aims to address.
-
-4. **Methods**: Describe the research methodology, experimental design, algorithms, approaches, or techniques used in this study.
-
-5. **Key Findings**: Summarize the main experimental results, discoveries, or key findings presented in the paper.
-
-6. **Conclusions**: Extract the conclusions drawn by the authors, including their contributions to the field and significance of the work.
-
-7. **Limitations**: Identify any limitations, constraints, or weaknesses mentioned by the authors or that you can identify in the study.
-
-8. **Future Work**: Extract any suggestions for future research directions or next steps mentioned by the authors.
-
-**Output Format:** Please provide your analysis in the following exact JSON format:
-
-```json
-{{
-  "keywords": ["keyword1", "keyword2", "keyword3"],
-  "research_background": "研究背景描述",
-  "research_objectives": "研究目标",
-  "methods": "研究方法详述",
-  "key_findings": "主要研究发现",
-  "conclusions": "结论和学术贡献",
-  "limitations": "研究局限性",
-  "future_work": "未来工作方向"
-}}
-```
-
-**Important Guidelines:**
+**Guidelines:**
 - Provide comprehensive and detailed analysis for each field
 - Focus on accuracy and completeness
 - Use clear, professional language
-- Ensure each field contains substantial content (not just brief phrases)
 - Extract information directly from the paper content
-- If certain information is not explicitly mentioned, indicate this appropriately
-"""
-        
-        if iteration_round > 1:
-            base_prompt += """
-            
-**This is iteration round {iteration_round}:** Please review and improve your previous analysis, paying special attention to:
-- Completeness: Ensure all fields have comprehensive content
-- Accuracy: Verify all extracted information is correct and well-supported
-- Clarity: Improve the clarity and precision of descriptions
-- Consistency: Ensure consistent terminology and style across all fields
-"""
-        
-        return base_prompt.format(paper_text=paper_text, iteration_round=iteration_round)
-    
-    def _get_refinement_prompt(self, paper_text: str, previous_analysis: Dict[str, Any]) -> str:
-        """获取细化改进提示词"""
-        return f"""
-You are refining a previous analysis of an academic paper. Please review the original paper text and the previous analysis, then provide an improved version.
+- Ensure substantial content (not just brief phrases)
 
-**Original Paper Text:**
-{paper_text}
-
-**Previous Analysis:**
-{json.dumps(previous_analysis, indent=2, ensure_ascii=False)}
-
-**Task:** Please carefully review the previous analysis and improve it by:
-
-1. **Completeness Check**: Ensure all 8 fields have comprehensive and substantial content
-2. **Accuracy Verification**: Cross-check all extracted information against the original paper
-3. **Content Enhancement**: Add more specific details, examples, or explanations where appropriate
-4. **Clarity Improvement**: Enhance the clarity and precision of descriptions
-5. **Consistency Check**: Ensure consistent terminology and style across all fields
-
-Pay special attention to:
-- Are the keywords truly representative of the paper's main concepts?
-- Is the research background comprehensive and well-contextualized?
-- Are the research objectives clearly and specifically stated?
-- Are the methods described with sufficient technical detail?
-- Do the key findings accurately reflect the paper's main results?
-- Are the conclusions well-supported and clearly articulated?
-- Are the limitations realistic and comprehensive?
-- Are the future work directions specific and meaningful?
-
-**Output Format:** Provide the refined analysis in the same JSON format:
-
+**Output Format:** Provide your result in the following exact JSON format:
 ```json
 {{
-  "keywords": ["improved_keyword1", "improved_keyword2", "improved_keyword3"],
-  "research_background": "improved research background description",
-  "research_objectives": "improved research objectives",
-  "methods": "improved methods description",
-  "key_findings": "improved key findings",
-  "conclusions": "improved conclusions and contributions",
-  "limitations": "improved limitations analysis",
-  "future_work": "improved future work directions"
+  "research_background": "Comprehensive research background description including problem context, existing work, and motivation",
+  "research_objectives": "Clear statement of research objectives, goals, and what the paper aims to achieve"
 }}
 ```
 """
     
-    def _get_quality_assessment_prompt(self, analysis_result: Dict[str, Any]) -> str:
-        """获取质量评估提示词"""
-        return f"""
-You are a quality assessor for academic paper analysis. Please evaluate the following analysis result and provide improvement suggestions.
-
-**Analysis to Evaluate:**
-{json.dumps(analysis_result, indent=2, ensure_ascii=False)}
-
-**Evaluation Criteria:**
-1. **Completeness** (0-10): Are all 8 fields well-filled with substantial content?
-2. **Accuracy** (0-10): Does the content accurately reflect the paper's information?
-3. **Clarity** (0-10): Are the descriptions clear and well-articulated?
-4. **Specificity** (0-10): Are the descriptions specific rather than generic?
-5. **Professional Quality** (0-10): Does the analysis meet academic standards?
-
-**Task:** Please provide:
-1. A score for each criterion (0-10)
-2. Overall assessment (0-10)
-3. Specific improvement suggestions for each field that scores below 8
-4. A recommendation: "ACCEPT" (if overall score ≥ 8) or "REFINE" (if overall score < 8)
-
-**Output Format:**
-```json
-{{
-  "scores": {{
-    "completeness": 8,
-    "accuracy": 9,
-    "clarity": 7,
-    "specificity": 8,
-    "professional_quality": 8
-  }},
-  "overall_score": 8.0,
-  "improvement_suggestions": {{
-    "keywords": "suggestion for keywords if needed",
-    "research_background": "suggestion for research_background if needed",
-    "research_objectives": "suggestion for research_objectives if needed",
-    "methods": "suggestion for methods if needed",
-    "key_findings": "suggestion for key_findings if needed",
-    "conclusions": "suggestion for conclusions if needed",
-    "limitations": "suggestion for limitations if needed",
-    "future_work": "suggestion for future_work if needed"
-  }},
-  "recommendation": "ACCEPT or REFINE",
-  "overall_feedback": "General feedback and recommendations"
-}}
-```
-"""
-    
-    def _run(self, paper_text: str, iteration_round: int = 1, previous_analysis: Optional[Dict[str, Any]] = None) -> str:
-        """执行论文分析"""
+    def _run(self, paper_text: str) -> str:
+        """提取背景和目标"""
         try:
-            if iteration_round == 1 or previous_analysis is None:
-                # 第一轮分析
-                prompt = self._get_analysis_prompt(paper_text, iteration_round)
-            else:
-                # 后续轮次使用细化提示词
-                prompt = self._get_refinement_prompt(paper_text, previous_analysis)
-            
-            # 调用LLM进行分析
+            prompt = self._get_background_objectives_prompt(paper_text)
             response = self.llm.invoke(prompt)
-            
-            # 尝试提取JSON结果
             content = response.content if hasattr(response, 'content') else str(response)
             
-            # 查找JSON块
+            # 提取JSON结果
             json_start = content.find('{')
             json_end = content.rfind('}') + 1
             
@@ -219,63 +81,269 @@ You are a quality assessor for academic paper analysis. Please evaluate the foll
                     result = json.loads(json_str)
                     return json.dumps(result, indent=2, ensure_ascii=False)
                 except json.JSONDecodeError:
-                    # 如果JSON解析失败，返回原始响应
                     return content
             else:
                 return content
                 
         except Exception as e:
-            return f"分析过程中发生错误: {str(e)}"
+            return f"背景和目标提取过程中发生错误: {str(e)}"
 
 
-class QualityAssessmentTool(BaseTool):
-    """质量评估工具"""
+class MethodsFindingsTool(BaseTool):
+    """方法和发现提取工具"""
     
-    name: str = "quality_assessment_tool"
-    description: str = "Assess the quality of paper analysis results and provide improvement suggestions"
+    name: str = "methods_findings_tool"
+    description: str = "Extract research methods and key findings from academic papers"
+    args_schema: Type[BaseModel] = PaperAnalysisInput
+    llm: Any = Field(default=None, exclude=True)
     
-    def __init__(self, llm):
-        super().__init__()
-        self.llm = llm
+    def __init__(self, llm, **kwargs):
+        super().__init__(**kwargs)
+        object.__setattr__(self, 'llm', llm)
     
-    def _run(self, analysis_result: str) -> str:
-        """执行质量评估"""
+    def _get_methods_findings_prompt(self, paper_text: str) -> str:
+        """获取方法和发现提取提示词"""
+        return f"""
+You are an expert at analyzing academic research methodology and results. Please carefully read the following English academic paper and extract the research methods and key findings.
+
+**Paper Text:**
+{paper_text}
+
+**Task:** Extract the following 2 components:
+
+1. **Methods**: Describe the research methodology, including:
+   - Experimental design and approach
+   - Algorithms, techniques, or procedures used
+   - Data collection and analysis methods
+   - Tools, frameworks, or platforms utilized
+   - Evaluation metrics and criteria
+
+2. **Key Findings**: Summarize the main research results, including:
+   - Primary experimental results and outcomes
+   - Performance metrics and measurements
+   - Significant discoveries or insights
+   - Quantitative and qualitative results
+   - Comparative analysis results
+
+**Guidelines:**
+- Provide specific technical details where available
+- Include quantitative results and metrics when mentioned
+- Focus on the most significant and novel findings
+- Ensure methods description is comprehensive enough for understanding
+- Extract information directly from the paper content
+
+**Output Format:** Provide your result in the following exact JSON format:
+```json
+{{
+  "methods": "Detailed description of research methodology, experimental design, algorithms, and evaluation approaches",
+  "key_findings": "Comprehensive summary of main research results, performance metrics, and significant discoveries"
+}}
+```
+"""
+    
+    def _run(self, paper_text: str) -> str:
+        """提取方法和发现"""
         try:
-            # 尝试解析分析结果
-            if isinstance(analysis_result, str):
-                result_dict = json.loads(analysis_result)
-            else:
-                result_dict = analysis_result
-            
-            # 构建评估提示词
-            structured_tool = StructuredAnalysisTool(self.llm)
-            prompt = structured_tool._get_quality_assessment_prompt(result_dict)
-            
-            # 调用LLM进行评估
+            prompt = self._get_methods_findings_prompt(paper_text)
             response = self.llm.invoke(prompt)
             content = response.content if hasattr(response, 'content') else str(response)
             
-            # 尝试提取JSON结果
+            # 提取JSON结果
             json_start = content.find('{')
             json_end = content.rfind('}') + 1
             
             if json_start != -1 and json_end != -1:
                 json_str = content[json_start:json_end]
                 try:
-                    assessment = json.loads(json_str)
-                    return json.dumps(assessment, indent=2, ensure_ascii=False)
+                    result = json.loads(json_str)
+                    return json.dumps(result, indent=2, ensure_ascii=False)
                 except json.JSONDecodeError:
                     return content
             else:
                 return content
                 
         except Exception as e:
-            return f"质量评估过程中发生错误: {str(e)}"
+            return f"方法和发现提取过程中发生错误: {str(e)}"
+
+
+class ConclusionsFutureTool(BaseTool):
+    """结论和未来工作提取工具"""
+    
+    name: str = "conclusions_future_tool"
+    description: str = "Extract conclusions, limitations, and future work from academic papers"
+    args_schema: Type[BaseModel] = PaperAnalysisInput
+    llm: Any = Field(default=None, exclude=True)
+    
+    def __init__(self, llm, **kwargs):
+        super().__init__(**kwargs)
+        object.__setattr__(self, 'llm', llm)
+    
+    def _get_conclusions_future_prompt(self, paper_text: str) -> str:
+        """获取结论和未来工作提取提示词"""
+        return f"""
+You are an expert at analyzing academic conclusions and research directions. Please carefully read the following English academic paper and extract the conclusions, limitations, and future work.
+
+**Paper Text:**
+{paper_text}
+
+**Task:** Extract the following 3 components:
+
+1. **Conclusions**: Extract the conclusions drawn by the authors, including:
+   - Main contributions to the field
+   - Significance and impact of the work
+   - Key insights and implications
+   - Overall assessment of the research outcomes
+
+2. **Limitations**: Identify any limitations, constraints, or weaknesses, including:
+   - Methodological limitations
+   - Scope constraints
+   - Data limitations
+   - Technical constraints
+   - Acknowledged weaknesses by authors
+
+3. **Future Work**: Extract suggestions for future research directions, including:
+   - Recommended next steps
+   - Areas for improvement
+   - Unexplored directions
+   - Potential extensions
+   - Suggested follow-up research
+
+**Guidelines:**
+- Be comprehensive and specific
+- Include both explicitly stated and implied limitations
+- Focus on actionable future work suggestions
+- Ensure professional academic language
+- Extract information directly from the paper content
+
+**Output Format:** Provide your result in the following exact JSON format:
+```json
+{{
+  "conclusions": "Comprehensive summary of conclusions, contributions, and significance of the work",
+  "limitations": "Detailed identification of research limitations and constraints",
+  "future_work": "Specific suggestions for future research directions and improvements"
+}}
+```
+"""
+    
+    def _run(self, paper_text: str) -> str:
+        """提取结论和未来工作"""
+        try:
+            prompt = self._get_conclusions_future_prompt(paper_text)
+            response = self.llm.invoke(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            
+            # 提取JSON结果
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start != -1 and json_end != -1:
+                json_str = content[json_start:json_end]
+                try:
+                    result = json.loads(json_str)
+                    return json.dumps(result, indent=2, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    return content
+            else:
+                return content
+                
+        except Exception as e:
+            return f"结论和未来工作提取过程中发生错误: {str(e)}"
+
+
+class KeywordsSynthesisTool(BaseTool):
+    """关键词合成工具 - 从已提取的其他字段中生成关键词"""
+    
+    name: str = "keywords_synthesis_tool"
+    description: str = "Synthesize keywords from extracted paper analysis fields"
+    
+    class KeywordsSynthesisInput(BaseModel):
+        research_background: str = Field(description="研究背景")
+        research_objectives: str = Field(description="研究目标")
+        methods: str = Field(description="研究方法")
+        key_findings: str = Field(description="主要发现")
+        conclusions: str = Field(description="结论")
+    
+    args_schema: Type[BaseModel] = KeywordsSynthesisInput
+    llm: Any = Field(default=None, exclude=True)
+    
+    def __init__(self, llm, **kwargs):
+        super().__init__(**kwargs)
+        object.__setattr__(self, 'llm', llm)
+    
+    def _get_keywords_synthesis_prompt(self, research_background: str, research_objectives: str, 
+                                     methods: str, key_findings: str, conclusions: str) -> str:
+        """获取关键词合成提示词"""
+        return f"""
+You are an expert at synthesizing keywords from academic paper analysis. Based on the following extracted information from an academic paper, generate 3-8 most relevant keywords.
+
+**Extracted Information:**
+
+**Research Background:**
+{research_background}
+
+**Research Objectives:**
+{research_objectives}
+
+**Methods:**
+{methods}
+
+**Key Findings:**
+{key_findings}
+
+**Conclusions:**
+{conclusions}
+
+**Task:** Based on the above information, extract 3-8 most relevant keywords or key phrases that best represent the main topics, methods, concepts, or techniques in this paper.
+
+**Guidelines:**
+- Focus on technical terms, methodologies, domain-specific concepts mentioned in the analysis
+- Include both general field terms and specific technique names
+- Prioritize terms that appear across multiple sections
+- Avoid overly generic words like "analysis", "study", "research" unless they're part of a specific term
+- Prefer noun phrases over single words when appropriate
+- Ensure keywords capture the paper's core contributions and methodology
+
+**Output Format:** Provide your result in the following exact JSON format:
+```json
+{{
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
+}}
+```
+"""
+    
+    def _run(self, research_background: str, research_objectives: str, methods: str, 
+            key_findings: str, conclusions: str) -> str:
+        """从已提取字段合成关键词"""
+        try:
+            prompt = self._get_keywords_synthesis_prompt(
+                research_background, research_objectives, methods, key_findings, conclusions
+            )
+            response = self.llm.invoke(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            
+            # 提取JSON结果
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start != -1 and json_end != -1:
+                json_str = content[json_start:json_end]
+                try:
+                    result = json.loads(json_str)
+                    return json.dumps(result, indent=2, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    return content
+            else:
+                return content
+                
+        except Exception as e:
+            return f"关键词合成过程中发生错误: {str(e)}"
 
 
 def create_paper_analysis_tools(llm):
     """创建论文分析工具集合"""
     return [
-        StructuredAnalysisTool(llm),
-        QualityAssessmentTool(llm)
+        BackgroundObjectivesTool(llm),
+        MethodsFindingsTool(llm),
+        ConclusionsFutureTool(llm),
+        KeywordsSynthesisTool(llm)
     ]

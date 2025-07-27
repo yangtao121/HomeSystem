@@ -10,7 +10,7 @@
 from .task import Task
 from .scheduler import TaskScheduler
 from .engine import WorkflowEngine
-from .paper_gather_task import PaperGatherTask
+from .paper_gather_task.paper_gather_task import PaperGatherTask
 
 __all__ = [
     'Task',
