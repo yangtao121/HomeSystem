@@ -1,0 +1,26 @@
+# Home System 数据库集成依赖包
+
+# 核心依赖（已存在）
+requests>=2.28.0
+loguru>=0.6.0
+tqdm>=4.64.0
+feedparser>=6.0.10
+
+# 数据库依赖
+asyncpg>=0.28.0
+psycopg2-binary>=2.9.5
+redis>=4.5.0
+
+# 环境配置
+python-dotenv>=1.0.0
+
+# 开发和测试依赖
+pytest>=7.2.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+
+# 可选：数据验证
+pydantic>=1.10.0
+
+# 可选：类型提示
+types-redis>=4.5.0

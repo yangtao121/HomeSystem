@@ -1,5 +1,4 @@
-from langchain_community.utilities import SearxSearchWrapper
-from langchain_community.tools.searx_search.tool import SearxSearchResults
+# 移除 langchain_community 依赖，直接使用 ArXiv API
 from loguru import logger
 import pprint
 from tqdm import tqdm
@@ -11,6 +10,7 @@ import requests
 import xml.etree.ElementTree as ET
 import urllib.parse
 import time
+import feedparser
 
 
 class ArxivData:
@@ -225,30 +225,201 @@ class ArxivResult:
         实现迭代器协议
         """
         return iter(self.results)
+    
+    def display_results(self, display_range: str = "all", max_display: int = 10, 
+                       show_details: bool = True, show_summary: bool = True):
+        """
+        结构化显示搜索结果
+        
+        :param display_range: 显示范围 "all" 或 "limited"
+        :type display_range: str
+        :param max_display: 当display_range为"limited"时的最大显示数量
+        :type max_display: int  
+        :param show_details: 是否显示详细信息
+        :type show_details: bool
+        :param show_summary: 是否显示摘要统计
+        :type show_summary: bool
+        """
+        if self.num_results == 0:
+            print("📋 未找到相关论文")
+            return
+            
+        # 确定显示数量
+        if display_range == "all":
+            display_count = self.num_results
+            range_text = "全部"
+        else:
+            display_count = min(max_display, self.num_results)
+            range_text = f"前 {display_count}"
+            
+        # 显示标题
+        print("=" * 80)
+        print(f"📚 ArXiv 搜索结果 - {range_text} {display_count} 篇论文")
+        print("=" * 80)
+        
+        # 显示详细结果
+        if show_details:
+            for i, paper in enumerate(self.results[:display_count], 1):
+                self._display_single_paper(i, paper)
+                if i < display_count:  # 不是最后一个则显示分隔线
+                    print("-" * 80)
+        
+        # 显示摘要统计
+        if show_summary:
+            self._display_summary(display_count)
+    
+    def _display_single_paper(self, index: int, paper: ArxivData):
+        """显示单个论文的详细信息"""
+        print(f"\n📄 论文 {index}")
+        print(f"📌 标题: {paper.title}")
+        print(f"🔗 ArXiv ID: {paper.arxiv_id or '未知'}")
+        print(f"📅 发布时间: {paper.published_date}")
+        print(f"🏷️  分类: {paper.categories}")
+        print(f"🌐 链接: {paper.link}")
+        print(f"📝 摘要: {paper.snippet[:200]}..." if len(paper.snippet) > 200 else f"📝 摘要: {paper.snippet}")
+        print(f"📥 PDF: {paper.pdf_link}")
+        
+        # 显示标签（如果有）
+        if paper.tag:
+            print(f"🏷️  标签: {', '.join(paper.tag)}")
+    
+    def _display_summary(self, displayed_count: int):
+        """显示摘要统计信息"""
+        print("\n" + "=" * 80)
+        print("📊 搜索摘要")
+        print("=" * 80)
+        print(f"📋 总结果数: {self.num_results}")
+        print(f"🖥️  已显示: {displayed_count}")
+        
+        if displayed_count < self.num_results:
+            print(f"⚠️  剩余未显示: {self.num_results - displayed_count}")
+        
+        # 发布时间统计
+        if self.num_results > 0:
+            date_counts = {}
+            for paper in self.results:
+                date = paper.published_date
+                if date and date != "未知日期":
+                    date_counts[date] = date_counts.get(date, 0) + 1
+            
+            if date_counts:
+                print(f"\n📈 发布时间分布 (前5):")
+                sorted_dates = sorted(date_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                for date, count in sorted_dates:
+                    print(f"   {date}: {count} 篇")
+        
+        # 分类统计  
+        if self.num_results > 0:
+            category_counts = {}
+            for paper in self.results:
+                categories = paper.categories.split(', ') if paper.categories else ['Unknown']
+                for cat in categories:
+                    category_counts[cat] = category_counts.get(cat, 0) + 1
+            
+            if category_counts:
+                print(f"\n🏷️  分类分布 (前5):")
+                sorted_cats = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                for cat, count in sorted_cats:
+                    print(f"   {cat}: {count} 篇")
+        
+        print("=" * 80)
+    
+    def display_brief(self, max_display: int = 5):
+        """简洁显示模式，只显示标题和基本信息"""
+        if self.num_results == 0:
+            print("📋 未找到相关论文")
+            return
+            
+        display_count = min(max_display, self.num_results)
+        
+        print("=" * 60)
+        print(f"📚 ArXiv 搜索结果概览 - 前 {display_count} 篇")
+        print("=" * 60)
+        
+        for i, paper in enumerate(self.results[:display_count], 1):
+            print(f"{i:2d}. {paper.published_date} | {paper.title[:60]}...")
+            print(f"    🔗 {paper.arxiv_id or '未知ID'} | 🏷️ {paper.categories}")
+            print()
+        
+        if display_count < self.num_results:
+            print(f"... 还有 {self.num_results - display_count} 篇论文未显示")
+        print("=" * 60)
+    
+    def display_titles_only(self, max_display: int = None):
+        """仅显示标题列表"""
+        if self.num_results == 0:
+            print("📋 未找到相关论文")
+            return
+            
+        display_count = max_display if max_display else self.num_results
+        display_count = min(display_count, self.num_results)
+        
+        print(f"📜 论文标题列表 ({display_count}/{self.num_results}):")
+        print("-" * 50)
+        
+        for i, paper in enumerate(self.results[:display_count], 1):
+            print(f"{i:3d}. {paper.title}")
+        
+        if display_count < self.num_results:
+            print(f"\n... 还有 {self.num_results - display_count} 篇论文")
+    
+    def get_papers_by_date_range(self, start_year: int = None, end_year: int = None):
+        """根据发布年份筛选论文"""
+        filtered_papers = []
+        
+        for paper in self.results:
+            if paper.published_date and paper.published_date != "未知日期":
+                # 提取年份
+                try:
+                    year_match = re.search(r'(\d{4})年', paper.published_date)
+                    if year_match:
+                        year = int(year_match.group(1))
+                        
+                        # 检查年份范围
+                        if start_year and year < start_year:
+                            continue
+                        if end_year and year > end_year:
+                            continue
+                        
+                        filtered_papers.append(paper)
+                except:
+                    continue
+        
+        # 创建新的结果对象
+        filtered_results = []
+        for paper in filtered_papers:
+            result_dict = {
+                'title': paper.title,
+                'link': paper.link, 
+                'snippet': paper.snippet,
+                'categories': paper.categories
+            }
+            filtered_results.append(result_dict)
+        
+        return ArxivResult(filtered_results)
 
 
 class ArxivTool:
-    def __init__(self, search_host: str):
+    def __init__(self, search_host: str = None):
         """
-        用于调用 searxng 的 api，并简化返回结果，提供给大模型使用。
+        直接使用 ArXiv API 进行搜索，不再依赖 SearxNG。
 
-        :param search_host: searxng 的 host
+        :param search_host: 保留参数以兼容现有代码，但不再使用
         :type search_host: str
         """
+        # 保留参数但不再使用，避免破坏现有调用代码
         self.search_host = search_host
-        self.search_wrapper = SearxSearchWrapper(searx_host=search_host)
 
     def arxivSearch(self, query: str,
-                    num_results: int = 5,
+                    num_results: int = 20,
                     sort_by: str = "relevance",
                     order: str = "desc",
                     max_results: int = None,
-                    kwargs: dict = {
-                        "engines": ["arxiv"],
-                    }
+                    kwargs: dict = None,
+                    use_direct_api: bool = True
                     ) -> ArxivResult:
         """
-        用于搜索 arxiv 的 api，并将结果转换为list[dict]。
+        使用 ArXiv API 直接搜索，无限制且获取最新数据。
 
         :param query: 搜索的查询
         :type query: str
@@ -258,127 +429,29 @@ class ArxivTool:
         :type sort_by: str
         :param order: 排序顺序，可选 "asc" (升序) 或 "desc" (降序)
         :type order: str
-        :param max_results: 最大结果数量限制，如果num_results超过此值则使用分页搜索
+        :param max_results: 保留参数以兼容现有代码，但不再使用
         :type max_results: int
+        :param kwargs: 保留参数以兼容现有代码，但不再使用
+        :type kwargs: dict
+        :param use_direct_api: 保留参数以兼容现有代码，总是使用直接API
+        :type use_direct_api: bool
         :return: 搜索结果
         :rtype: ArxivResult
         """
         
-        # 设置默认的最大单次搜索结果数量
-        single_search_limit = max_results or 30
+        # 现在总是使用直接ArXiv API
+        logger.info(f"使用直接ArXiv API搜索: {query}")
         
-        # 如果请求的结果数量超过单次搜索限制，使用分页搜索
-        if num_results > single_search_limit:
-            return self._paginated_search(query, num_results, sort_by, order, single_search_limit, kwargs)
+        return self.directArxivSearch(
+            query=query,
+            num_results=num_results,
+            sort_by=sort_by,
+            order="descending" if order == "desc" else "ascending"
+        )
 
-        default_kwargs = {
-            "engines": ["arxiv"],
-        }
+    # 移除分页搜索方法，直接API支持大量结果
 
-        # 处理排序参数
-        if sort_by in ["lastUpdatedDate", "submittedDate"]:
-            default_kwargs["sort"] = sort_by
-            if order in ["asc", "desc"]:
-                default_kwargs["order"] = order
-
-        default_kwargs.update(kwargs)
-        arxiv_tool = SearxSearchResults(name="Arxiv", wrapper=self.search_wrapper,
-                                        num_results=num_results,
-                                        kwargs=default_kwargs)
-
-        results = arxiv_tool.invoke(query)
-
-        eval_results = eval(results)
-
-        # 调试信息：打印实际返回的结果数量
-        logger.info(f"SearxNG实际返回结果数量: {len(eval_results)} (请求数量: {num_results})")
-        # pprint.pprint(results)
-
-        if not self.checkResult(eval_results):
-            logger.error(f"No good Search Result, please try again.")
-            return ArxivResult([])
-
-        logger.info(f"Successfully get the result from arxiv.")
-        return ArxivResult(eval_results)
-
-    def _paginated_search(self, query: str, num_results: int, sort_by: str, order: str, 
-                         single_search_limit: int, kwargs: dict) -> ArxivResult:
-        """
-        分页搜索以获取更多结果
-        
-        :param query: 搜索查询
-        :param num_results: 目标结果数量
-        :param sort_by: 排序方式
-        :param order: 排序顺序
-        :param single_search_limit: 单次搜索限制
-        :param kwargs: 额外参数
-        :return: 合并后的搜索结果
-        """
-        all_results = []
-        remaining_results = num_results
-        page = 1
-        
-        logger.info(f"开始分页搜索，目标结果数量: {num_results}")
-        
-        while remaining_results > 0:
-            # 计算当前页面需要获取的结果数量
-            current_page_size = min(remaining_results, single_search_limit)
-            
-            logger.info(f"搜索第 {page} 页，获取 {current_page_size} 个结果")
-            
-            default_kwargs = {
-                "engines": ["arxiv"],
-                "pageno": page  # 添加页面参数
-            }
-            
-            # 处理排序参数
-            if sort_by in ["lastUpdatedDate", "submittedDate"]:
-                default_kwargs["sort"] = sort_by
-                if order in ["asc", "desc"]:
-                    default_kwargs["order"] = order
-            
-            default_kwargs.update(kwargs)
-            
-            arxiv_tool = SearxSearchResults(name="Arxiv", wrapper=self.search_wrapper,
-                                          num_results=current_page_size,
-                                          kwargs=default_kwargs)
-            
-            try:
-                results = arxiv_tool.invoke(query)
-                eval_results = eval(results)
-                
-                if not self.checkResult(eval_results):
-                    logger.warning(f"第 {page} 页没有找到有效结果，停止搜索")
-                    break
-                
-                # 去重：检查是否有重复的结果（基于链接）
-                existing_links = {result.get('link', '') for result in all_results}
-                new_results = [result for result in eval_results 
-                             if result.get('link', '') not in existing_links]
-                
-                if not new_results:
-                    logger.warning(f"第 {page} 页结果全部重复，停止搜索")
-                    break
-                
-                all_results.extend(new_results)
-                remaining_results -= len(new_results)
-                page += 1
-                
-                logger.info(f"第 {page-1} 页获取到 {len(new_results)} 个新结果，总计 {len(all_results)} 个结果")
-                
-                # 如果当前页面返回的结果少于请求的数量，说明没有更多结果了
-                if len(eval_results) < current_page_size:
-                    logger.info("已获取所有可用结果")
-                    break
-                    
-            except Exception as e:
-                logger.error(f"第 {page} 页搜索失败: {str(e)}")
-                break
-        
-        logger.info(f"分页搜索完成，共获取 {len(all_results)} 个结果")
-        return ArxivResult(all_results)
-
-    def getLatestPapers(self, query: str, num_results: int = 5) -> ArxivResult:
+    def getLatestPapers(self, query: str, num_results: int = 20) -> ArxivResult:
         """
         获取最新的论文，按提交日期降序排列
         
@@ -394,7 +467,7 @@ class ArxivTool:
                                sort_by="submittedDate", 
                                order="desc")
 
-    def getRecentlyUpdated(self, query: str, num_results: int = 5) -> ArxivResult:
+    def getRecentlyUpdated(self, query: str, num_results: int = 20) -> ArxivResult:
         """
         获取最近更新的论文，按更新日期降序排列
         
@@ -429,61 +502,145 @@ class ArxivTool:
                                order=order,
                                max_results=max_single_request)
 
-    def checkResult(self, results: list[dict]) -> bool:
+    def directArxivSearch(self, query: str, num_results: int = 20,
+                         sort_by: str = "relevance", order: str = "descending") -> ArxivResult:
         """
-        检查搜索结果是否为空。
+        直接使用ArXiv API进行搜索，获取最新数据
+        
+        :param query: 搜索查询
+        :param num_results: 结果数量
+        :param sort_by: 排序方式 ("relevance", "lastUpdatedDate", "submittedDate")
+        :param order: 排序顺序 ("ascending", "descending")
+        :return: 搜索结果
         """
+        # ArXiv API URL
+        base_url = "http://export.arxiv.org/api/query"
+        
+        # 映射排序参数
+        sort_map = {
+            "relevance": "relevance",
+            "lastUpdatedDate": "lastUpdatedDate", 
+            "submittedDate": "submittedDate"
+        }
+        
+        params = {
+            "search_query": query,
+            "start": 0,
+            "max_results": min(num_results, 2000),  # ArXiv API限制
+            "sortBy": sort_map.get(sort_by, "relevance"),
+            "sortOrder": order
+        }
+        
+        try:
+            logger.info(f"直接调用ArXiv API搜索: {query}")
+            response = requests.get(base_url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            # 解析RSS/Atom格式响应
+            feed = feedparser.parse(response.content)
+            
+            if not feed.entries:
+                logger.warning("ArXiv API未返回结果")
+                return ArxivResult([])
+            
+            # 转换为标准格式
+            results = []
+            for entry in feed.entries[:num_results]:
+                # 提取分类
+                categories = []
+                if hasattr(entry, 'tags'):
+                    categories = [tag.term for tag in entry.tags]
+                elif hasattr(entry, 'arxiv_primary_category'):
+                    categories = [entry.arxiv_primary_category['term']]
+                
+                result = {
+                    'title': entry.title,
+                    'link': entry.link,
+                    'snippet': entry.summary,
+                    'categories': ', '.join(categories) if categories else 'Unknown'
+                }
+                results.append(result)
+            
+            logger.info(f"ArXiv API返回 {len(results)} 个结果")
+            return ArxivResult(results)
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"ArXiv API请求失败: {str(e)}")
+            # 回退到SearxNG搜索
+            logger.info("回退到SearxNG搜索")
+            return self.arxivSearch(query, num_results, sort_by, "desc" if order == "descending" else "asc")
+        except Exception as e:
+            logger.error(f"ArXiv API解析失败: {str(e)}")
+            return self.arxivSearch(query, num_results, sort_by, "desc" if order == "descending" else "asc")
 
-        if 'Result' in results[0]:
-            return False
-        return True
+    def getLatestPapersDirectly(self, query: str, num_results: int = 20) -> ArxivResult:
+        """
+        直接从ArXiv API获取最新论文
+        """
+        return self.directArxivSearch(query, num_results, "submittedDate", "descending")
+
+    # 移除SearxNG相关方法，现在完全使用直接API
 
 
 if __name__ == "__main__":
-    arxiv_tool = ArxivTool(search_host="http://192.168.5.54:8080")
+    # ArXiv API 工具测试和结构化显示功能演示
+    arxiv_tool = ArxivTool()
     
-    # 示例1: 默认搜索（小量结果）
-    print("=== 示例1: 默认搜索 ===")
-    results = arxiv_tool.arxivSearch(query="learning navigation", num_results=10)
-    print(f"默认搜索结果数量: {results.num_results}")
+    print("=== ArXiv API 工具功能测试 ===")
     
-    # 示例2: 高限制搜索（获取更多结果）
-    print("\n=== 示例2: 高限制搜索 ===")
-    high_limit_results = arxiv_tool.searchWithHighLimit(
-        query="machine learning", 
-        num_results=50,  # 请求50个结果
-        max_single_request=15  # 每次最多请求15个
-    )
-    print(f"高限制搜索结果数量: {high_limit_results.num_results}")
+    # 测试1: 基础搜索
+    print("🔍 测试1: 基础搜索 - machine learning (10个结果)")
+    results = arxiv_tool.arxivSearch(query="machine learning", num_results=10)
+    print(f"✅ 搜索完成: {results.num_results} 个结果\n")
     
-    # 示例3: 超大量搜索（使用分页）
-    print("\n=== 示例3: 超大量搜索 ===")
-    large_results = arxiv_tool.arxivSearch(
-        query="deep learning", 
-        num_results=100,  # 请求100个结果
-        max_results=20    # 单次最多20个，会自动分页
-    )
-    print(f"超大量搜索结果数量: {large_results.num_results}")
+    # 演示结构化显示 - 限制显示前3个
+    print("📋 结构化显示演示 - 前3个结果:")
+    results.display_results(display_range="limited", max_display=3)
     
-    # 示例4: 按时间排序的大量搜索
-    print("\n=== 示例4: 按时间排序大量搜索 ===")
-    latest_results = arxiv_tool.getLatestPapers(query="reinforcement learning", num_results=60)
-    print(f"最新论文搜索结果数量: {latest_results.num_results}")
+    print("\n" + "="*80 + "\n")
     
-    # 显示第一个结果的详细信息
-    if results.num_results > 0:
-        first_result = results.results[0]
-        print("\n" + "=" * 50)
-        print("第一个结果详细信息:")
-        print(f"标题: {first_result.title}")
-        print(f"ArXiv ID: {first_result.arxiv_id}")
-        print(f"发布时间: {first_result.published_date}")
-        print(f"链接: {first_result.link}")
-        print(f"摘要: {first_result.snippet[:200]}...")
-        print("=" * 50)
+    # 测试2: 简洁显示模式
+    print("🔍 测试2: 最新论文搜索 - deep learning")
+    latest_papers = arxiv_tool.getLatestPapersDirectly(query="deep learning", num_results=15)
     
-    # 显示高限制搜索的统计信息
-    if high_limit_results.num_results > 0:
-        print(f"\n高限制搜索前10个结果:")
-        for i, result in enumerate(high_limit_results.results):
-            print(f"{i+1}. {result.title[:60]}... ({result.published_date})")
+    print("📋 简洁显示演示:")
+    latest_papers.display_brief(max_display=5)
+    
+    print("\n" + "="*80 + "\n")
+    
+    # 测试3: 仅标题模式
+    print("🔍 测试3: 神经网络搜索")
+    nn_results = arxiv_tool.arxivSearch(query="neural networks", num_results=20)
+    
+    print("📋 仅标题显示演示:")
+    nn_results.display_titles_only(max_display=8)
+    
+    print("\n" + "="*80 + "\n")
+    
+    # 测试4: 完整显示模式（小数据集）
+    print("🔍 测试4: 计算机视觉搜索")
+    cv_results = arxiv_tool.arxivSearch(query="computer vision", num_results=5)
+    
+    print("📋 完整显示演示 - 显示全部:")
+    cv_results.display_results(display_range="all", show_summary=True)
+    
+    print("\n" + "="*80 + "\n")
+    
+    # 演示年份筛选功能
+    if latest_papers.num_results > 0:
+        print("📋 年份筛选演示 - 筛选2020年后的论文:")
+        recent_papers = latest_papers.get_papers_by_date_range(start_year=2020)
+        if recent_papers.num_results > 0:
+            recent_papers.display_brief(max_display=50)
+        else:
+            print("   未找到符合条件的论文")
+    
+    print("\n=== 🎉 ArXiv API 重构完成！现在支持丰富的结构化显示功能 ===")
+    
+    # 使用指南
+    print("\n📖 结构化显示功能使用指南:")
+    print("   results.display_results()           # 完整显示所有结果")
+    print("   results.display_results('limited')  # 限制显示前N个") 
+    print("   results.display_brief()             # 简洁模式")
+    print("   results.display_titles_only()       # 仅显示标题")
+    print("   results.get_papers_by_date_range()  # 按年份筛选")

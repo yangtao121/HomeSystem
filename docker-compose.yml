@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: homesystem-postgres
+    environment:
+      POSTGRES_DB: homesystem
+      POSTGRES_USER: homesystem
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-homesystem123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homesystem -d homesystem"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: homesystem-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: redis-server --appendonly yes
+
+  # 可选：Redis Commander Web界面
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: homesystem-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - homesystem-network
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+  # 可选：pgAdmin Web界面
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: homesystem-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@homesystem.local
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - homesystem-network
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
+
+networks:
+  homesystem-network:
+    driver: bridge
