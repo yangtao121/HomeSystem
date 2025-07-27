@@ -22,7 +22,7 @@ class LLMFactory:
         load_dotenv()
         
         if config_path is None:
-            config_path = Path(__file__).parent / "llm_providers.yaml"
+            config_path = str(Path(__file__).parent / "config" / "llm_providers.yaml")
         
         self.config = self._load_config(config_path)
         self.available_llm_models = self._detect_available_llm_models()
@@ -270,3 +270,14 @@ if __name__ == "__main__":
     logger.info(f"✅ Ollama LLM创建成功: {type(ollama_llm).__name__}")
     response = ollama_llm.invoke("你好，Ollama！")
     logger.info(f"✅ Ollama LLM响应成功: {response}")
+
+    # 创建kimi模型
+    # kimi_llm = factory.create_llm(model_name='moonshot.Kimi_K2')
+    # logger.info(f"✅ Kimi LLM创建成功: {type(kimi_llm).__name__}")
+    # response = kimi_llm.invoke("你好，Kimi！")
+
+    # 创建硅基流动模型
+    siliconflow_llm = factory.create_llm(model_name='siliconflow.DeepSeek_V3')
+    logger.info(f"✅ SiliconFlow LLM创建成功: {type(siliconflow_llm).__name__}")
+    response = siliconflow_llm.invoke("你好，SiliconFlow！")
+    logger.info(f"✅ SiliconFlow LLM响应成功: {response}")

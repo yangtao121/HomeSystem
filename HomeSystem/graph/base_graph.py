@@ -2,6 +2,7 @@ from loguru import logger
 
 from abc import ABC, abstractmethod
 import os
+import re
 from langchain_core.messages import SystemMessage
 
 from .llm_factory import get_llm, get_embedding
@@ -38,6 +39,36 @@ class BaseGraph(ABC):
         except Exception as e:
             logger.error(f"Error occurred while saving graph: {e}")
 
+    def _format_response_content(self, content: str) -> str:
+        """
+        格式化AI响应内容，处理think标签显示
+        
+        Args:
+            content: 原始响应内容
+            
+        Returns:
+            str: 格式化后的内容
+        """
+        if not content:
+            return content
+            
+        # 检查是否包含think标签
+        think_pattern = r'<think>(.*?)</think>'
+        match = re.search(think_pattern, content, re.DOTALL)
+        
+        if match:
+            think_content = match.group(1).strip()
+            # 移除think标签，获取实际回复内容
+            actual_response = re.sub(think_pattern, '', content, flags=re.DOTALL).strip()
+            
+            # 如果有实际回复内容，只显示实际回复
+            if actual_response:
+                return actual_response
+            # 如果没有实际回复内容，显示think内容但加上标识
+            else:
+                return f"🤔 思考过程：\n{think_content}"
+        
+        return content
 
     def chat(self,):
         logger.info("Starting chat session. Type 'exit' to quit.")
@@ -73,8 +104,17 @@ class BaseGraph(ABC):
                 if isinstance(message, SystemMessage):
                     continue
                 else:
-                    message.pretty_print()
+                    # 格式化消息内容
+                    if hasattr(message, 'content') and message.content:
+                        formatted_content = self._format_response_content(message.content)
+                        # 创建一个新的消息对象用于显示
+                        from langchain_core.messages import AIMessage
+                        formatted_message = AIMessage(content=formatted_content)
+                        formatted_message.pretty_print()
+                    else:
+                        message.pretty_print()
             
             logger.info("Task completed. Enter your next query or type 'exit' to quit")
+
         
 

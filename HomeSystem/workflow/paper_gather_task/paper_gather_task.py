@@ -1,7 +1,8 @@
 
 import asyncio
 from typing import Dict, Any
-from .task import Task
+from HomeSystem.workflow.task import Task
+from loguru import logger
 
 
 class PaperGatherTask(Task):
