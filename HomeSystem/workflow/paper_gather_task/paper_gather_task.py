@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from HomeSystem.workflow.task import Task
 from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData
-from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult
+from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult
 from loguru import logger
 
 
@@ -78,6 +78,7 @@ class PaperGatherTask(Task):
         # 初始化工具
         self.arxiv_tool = ArxivTool()
         self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
+        self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
         
         logger.info(f"初始化论文收集任务，配置: {self.config.get_config_dict()}")
         
@@ -88,6 +89,7 @@ class PaperGatherTask(Task):
         # 如果更新了模型名称，需要重新初始化LLM分析器
         if 'llm_model_name' in kwargs:
             self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
+            self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
             logger.info(f"重新初始化LLM分析器: {self.config.llm_model_name}")
     
     def get_config(self) -> PaperGatherTaskConfig:
@@ -131,6 +133,8 @@ class PaperGatherTask(Task):
                 abstract=paper.snippet,
                 user_requirements=self.config.user_requirements
             )
+
+            logger.debug(f"abstract justification: {result.justification}")
             return result
         except Exception as e:
             logger.error(f"论文分析失败: {e}")
@@ -140,9 +144,58 @@ class PaperGatherTask(Task):
                 justification=f"分析错误: {str(e)}"
             )
     
+    async def analyze_full_paper(self, paper: ArxivData) -> Optional[FullAnalysisResult]:
+        """
+        分析完整论文的相关性
+        
+        Args:
+            paper: 论文数据
+            
+        Returns:
+            FullAnalysisResult: 完整论文分析结果，如果分析失败返回None
+        """
+        try:
+            logger.info(f"开始完整论文分析: {paper.title[:50]}...")
+            
+            # 下载PDF
+            logger.debug("下载PDF中...")
+            paper.downloadPdf()
+            
+            # 执行OCR
+            logger.debug("执行OCR识别...")
+            ocr_result, status_info = paper.performOCR(max_pages=25)
+            
+            if not ocr_result or len(ocr_result.strip()) < 500:
+                logger.warning(f"OCR结果过短或为空，跳过完整分析: {len(ocr_result) if ocr_result else 0} 字符")
+                return None
+            
+            logger.info(f"OCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+            if status_info['is_oversized']:
+                logger.info("检测到超长文档，可能是毕业论文或书籍")
+            
+            # 使用FullPaperAnalysisLLM进行分析
+            logger.debug("开始LLM分析完整论文...")
+            full_analysis = self.full_paper_analyzer.analyze_full_paper(
+                paper_content=ocr_result,
+                user_requirements=self.config.user_requirements
+            )
+
+            logger.debug(f"完整论文分析，justification: {full_analysis.justification}")
+            
+            logger.info(f"完整论文分析完成 (评分: {full_analysis.relevance_score:.2f}): {paper.title[:50]}...")
+            return full_analysis
+            
+        except Exception as e:
+            logger.error(f"完整论文分析失败: {e}")
+            return None
+        finally:
+            # 清理内存
+            paper.clearPdf()
+            paper.clearOcrResult()
+    
     async def process_papers(self, papers: ArxivResult) -> List[Dict[str, Any]]:
         """
-        处理论文数据，包括相关性分析
+        处理论文数据，包括摘要相关性分析和完整论文分析
         
         Args:
             papers: 搜索到的论文结果
@@ -153,10 +206,10 @@ class PaperGatherTask(Task):
         processed_papers = []
         
         for paper in papers:
-            # 分析论文相关性
-            analysis_result = await self.analyze_paper_relevance(paper)
+            # 第一步：分析摘要相关性
+            abstract_analysis = await self.analyze_paper_relevance(paper)
             
-            # 构建论文数据
+            # 构建基础论文数据
             paper_data = {
                 "title": paper.title,
                 "arxiv_id": paper.arxiv_id,
@@ -165,19 +218,44 @@ class PaperGatherTask(Task):
                 "published_date": paper.published_date,
                 "categories": paper.categories,
                 "abstract": paper.snippet,
-                "is_relevant": analysis_result.is_relevant,
-                "relevance_score": analysis_result.relevance_score,
-                "analysis_justification": analysis_result.justification,
-                "tags": paper.tag
+                "abstract_is_relevant": abstract_analysis.is_relevant,
+                "abstract_relevance_score": abstract_analysis.relevance_score,
+                "abstract_analysis_justification": abstract_analysis.justification,
+                "tags": paper.tag,
+                "full_paper_analyzed": False,
+                "full_paper_is_relevant": None,
+                "full_paper_relevance_score": None,
+                "full_paper_analysis_justification": None,
+                "final_is_relevant": abstract_analysis.is_relevant,
+                "final_relevance_score": abstract_analysis.relevance_score
             }
             
-            processed_papers.append(paper_data)
-            
-            # 记录相关论文
-            if analysis_result.is_relevant:
-                logger.info(f"发现相关论文 (评分: {analysis_result.relevance_score:.2f}): {paper.title}")
+            # 第二步：如果摘要相关性足够高，进行完整论文分析
+            if abstract_analysis.is_relevant and abstract_analysis.relevance_score >= self.config.relevance_threshold:
+                logger.info(f"摘要相关性高 ({abstract_analysis.relevance_score:.2f})，开始完整论文分析: {paper.title[:50]}...")
+                
+                full_analysis = await self.analyze_full_paper(paper)
+                
+                if full_analysis:
+                    paper_data.update({
+                        "full_paper_analyzed": True,
+                        "full_paper_is_relevant": full_analysis.is_relevant,
+                        "full_paper_relevance_score": full_analysis.relevance_score,
+                        "full_paper_analysis_justification": full_analysis.justification,
+                        "final_is_relevant": full_analysis.is_relevant,
+                        "final_relevance_score": full_analysis.relevance_score
+                    })
+                    
+                    if full_analysis.is_relevant:
+                        logger.info(f"完整论文分析确认相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
+                    else:
+                        logger.info(f"完整论文分析判定不相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
+                else:
+                    logger.warning(f"完整论文分析失败，使用摘要分析结果: {paper.title[:50]}...")
             else:
-                logger.debug(f"论文不相关 (评分: {analysis_result.relevance_score:.2f}): {paper.title}")
+                logger.debug(f"摘要相关性低 ({abstract_analysis.relevance_score:.2f})，跳过完整分析: {paper.title[:50]}...")
+            
+            processed_papers.append(paper_data)
         
         return processed_papers
         
@@ -212,9 +290,9 @@ class PaperGatherTask(Task):
             # 处理和分析论文
             processed_papers = await self.process_papers(search_results)
             
-            # 统计相关论文（根据配置的阈值过滤）
+            # 统计相关论文（根据配置的阈值过滤，使用最终判断结果）
             relevant_papers = [p for p in processed_papers 
-                             if p["is_relevant"] and p["relevance_score"] >= self.config.relevance_threshold]
+                             if p["final_is_relevant"] and p["final_relevance_score"] >= self.config.relevance_threshold]
             total_relevant_papers = len(relevant_papers)
             
             # 添加查询标识
@@ -226,8 +304,8 @@ class PaperGatherTask(Task):
             logger.info(f"查询 '{self.config.search_query}' 完成: 找到 {len(processed_papers)} 篇论文，"
                        f"其中 {len(relevant_papers)} 篇相关（阈值: {self.config.relevance_threshold}）")
             
-            # 按相关性评分排序
-            all_papers.sort(key=lambda x: x["relevance_score"], reverse=True)
+            # 按最终相关性评分排序
+            all_papers.sort(key=lambda x: x["final_relevance_score"], reverse=True)
             
             logger.info(f"论文收集任务完成: 总共处理 {len(all_papers)} 篇论文，其中 {total_relevant_papers} 篇相关")
             

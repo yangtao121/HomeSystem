@@ -207,13 +207,13 @@ class ArxivData:
         """
         self.pdf = None
     
-    def performOCR(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
+    def performOCR(self, max_pages: int = 25, use_pix2text: bool = False) -> tuple[Optional[str], dict]:
         """
-        使用pix2text对PDF进行OCR文字识别，先导出markdown文件再读取内容
-        针对论文分析进行优化，返回完整内容，只限制页数而不限制字符数
+        对PDF进行OCR文字识别，默认使用PyMuPDF快速提取，可选使用pix2text高精度识别
         
         Args:
             max_pages: 最大处理页数，默认25页（涵盖大部分正常论文）
+            use_pix2text: 是否使用pix2text进行高精度OCR，默认False使用PyMuPDF
             
         Returns:
             tuple: (OCR识别结果文本, 状态信息字典)
@@ -223,14 +223,112 @@ class ArxivData:
                     - 'processed_pages': 实际处理页数
                     - 'is_oversized': 是否超过页数限制（可能是毕业论文等长文档）
                     - 'char_count': 实际提取的字符数
+                    - 'method': 使用的OCR方法 ('pymupdf' 或 'pix2text')
             
         Raises:
             ValueError: 当PDF内容为空时抛出
-            Exception: 当OCR处理失赅时抛出
+            Exception: 当OCR处理失败时抛出
         """
         if self.pdf is None:
             raise ValueError("PDF内容为空，请先调用downloadPdf方法下载PDF")
         
+        # 如果明确要求使用pix2text，或者PyMuPDF方法失败时回退
+        if use_pix2text:
+            return self._performOCR_pix2text(max_pages)
+        else:
+            try:
+                return self._performOCR_pymupdf(max_pages)
+            except Exception as e:
+                logger.warning(f"PyMuPDF OCR失败: {str(e)}，回退到pix2text")
+                return self._performOCR_pix2text(max_pages)
+    
+    def _performOCR_pymupdf(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
+        """
+        使用PyMuPDF进行快速文本提取（默认方法）
+        """
+        import tempfile
+        
+        logger.info(f"开始使用PyMuPDF进行文本提取，最大处理{max_pages}页")
+        
+        try:
+            # 创建临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # 保存PDF到临时文件
+                tmp_pdf_path = os.path.join(temp_dir, 'input.pdf')
+                with open(tmp_pdf_path, 'wb') as f:
+                    f.write(self.pdf)
+                
+                # 打开PDF文档
+                pdf_document = fitz.open(tmp_pdf_path)
+                total_pages = len(pdf_document)
+                
+                logger.info(f"PDF总页数: {total_pages}")
+                
+                # 检查是否为超长文档
+                is_oversized = total_pages > max_pages
+                if is_oversized:
+                    logger.warning(f"文档页数({total_pages})超过限制({max_pages})，将只处理前{max_pages}页")
+                
+                # 决定处理的页数
+                pages_to_process = min(max_pages, total_pages)
+                
+                # 提取文本
+                all_content = []
+                total_chars = 0
+                
+                for page_num in range(pages_to_process):
+                    try:
+                        page = pdf_document[page_num]
+                        text = page.get_text()
+                        
+                        if text.strip():
+                            # 清理文本
+                            clean_text = text.strip()
+                            clean_text = re.sub(r'\n\s*\n', '\n\n', clean_text)  # 规范化空行
+                            clean_text = re.sub(r'[ \t]+', ' ', clean_text)  # 合并多余空格
+                            
+                            if clean_text:
+                                all_content.append(f"=== 第{page_num + 1}页 ===\n{clean_text}")
+                                total_chars += len(clean_text)
+                                
+                    except Exception as e:
+                        logger.warning(f"处理第{page_num + 1}页失败: {e}")
+                        continue
+                
+                pdf_document.close()
+                
+                # 构建状态信息
+                status_info = {
+                    'total_pages': total_pages,
+                    'processed_pages': pages_to_process,
+                    'is_oversized': is_oversized,
+                    'char_count': total_chars,
+                    'method': 'pymupdf'
+                }
+                
+                if all_content:
+                    self.ocr_result = "\n\n".join(all_content)
+                    
+                    status_msg = f"PyMuPDF文本提取完成，处理了 {pages_to_process}/{total_pages} 页，提取文本 {total_chars} 个字符"
+                    if is_oversized:
+                        status_msg += f" (文档超长，可能是毕业论文或书籍)"
+                    
+                    logger.info(status_msg)
+                    return self.ocr_result, status_info
+                else:
+                    logger.warning("PyMuPDF未提取到任何文本")
+                    self.ocr_result = ""
+                    return self.ocr_result, status_info
+                    
+        except Exception as e:
+            error_msg = f"PyMuPDF处理失败: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+    
+    def _performOCR_pix2text(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
+        """
+        使用pix2text进行高精度OCR识别（备用方法）
+        """
         try:
             import os
             import tempfile
@@ -344,26 +442,27 @@ class ArxivData:
                     'total_pages': total_pages,
                     'processed_pages': pages_to_process,
                     'is_oversized': is_oversized,
-                    'char_count': total_chars
+                    'char_count': total_chars,
+                    'method': 'pix2text'
                 }
                 
                 if all_content:
                     self.ocr_result = "\n\n".join(all_content)
                     
                     # 记录详细信息
-                    status_msg = f"OCR识别完成，处理了 {pages_to_process}/{total_pages} 页，提取文本 {total_chars} 个字符"
+                    status_msg = f"pix2text OCR识别完成，处理了 {pages_to_process}/{total_pages} 页，提取文本 {total_chars} 个字符"
                     if is_oversized:
                         status_msg += f" (文档超长，可能是毕业论文或书籍)"
                     
                     logger.info(status_msg)
                     return self.ocr_result, status_info
                 else:
-                    logger.warning("OCR识别未提取到任何文本")
+                    logger.warning("pix2text OCR识别未提取到任何文本")
                     self.ocr_result = ""
                     return self.ocr_result, status_info
                 
         except Exception as e:
-            error_msg = f"OCR识别失败: {str(e)}"
+            error_msg = f"pix2text OCR识别失败: {str(e)}"
             logger.error(error_msg)
             raise Exception(error_msg)
     
