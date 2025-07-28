@@ -54,6 +54,16 @@ class ArxivData:
         # OCR识别结果
         self.ocr_result: Optional[str] = None
         
+        # 结构化摘要字段
+        self.research_background: Optional[str] = None
+        self.research_objectives: Optional[str] = None
+        self.methods: Optional[str] = None
+        self.key_findings: Optional[str] = None
+        self.conclusions: Optional[str] = None
+        self.limitations: Optional[str] = None
+        self.future_work: Optional[str] = None
+        self.keywords: Optional[str] = None
+        
         # 提取ArXiv ID和发布时间
         self.arxiv_id = self._extract_arxiv_id()
         self.published_date = self._extract_published_date()

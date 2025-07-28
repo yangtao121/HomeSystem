@@ -393,6 +393,8 @@ class PaperAnalysisAgent(BaseGraph):
             
             # 执行分析
             result = self.agent.invoke(initial_state, config_dict)
+
+        
             
             if result and "final_result" in result:
                 logger.info("并行论文分析成功完成")

@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 from HomeSystem.workflow.task import Task
 from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData
 from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult
+from HomeSystem.graph.paper_analysis_agent import PaperAnalysisAgent, PaperAnalysisConfig
 from loguru import logger
 
 
@@ -19,6 +20,8 @@ class PaperGatherTaskConfig:
                  relevance_threshold: float = 0.7,
                  max_papers_in_response: int = 50,
                  max_relevant_papers_in_response: int = 10,
+                 enable_paper_summarization: bool = True,
+                 summarization_threshold: float = 0.8,
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.interval_seconds = interval_seconds
@@ -29,12 +32,15 @@ class PaperGatherTaskConfig:
         self.relevance_threshold = relevance_threshold
         self.max_papers_in_response = max_papers_in_response
         self.max_relevant_papers_in_response = max_relevant_papers_in_response
+        self.enable_paper_summarization = enable_paper_summarization
+        self.summarization_threshold = summarization_threshold
         self.custom_settings = custom_settings or {}
         
         logger.info(f"论文收集任务配置初始化完成: "
                    f"间隔={interval_seconds}秒, "
                    f"查询='{search_query}', "
-                   f"最大论文数={max_papers_per_search}")
+                   f"最大论文数={max_papers_per_search}, "
+                   f"启用论文总结={enable_paper_summarization}")
     
     def update_config(self, **kwargs):
         """更新配置参数"""
@@ -56,6 +62,8 @@ class PaperGatherTaskConfig:
             'relevance_threshold': self.relevance_threshold,
             'max_papers_in_response': self.max_papers_in_response,
             'max_relevant_papers_in_response': self.max_relevant_papers_in_response,
+            'enable_paper_summarization': self.enable_paper_summarization,
+            'summarization_threshold': self.summarization_threshold,
             'custom_settings': self.custom_settings
         }
 
@@ -80,6 +88,19 @@ class PaperGatherTask(Task):
         self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
         self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
         
+        # 初始化论文分析智能体（用于论文总结）
+        if self.config.enable_paper_summarization:
+            paper_analysis_config = PaperAnalysisConfig(
+                model_name=self.config.llm_model_name,
+                memory_enabled=False,
+                parallel_execution=True,
+                validate_results=True
+            )
+            self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
+            logger.info("论文分析智能体初始化完成")
+        else:
+            self.paper_analysis_agent = None
+        
         logger.info(f"初始化论文收集任务，配置: {self.config.get_config_dict()}")
         
     def update_config(self, **kwargs):
@@ -90,7 +111,34 @@ class PaperGatherTask(Task):
         if 'llm_model_name' in kwargs:
             self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
             self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
+            
+            # 重新初始化论文分析智能体
+            if self.config.enable_paper_summarization:
+                paper_analysis_config = PaperAnalysisConfig(
+                    model_name=self.config.llm_model_name,
+                    memory_enabled=False,
+                    parallel_execution=True,
+                    validate_results=True
+                )
+                self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
+                logger.info(f"重新初始化论文分析智能体: {self.config.llm_model_name}")
+            
             logger.info(f"重新初始化LLM分析器: {self.config.llm_model_name}")
+            
+        # 如果更新了论文总结开关，需要相应地初始化或清理论文分析智能体
+        if 'enable_paper_summarization' in kwargs:
+            if self.config.enable_paper_summarization and not self.paper_analysis_agent:
+                paper_analysis_config = PaperAnalysisConfig(
+                    model_name=self.config.llm_model_name,
+                    memory_enabled=False,
+                    parallel_execution=True,
+                    validate_results=True
+                )
+                self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
+                logger.info("启用论文总结，初始化论文分析智能体")
+            elif not self.config.enable_paper_summarization:
+                self.paper_analysis_agent = None
+                logger.info("禁用论文总结，清理论文分析智能体")
     
     def get_config(self) -> PaperGatherTaskConfig:
         """获取当前配置"""
@@ -193,6 +241,96 @@ class PaperGatherTask(Task):
             paper.clearPdf()
             paper.clearOcrResult()
     
+    async def summarize_paper(self, paper: ArxivData) -> Optional[Dict[str, Any]]:
+        """
+        使用论文分析智能体对论文进行总结
+        
+        Args:
+            paper: 论文数据
+            
+        Returns:
+            Dict: 论文总结结果，如果总结失败返回None
+        """
+        if not self.paper_analysis_agent:
+            logger.warning("论文分析智能体未初始化，无法进行论文总结")
+            return None
+            
+        try:
+            logger.info(f"开始论文总结: {paper.title[:50]}...")
+            
+            # 检查是否已有OCR结果
+            ocr_result = paper.ocr_result if hasattr(paper, 'ocr_result') and paper.ocr_result else None
+            
+            if not ocr_result:
+                # 如果没有OCR结果，需要重新下载PDF并执行OCR
+                logger.debug("重新下载PDF并执行OCR...")
+                paper.downloadPdf()
+                ocr_result, status_info = paper.performOCR(max_pages=25)
+                
+                if not ocr_result or len(ocr_result.strip()) < 500:
+                    logger.warning(f"OCR结果过短或为空，无法进行论文总结: {len(ocr_result) if ocr_result else 0} 字符")
+                    return None
+                
+                logger.info(f"OCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+            
+            # 使用论文分析智能体进行总结
+            logger.debug("开始使用论文分析智能体进行总结...")
+            summary_result = self.paper_analysis_agent.analyze_paper(
+                paper_text=ocr_result,
+                thread_id=f"paper_summary_{paper.arxiv_id}"
+            )
+            
+            if summary_result and "error" not in summary_result:
+                # 提取结构化结果
+                structured_result = self.paper_analysis_agent.get_structured_result(summary_result)
+
+                # print(f"Structured Result: {structured_result}")
+
+                if structured_result:
+                    # 将结构化结果赋值给ArxivData对象的对应字段
+                    paper.research_background = structured_result.get("research_background")
+                    paper.research_objectives = structured_result.get("research_objectives")
+                    paper.methods = structured_result.get("methods")
+                    paper.key_findings = structured_result.get("key_findings")
+                    paper.conclusions = structured_result.get("conclusions")
+                    paper.limitations = structured_result.get("limitations")
+                    paper.future_work = structured_result.get("future_work")
+                    paper.keywords = structured_result.get("keywords")
+                    
+                    logger.info(f"论文总结成功: {paper.title[:50]}...")
+                    return {
+                        "structured_summary": structured_result,
+                        "analysis_metadata": {
+                            "extraction_method": summary_result.get("extraction_method", "parallel_llm"),
+                            "completed_tasks": summary_result.get("completed_tasks", 0),
+                            "extraction_errors": summary_result.get("extraction_errors", []),
+                            "timestamp": summary_result.get("timestamp", "")
+                        }
+                    }
+                else:
+                    logger.warning("无法提取结构化总结结果")
+                    return {
+                        "raw_summary": summary_result,
+                        "analysis_metadata": {
+                            "extraction_method": "parallel_llm",
+                            "note": "结构化提取失败，返回原始结果"
+                        }
+                    }
+            else:
+                error_msg = summary_result.get("error", "未知错误") if summary_result else "无返回结果"
+                logger.error(f"论文总结失败: {error_msg}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"论文总结过程中发生异常: {e}")
+            return None
+        finally:
+            # 清理内存
+            if hasattr(paper, 'clearPdf'):
+                paper.clearPdf()
+            if hasattr(paper, 'clearOcrResult'):
+                paper.clearOcrResult()
+    
     async def process_papers(self, papers: ArxivResult) -> List[Dict[str, Any]]:
         """
         处理论文数据，包括摘要相关性分析和完整论文分析
@@ -226,6 +364,8 @@ class PaperGatherTask(Task):
                 "full_paper_is_relevant": None,
                 "full_paper_relevance_score": None,
                 "full_paper_analysis_justification": None,
+                "paper_summarized": False,
+                "paper_summary": None,
                 "final_is_relevant": abstract_analysis.is_relevant,
                 "final_relevance_score": abstract_analysis.relevance_score
             }
@@ -248,6 +388,29 @@ class PaperGatherTask(Task):
                     
                     if full_analysis.is_relevant:
                         logger.info(f"完整论文分析确认相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
+                        
+                        # 如果启用了论文总结且相关性评分足够高，则进行论文总结
+                        if (self.config.enable_paper_summarization and 
+                            self.paper_analysis_agent and 
+                            full_analysis.relevance_score >= self.config.summarization_threshold):
+                            
+                            logger.info(f"相关性评分足够高 ({full_analysis.relevance_score:.2f})，开始论文总结: {paper.title[:50]}...")
+                            summary_result = await self.summarize_paper(paper)
+                            
+                            
+                            if summary_result:
+                                paper_data.update({
+                                    "paper_summarized": True,
+                                    "paper_summary": summary_result
+                                })
+                                logger.info(f"论文总结完成: {paper.title[:50]}...")
+                            else:
+                                logger.warning(f"论文总结失败: {paper.title[:50]}...")
+                        else:
+                            if not self.config.enable_paper_summarization:
+                                logger.debug(f"论文总结功能已禁用，跳过总结: {paper.title[:50]}...")
+                            elif full_analysis.relevance_score < self.config.summarization_threshold:
+                                logger.debug(f"相关性评分不足总结阈值 ({full_analysis.relevance_score:.2f} < {self.config.summarization_threshold})，跳过总结: {paper.title[:50]}...")
                     else:
                         logger.info(f"完整论文分析判定不相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
                 else:
