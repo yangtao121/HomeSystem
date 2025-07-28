@@ -64,6 +64,20 @@ class ArxivData:
         self.future_work: Optional[str] = None
         self.keywords: Optional[str] = None
         
+        # 论文分析相关字段
+        self.abstract_is_relevant: bool = False
+        self.abstract_relevance_score: float = 0.0
+        self.abstract_analysis_justification: Optional[str] = None
+        self.full_paper_analyzed: bool = False
+        self.full_paper_is_relevant: Optional[bool] = None
+        self.full_paper_relevance_score: Optional[float] = None
+        self.full_paper_analysis_justification: Optional[str] = None
+        self.paper_summarized: bool = False
+        self.paper_summary: Optional[dict] = None
+        self.final_is_relevant: bool = False
+        self.final_relevance_score: float = 0.0
+        self.search_query: Optional[str] = None
+        
         # 提取ArXiv ID和发布时间
         self.arxiv_id = self._extract_arxiv_id()
         self.published_date = self._extract_published_date()
