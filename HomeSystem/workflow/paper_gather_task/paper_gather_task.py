@@ -556,6 +556,9 @@ class PaperGatherTask(Task):
             else:
                 logger.debug(f"论文不符合要求，不保存到数据库: {paper.arxiv_id} (相关性: {paper.final_is_relevant}, 评分: {paper.final_relevance_score:.2f})")
             
+
+            # 处理完毕释放内存
+            paper.cleanup()
             processed_papers.append(paper)
         
         return processed_papers

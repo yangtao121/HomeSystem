@@ -505,6 +505,43 @@ class ArxivData:
         """
         self.ocr_result = None
 
+    def cleanup(self):
+        """
+        清理ArxivData对象的所有内部数据，释放内存
+        包括PDF数据、OCR结果、结构化分析字段等所有大内存占用的属性
+        """
+        # 清理PDF相关数据
+        self.pdf = None
+        self.pdf_path = None
+        
+        # 清理OCR结果
+        self.ocr_result = None
+        
+        # 清理结构化摘要字段
+        self.research_background = None
+        self.research_objectives = None
+        self.methods = None
+        self.key_findings = None
+        self.conclusions = None
+        self.limitations = None
+        self.future_work = None
+        self.keywords = None
+        
+        # 清理分析结果
+        self.abstract_analysis_justification = None
+        self.full_paper_analysis_justification = None
+        self.paper_summary = None
+        
+        # 清理标签和其他列表数据
+        if hasattr(self, 'tag') and self.tag:
+            self.tag.clear()
+        
+        # 强制垃圾回收
+        import gc
+        gc.collect()
+        
+        logger.debug(f"ArxivData对象已清理: {self.title[:50] if self.title else 'unknown'}...")
+
     def clear_invalid_characters(self, string: str) -> str:
         """
         去除字符串中的非法字符

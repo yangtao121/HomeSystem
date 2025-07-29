@@ -58,8 +58,8 @@ async def main():
     )
     
     # 添加任务
-    engine.add_task(HelloTask())
-    engine.add_task(CounterTask())
+    # engine.add_task(HelloTask())
+    # engine.add_task(CounterTask())
     engine.add_task(PaperGatherTask(config=paper_gather_config))  # 每30秒执行一次（用于测试）
 
     print("工作流引擎已启动，任务列表：")
