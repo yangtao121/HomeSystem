@@ -6,11 +6,31 @@ import psycopg2.extras
 import redis
 import json
 import re
+from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from config import DATABASE_CONFIG, REDIS_CONFIG
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def datetime_serializer(obj):
+    """JSON序列化时处理datetime对象"""
+    if isinstance(obj, datetime):
+        return {'__datetime__': obj.isoformat()}
+    return str(obj)
+
+
+def datetime_deserializer(dct):
+    """JSON反序列化时处理datetime对象"""
+    if isinstance(dct, dict):
+        if '__datetime__' in dct:
+            return datetime.fromisoformat(dct['__datetime__'])
+        # 处理嵌套结构中的datetime对象
+        for key, value in dct.items():
+            if isinstance(value, dict) and '__datetime__' in value:
+                dct[key] = datetime.fromisoformat(value['__datetime__'])
+    return dct
 
 
 def parse_keywords_string(keywords_string: str) -> List[str]:
@@ -101,7 +121,13 @@ class DatabaseManager:
             try:
                 cached_data = redis_client.get(key)
                 if cached_data:
-                    return json.loads(cached_data)
+                    try:
+                        return json.loads(cached_data, object_hook=datetime_deserializer)
+                    except (ValueError, TypeError) as e:
+                        # 如果反序列化失败，可能是旧格式的缓存，删除它
+                        logger.warning(f"缓存格式不兼容，删除旧缓存: {key}")
+                        redis_client.delete(key)
+                        return None
             except Exception as e:
                 logger.warning(f"缓存读取失败: {e}")
         return None
@@ -111,7 +137,7 @@ class DatabaseManager:
         redis_client = self.get_redis_client()
         if redis_client:
             try:
-                redis_client.setex(key, timeout, json.dumps(data, default=str))
+                redis_client.setex(key, timeout, json.dumps(data, default=datetime_serializer))
             except Exception as e:
                 logger.warning(f"缓存设置失败: {e}")
 

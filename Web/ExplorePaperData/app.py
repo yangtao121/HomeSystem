@@ -185,7 +185,27 @@ def format_date(date_obj):
     """日期格式化过滤器"""
     if not date_obj:
         return ""
-    return date_obj.strftime('%Y-%m-%d %H:%M')
+    
+    # 如果是字符串，尝试解析为datetime对象
+    if isinstance(date_obj, str):
+        try:
+            from datetime import datetime
+            # 尝试解析ISO格式的日期字符串
+            if 'T' in date_obj:
+                date_obj = datetime.fromisoformat(date_obj.replace('Z', '+00:00'))
+            else:
+                # 尝试解析其他常见格式
+                date_obj = datetime.strptime(date_obj, '%Y-%m-%d %H:%M:%S')
+        except (ValueError, AttributeError):
+            # 如果解析失败，直接返回原字符串
+            return str(date_obj)
+    
+    # 如果是datetime对象，格式化输出
+    try:
+        return date_obj.strftime('%Y-%m-%d %H:%M')
+    except AttributeError:
+        # 如果对象没有strftime方法，返回字符串表示
+        return str(date_obj)
 
 @app.template_filter('status_badge')
 def status_badge(status):
