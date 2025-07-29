@@ -21,6 +21,14 @@ class FullAnalysisResult(BaseModel):
     justification: str = Field(description="Detailed reasoning for the full paper analysis")
 
 
+class TranslationResult(BaseModel):
+    """Translation result"""
+    original_text: str = Field(description="Original English text")
+    translated_text: str = Field(description="Chinese translation")
+    translation_quality: str = Field(description="Translation quality assessment (high/medium/low)")
+    notes: str = Field(description="Translation notes or explanations", default="")
+
+
 class AbstractAnalysisLLM:
     """Paper abstract preliminary analysis LLM"""
     
@@ -143,6 +151,68 @@ Remember:
                 relevance_score=0.0,
                 justification=f"Analysis error: {str(e)}"
             )
+
+
+class TranslationLLM:
+    """英文到中文翻译的LLM"""
+    
+    def __init__(self, model_name: str = "ollama.Qwen3_30B"):
+        self.model_name = model_name
+        self.system_prompt = """你是一个专业的学术翻译专家，专门负责将英文学术论文和文本翻译成中文。
+
+你的翻译要求：
+1. 保持学术准确性和术语精确性
+2. 保留原文的含义和语境
+3. 使用合适的中文学术写作风格
+4. 保持技术术语和专有名词的一致性
+5. 提供自然流畅的中文翻译
+
+翻译质量标准：
+- high（高）：准确、流畅，保持所有技术细节
+- medium（中）：总体准确，有轻微问题
+- low（低）：基本理解但可能有不准确之处
+
+请将给定的英文文本翻译成中文，同时保持学术严谨性和可读性。"""
+        
+        # Create LLM instance
+        self.base_llm = llm_factory.create_llm(model_name=model_name)
+        self.structured_llm = self.base_llm.with_structured_output(TranslationResult)
+        
+        logger.info(f"初始化翻译LLM: {model_name}")
+    
+    def translate_text(self, english_text: str) -> TranslationResult:
+        """将英文文本翻译为中文"""
+        prompt = f"""请将以下英文文本翻译成中文：
+
+英文文本：{english_text}
+
+要求：
+- 提供准确流畅的中文翻译
+- 保持学术语调和精确性
+- 评估翻译质量（high/medium/low）
+- 如有特殊术语或翻译难点，请添加注释
+
+请确保翻译自然，适合中文学术读者阅读。"""
+        
+        try:
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+            
+            result = self.structured_llm.invoke(messages)
+            return cast(TranslationResult, result)
+            
+        except Exception as e:
+            logger.error(f"翻译失败: {e}")
+            return TranslationResult(
+                original_text=english_text,
+                translated_text=f"翻译失败: {str(e)}",
+                translation_quality="low",
+                notes=f"翻译错误: {str(e)}"
+            )
+    
+
         
 if __name__ == "__main__":
     # Example usage

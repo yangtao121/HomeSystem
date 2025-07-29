@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from HomeSystem.workflow.task import Task
 from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData
-from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult
+from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult, TranslationLLM
 from HomeSystem.graph.paper_analysis_agent import PaperAnalysisAgent, PaperAnalysisConfig
 from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
 from loguru import logger
@@ -23,6 +23,7 @@ class PaperGatherTaskConfig:
                  max_relevant_papers_in_response: int = 10,
                  enable_paper_summarization: bool = True,
                  summarization_threshold: float = 0.8,
+                 enable_translation: bool = True,
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.interval_seconds = interval_seconds
@@ -35,13 +36,15 @@ class PaperGatherTaskConfig:
         self.max_relevant_papers_in_response = max_relevant_papers_in_response
         self.enable_paper_summarization = enable_paper_summarization
         self.summarization_threshold = summarization_threshold
+        self.enable_translation = enable_translation
         self.custom_settings = custom_settings or {}
         
         logger.info(f"论文收集任务配置初始化完成: "
                    f"间隔={interval_seconds}秒, "
                    f"查询='{search_query}', "
                    f"最大论文数={max_papers_per_search}, "
-                   f"启用论文总结={enable_paper_summarization}")
+                   f"启用论文总结={enable_paper_summarization}, "
+                   f"启用翻译={enable_translation}")
     
     def update_config(self, **kwargs):
         """更新配置参数"""
@@ -65,6 +68,7 @@ class PaperGatherTaskConfig:
             'max_relevant_papers_in_response': self.max_relevant_papers_in_response,
             'enable_paper_summarization': self.enable_paper_summarization,
             'summarization_threshold': self.summarization_threshold,
+            'enable_translation': self.enable_translation,
             'custom_settings': self.custom_settings
         }
 
@@ -88,6 +92,7 @@ class PaperGatherTask(Task):
         self.arxiv_tool = ArxivTool()
         self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
         self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
+        self.translator = TranslationLLM()
         
         # 初始化数据库操作
         self.db_ops = DatabaseOperations()
@@ -115,6 +120,7 @@ class PaperGatherTask(Task):
         if 'llm_model_name' in kwargs:
             self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
             self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
+            self.translator = TranslationLLM()
             
             # 重新初始化论文分析智能体
             if self.config.enable_paper_summarization:
@@ -147,6 +153,43 @@ class PaperGatherTask(Task):
     def get_config(self) -> PaperGatherTaskConfig:
         """获取当前配置"""
         return self.config
+    
+    async def translate_paper_fields(self, paper: ArxivData) -> None:
+        """
+        将论文的英文结构化字段翻译为中文并直接覆盖原字段
+        
+        Args:
+            paper: 论文数据对象，会直接修改其字段
+        """
+        if not self.config.enable_translation:
+            logger.debug("翻译功能已禁用，跳过翻译")
+            return
+            
+        try:
+            logger.debug(f"开始翻译论文字段: {paper.title[:50]}...")
+            
+            # 定义需要翻译的字段
+            fields_to_translate = [
+                'research_background', 'research_objectives', 'methods', 
+                'key_findings', 'conclusions', 'limitations', 'future_work', "snippet"
+            ]
+            
+            # 翻译每个字段
+            for field_name in fields_to_translate:
+                field_value = getattr(paper, field_name, None)
+                if field_value and field_value.strip() and field_value != '无':
+                    try:
+                        translation_result = self.translator.translate_text(field_value)
+                        # 直接覆盖原字段
+                        setattr(paper, field_name, translation_result.translated_text)
+                        logger.debug(f"字段 {field_name} 翻译完成 (质量: {translation_result.translation_quality})")
+                    except Exception as e:
+                        logger.error(f"翻译字段 {field_name} 失败: {e}")
+            
+            logger.debug(f"论文字段翻译完成: {paper.title[:50]}...")
+            
+        except Exception as e:
+            logger.error(f"翻译论文字段时发生异常: {e}")
     
     async def check_paper_in_database(self, arxiv_id: str) -> Optional[ArxivPaperModel]:
         """
@@ -473,19 +516,23 @@ class PaperGatherTask(Task):
                             logger.info(f"相关性评分足够高 ({full_analysis.relevance_score:.2f})，开始论文总结: {paper.title[:50]}...")
                             summary_result = await self.summarize_paper(paper)
 
-                            logger.debug(f"论文关键词: {paper.keywords}")
-                            logger.debug(f"论文研究背景: {paper.research_background if paper.research_background else '无'}")
-                            logger.debug(f"论文研究目标: {paper.research_objectives if paper.research_objectives else '无'}")
-                            logger.debug(f"论文方法: {paper.methods if paper.methods else '无'}")
-                            logger.debug(f"论文主要发现: {paper.key_findings if paper.key_findings else '无'}")
-                            logger.debug(f"论文结论: {paper.conclusions if paper.conclusions else '无'}")
-                            logger.debug(f"论文局限性: {paper.limitations if paper.limitations else '无'}")
-                            logger.debug(f"论文未来工作: {paper.future_work if paper.future_work else '无'}")
-                            
                             if summary_result:
                                 paper.paper_summarized = True
                                 paper.paper_summary = summary_result
                                 logger.info(f"论文总结完成: {paper.title[:50]}...")
+                                
+                                # 翻译结构化字段
+                                await self.translate_paper_fields(paper)
+                                
+                                # 输出翻译后的中文内容
+                                logger.debug(f"论文关键词: {paper.keywords}")
+                                logger.debug(f"论文研究背景: {paper.research_background if paper.research_background else '无'}")
+                                logger.debug(f"论文研究目标: {paper.research_objectives if paper.research_objectives else '无'}")
+                                logger.debug(f"论文方法: {paper.methods if paper.methods else '无'}")
+                                logger.debug(f"论文主要发现: {paper.key_findings if paper.key_findings else '无'}")
+                                logger.debug(f"论文结论: {paper.conclusions if paper.conclusions else '无'}")
+                                logger.debug(f"论文局限性: {paper.limitations if paper.limitations else '无'}")
+                                logger.debug(f"论文未来工作: {paper.future_work if paper.future_work else '无'}")
                             else:
                                 logger.warning(f"论文总结失败: {paper.title[:50]}...")
                         else:

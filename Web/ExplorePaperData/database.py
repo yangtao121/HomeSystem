@@ -5,11 +5,63 @@ import psycopg2
 import psycopg2.extras
 import redis
 import json
+import re
 from typing import Dict, List, Any, Optional, Tuple
 from config import DATABASE_CONFIG, REDIS_CONFIG
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def parse_keywords_string(keywords_string: str) -> List[str]:
+    """
+    解析关键词字符串，提取个别关键词
+    
+    支持格式:
+    - JSON数组格式: {"keyword1","keyword2","keyword3"}
+    - 逗号分隔格式: keyword1, keyword2, keyword3
+    - 分号分隔格式: keyword1; keyword2; keyword3
+    
+    Args:
+        keywords_string: 关键词字符串
+        
+    Returns:
+        List[str]: 解析后的关键词列表
+    """
+    if not keywords_string or not keywords_string.strip():
+        return []
+    
+    keywords_string = keywords_string.strip()
+    
+    # 处理JSON数组格式: {"keyword1","keyword2","keyword3"}
+    if keywords_string.startswith('{') and keywords_string.endswith('}'):
+        try:
+            # 移除外层大括号
+            content = keywords_string[1:-1]
+            # 使用正则表达式提取所有引号内的内容
+            keywords = re.findall(r'"([^"]*)"', content)
+            return [kw.strip() for kw in keywords if kw.strip()]
+        except Exception as e:
+            logger.warning(f"解析JSON格式关键词失败: {e}, 原始字符串: {keywords_string}")
+    
+    # 处理标准JSON数组格式: ["keyword1","keyword2","keyword3"]
+    if keywords_string.startswith('[') and keywords_string.endswith(']'):
+        try:
+            keywords_list = json.loads(keywords_string)
+            return [str(kw).strip() for kw in keywords_list if str(kw).strip()]
+        except Exception as e:
+            logger.warning(f"解析标准JSON数组格式关键词失败: {e}, 原始字符串: {keywords_string}")
+    
+    # 处理逗号或分号分隔的格式
+    separators = [',', ';', '|']
+    for sep in separators:
+        if sep in keywords_string:
+            keywords = [kw.strip().strip('"\'') for kw in keywords_string.split(sep)]
+            return [kw for kw in keywords if kw]
+    
+    # 如果没有分隔符，返回单个关键词
+    return [keywords_string.strip().strip('"\'')]
+
 
 class DatabaseManager:
     """数据库管理器"""
@@ -291,16 +343,28 @@ class PaperService:
         with self.db_manager.get_db_connection() as conn:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
-            # 关键词分析
+            # 关键词分析 - 先获取所有关键词字符串，然后解析
             cursor.execute("""
-                SELECT keywords, COUNT(*) as frequency
+                SELECT keywords
                 FROM arxiv_papers 
                 WHERE keywords IS NOT NULL AND keywords != ''
-                GROUP BY keywords
-                ORDER BY frequency DESC
-                LIMIT 50
             """)
-            keyword_analysis = [dict(row) for row in cursor.fetchall()]
+            raw_keywords = cursor.fetchall()
+            
+            # 解析关键词并统计频率
+            keyword_frequency = {}
+            for row in raw_keywords:
+                keywords_string = row['keywords']  # 使用字典键访问
+                parsed_keywords = parse_keywords_string(keywords_string)
+                for keyword in parsed_keywords:
+                    if keyword:  # 确保关键词不为空
+                        keyword_frequency[keyword] = keyword_frequency.get(keyword, 0) + 1
+            
+            # 按频率排序并限制数量
+            keyword_analysis = [
+                {'keywords': keyword, 'frequency': frequency}
+                for keyword, frequency in sorted(keyword_frequency.items(), key=lambda x: x[1], reverse=True)[:50]
+            ]
             
             # 研究方法趋势
             cursor.execute("""
