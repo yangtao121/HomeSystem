@@ -119,7 +119,12 @@ LLM providers are configured via YAML in `HomeSystem/graph/config/llm_providers.
 ## Project Structure Notes
 
 - Examples in `examples/` demonstrate usage patterns for each major component
-- Documentation in `docs/` provides detailed integration guides including database setup
+- Documentation in `docs/` provides detailed integration guides:
+  - `database-integration-guide.md`: Complete PostgreSQL + Redis setup, ArXiv paper management, Docker deployment
+  - `llm-integration-guide.md`: Multi-provider LLM configuration (DeepSeek, SiliconFlow, Volcano, MoonShot, Ollama), embedding models
+  - `arxiv-api-documentation.md`: ArXiv API tool usage, paper search and download functionality
+  - `workflow-framework-guide.md`: Task scheduling system, background job management, workflow engine
+  - `project-structure.md`: Detailed module organization and architectural overview
 - The system uses async/await patterns extensively for concurrency
 - Database integration supports both PostgreSQL (persistent) and Redis (caching) with automatic Docker detection
 - Workflow system supports signal-based graceful shutdown
