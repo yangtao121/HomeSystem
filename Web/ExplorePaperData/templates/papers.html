@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}论文浏览 - ArXiv论文数据探索{% endblock %}
+
+{% block content %}
+<!-- 页面标题 -->
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="display-6 mb-2">
+            <i class="bi bi-journal-text"></i>
+            论文浏览
+        </h1>
+        <p class="text-muted">搜索和浏览ArXiv论文数据库</p>
+    </div>
+</div>
+
+<!-- 搜索和过滤器 -->
+<div class="search-container">
+    <form method="GET" action="{{ url_for('papers') }}" id="searchForm">
+        <div class="row">
+            <!-- 主搜索框 -->
+            <div class="col-md-6 mb-3">
+                <label for="searchInput" class="form-label">搜索关键词</label>
+                <div class="input-group">
+                    <input type="text" class="form-control search-input" id="searchInput" 
+                           name="q" value="{{ query }}" 
+                           placeholder="搜索标题、摘要、作者、研究目标或关键词..."
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top" 
+                           title="支持模糊搜索，可搜索标题、摘要、作者、研究目标和关键词">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> 搜索
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 分类过滤 -->
+            <div class="col-md-3 mb-3">
+                <label for="categoryFilter" class="form-label">分类</label>
+                <input type="text" class="form-control" id="categoryFilter" 
+                       name="category" value="{{ category }}" 
+                       placeholder="如: cs.LG, cs.AI">
+            </div>
+            
+            <!-- 状态过滤 -->
+            <div class="col-md-3 mb-3">
+                <label for="statusFilter" class="form-label">处理状态</label>
+                <select class="form-select" id="statusFilter" name="status">
+                    <option value="">全部状态</option>
+                    <option value="pending" {% if status == 'pending' %}selected{% endif %}>待处理</option>
+                    <option value="completed" {% if status == 'completed' %}selected{% endif %}>已完成</option>
+                    <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="row">
+            <div class="col">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> 搜索
+                </button>
+                <a href="{{ url_for('papers') }}" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-arrow-counterclockwise"></i> 清除过滤
+                </a>
+                <button type="button" class="btn btn-outline-info" onclick="exportData('json')">
+                    <i class="bi bi-download"></i> 导出结果
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 搜索结果信息 -->
+<div class="row mb-3">
+    <div class="col">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <small class="text-muted">
+                    共找到 <strong>{{ pagination.total }}</strong> 篇论文
+                    {% if query or category or status %}
+                    {% if query %}，关键词: <strong>"{{ query }}"</strong>{% endif %}
+                    {% if category %}，分类: <strong>{{ category }}</strong>{% endif %}
+                    {% if status %}，状态: <strong>{{ status }}</strong>{% endif %}
+                    {% endif %}
+                </small>
+            </div>
+            <div>
+                <small class="text-muted">
+                    显示第 {{ (pagination.page - 1) * pagination.per_page + 1 }} - 
+                    {{ [(pagination.page * pagination.per_page), pagination.total]|min }} 条
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 论文列表 -->
+{% if papers %}
+<div class="papers-list">
+    {% for paper in papers %}
+    <div class="paper-item">
+        <div class="row">
+            <div class="col-md-9">
+                <!-- 论文标题 -->
+                <h5 class="paper-title">
+                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}">
+                        {{ paper.title }}
+                    </a>
+                </h5>
+                
+                <!-- 论文元数据 -->
+                <div class="paper-meta">
+                    <span class="me-3">
+                        <i class="bi bi-person"></i>
+                        {{ paper.authors|truncate_text(100) }}
+                    </span>
+                    <span class="me-3">
+                        <i class="bi bi-tag"></i>
+                        {{ paper.categories }}
+                    </span>
+                    <span class="me-3">
+                        <i class="bi bi-calendar"></i>
+                        {{ paper.created_at|format_date }}
+                    </span>
+                </div>
+                
+                <!-- 研究目标（如果有） -->
+                {% if paper.research_objectives %}
+                <div class="paper-abstract mt-2">
+                    <strong>研究目标:</strong> {{ paper.research_objectives|truncate_text(200) }}
+                </div>
+                {% endif %}
+                
+                <!-- 关键词（如果有） -->
+                {% if paper.keywords %}
+                <div class="paper-keywords mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-key"></i>
+                        <strong>关键词:</strong> {{ paper.keywords|truncate_text(100) }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-3 text-end">
+                <!-- 状态徽章 -->
+                <span class="badge badge-{{ paper.processing_status|status_badge }} mb-2">
+                    {% if paper.processing_status == 'pending' %}
+                        <i class="bi bi-clock"></i> 待处理
+                    {% elif paper.processing_status == 'completed' %}
+                        <i class="bi bi-check-circle"></i> 已完成
+                    {% elif paper.processing_status == 'failed' %}
+                        <i class="bi bi-x-circle"></i> 失败
+                    {% endif %}
+                </span>
+                
+                <!-- 操作按钮 -->
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                       class="btn btn-sm btn-primary">
+                        <i class="bi bi-eye"></i> 查看详情
+                    </a>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="copyToClipboard('{{ paper.arxiv_id }}')">
+                        <i class="bi bi-clipboard"></i> 复制ID
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 分页导航 -->
+{% if pagination.total_pages > 1 %}
+<nav aria-label="论文分页导航">
+    <ul class="pagination">
+        <!-- 上一页 -->
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('papers', page=pagination.prev_num, q=query, category=category, status=status) }}">
+                <i class="bi bi-chevron-left"></i> 上一页
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">
+                <i class="bi bi-chevron-left"></i> 上一页
+            </span>
+        </li>
+        {% endif %}
+        
+        <!-- 页码 -->
+        {% set start_page = [pagination.page - 2, 1]|max %}
+        {% set end_page = [pagination.page + 2, pagination.total_pages]|min %}
+        
+        {% if start_page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('papers', page=1, q=query, category=category, status=status) }}">1</a>
+        </li>
+        {% if start_page > 2 %}
+        <li class="page-item disabled">
+            <span class="page-link">...</span>
+        </li>
+        {% endif %}
+        {% endif %}
+        
+        {% for page_num in range(start_page, end_page + 1) %}
+        {% if page_num == pagination.page %}
+        <li class="page-item active">
+            <span class="page-link">{{ page_num }}</span>
+        </li>
+        {% else %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('papers', page=page_num, q=query, category=category, status=status) }}">{{ page_num }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+        
+        {% if end_page < pagination.total_pages %}
+        {% if end_page < pagination.total_pages - 1 %}
+        <li class="page-item disabled">
+            <span class="page-link">...</span>
+        </li>
+        {% endif %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('papers', page=pagination.total_pages, q=query, category=category, status=status) }}">{{ pagination.total_pages }}</a>
+        </li>
+        {% endif %}
+        
+        <!-- 下一页 -->
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('papers', page=pagination.next_num, q=query, category=category, status=status) }}">
+                下一页 <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">
+                下一页 <i class="bi bi-chevron-right"></i>
+            </span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+
+<!-- 分页信息 -->
+<div class="text-center text-muted">
+    <small>
+        第 {{ pagination.page }} 页，共 {{ pagination.total_pages }} 页 |
+        每页显示 {{ pagination.per_page }} 条 |
+        共 {{ pagination.total }} 篇论文
+    </small>
+</div>
+{% endif %}
+
+{% else %}
+<!-- 空状态 -->
+<div class="empty-state">
+    <i class="bi bi-search"></i>
+    <h4>未找到匹配的论文</h4>
+    <p>请尝试调整搜索条件或清除过滤器</p>
+    <a href="{{ url_for('papers') }}" class="btn btn-primary">
+        <i class="bi bi-arrow-counterclockwise"></i> 查看所有论文
+    </a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 快捷键支持
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+Enter 提交搜索
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            document.getElementById('searchForm').submit();
+        }
+    });
+    
+    // 搜索建议功能（可扩展）
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('focus', function() {
+            // 可以在这里添加搜索建议下拉框
+            console.log('搜索框获得焦点');
+        });
+    }
+</script>
+{% endblock %}

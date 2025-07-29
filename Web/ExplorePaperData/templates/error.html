@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}错误 - ArXiv论文数据探索{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="error-container">
+            <div class="error-icon">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            
+            <h2 class="text-danger mb-3">出现错误</h2>
+            
+            <div class="error-message mb-4">
+                {{ error }}
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="bi bi-house"></i>
+                    返回首页
+                </a>
+                <button class="btn btn-outline-secondary" onclick="history.back()">
+                    <i class="bi bi-arrow-left"></i>
+                    返回上页
+                </button>
+                <button class="btn btn-outline-info" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    重新加载
+                </button>
+            </div>
+            
+            <div class="mt-4">
+                <small class="text-muted">
+                    如果问题持续存在，请检查以下项目：
+                    <ul class="list-unstyled mt-2">
+                        <li><i class="bi bi-check-circle"></i> 数据库服务是否正常</li>
+                        <li><i class="bi bi-check-circle"></i> 网络连接是否稳定</li>
+                        <li><i class="bi bi-check-circle"></i> 刷新页面重试</li>
+                    </ul>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
