@@ -558,7 +558,7 @@ class PaperGatherTask(Task):
             
 
             # 处理完毕释放内存
-            paper.cleanup()
+            # paper.cleanup()
             processed_papers.append(paper)
         
         return processed_papers

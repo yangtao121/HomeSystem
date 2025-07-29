@@ -9,6 +9,7 @@ import sys
 import os
 
 from yaml import serialize
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))  # 添加上级目录到路径，以便导入 HomeSystem
 from HomeSystem.workflow.task import Task
 from HomeSystem.workflow.engine import WorkflowEngine
@@ -56,11 +57,13 @@ async def main():
         user_requirements="The thesis simultaneously focuses on navigation and robot control, and also incorporates obstacle avoidance functionality.",
         max_papers_per_search= 50,
     )
+
+    paper_gather_task = PaperGatherTask(config=paper_gather_config)
     
     # 添加任务
     # engine.add_task(HelloTask())
     # engine.add_task(CounterTask())
-    engine.add_task(PaperGatherTask(config=paper_gather_config))  # 每30秒执行一次（用于测试）
+    # engine.add_task(PaperGatherTask(config=paper_gather_config))  # 每30秒执行一次（用于测试）
 
     print("工作流引擎已启动，任务列表：")
     for task_info in engine.list_tasks():
@@ -69,7 +72,9 @@ async def main():
     print("\n按 Ctrl+C 停止引擎...")
     
     # 运行引擎
-    await engine.run()
+    # await engine.run()
+
+    await paper_gather_task.run()  # 直接运行论文收集任务以测试功能
 
 
 if __name__ == "__main__":
