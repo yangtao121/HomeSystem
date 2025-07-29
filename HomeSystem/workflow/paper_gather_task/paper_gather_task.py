@@ -5,6 +5,7 @@ from HomeSystem.workflow.task import Task
 from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData
 from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult
 from HomeSystem.graph.paper_analysis_agent import PaperAnalysisAgent, PaperAnalysisConfig
+from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
 from loguru import logger
 
 
@@ -88,6 +89,9 @@ class PaperGatherTask(Task):
         self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
         self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
         
+        # 初始化数据库操作
+        self.db_ops = DatabaseOperations()
+        
         # 初始化论文分析智能体（用于论文总结）
         if self.config.enable_paper_summarization:
             paper_analysis_config = PaperAnalysisConfig(
@@ -143,6 +147,80 @@ class PaperGatherTask(Task):
     def get_config(self) -> PaperGatherTaskConfig:
         """获取当前配置"""
         return self.config
+    
+    async def check_paper_in_database(self, arxiv_id: str) -> Optional[ArxivPaperModel]:
+        """
+        检查论文是否已在数据库中
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            ArxivPaperModel: 如果存在返回论文模型，否则返回None
+        """
+        try:
+            existing_paper = self.db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_id)
+            if existing_paper:
+                logger.debug(f"论文已存在于数据库中: {arxiv_id}")
+                return existing_paper
+            else:
+                logger.debug(f"论文不存在于数据库中: {arxiv_id}")
+                return None
+        except Exception as e:
+            logger.error(f"检查论文数据库状态失败: {arxiv_id}, 错误: {e}")
+            return None
+    
+    async def save_paper_to_database(self, paper: ArxivData) -> bool:
+        """
+        保存论文到数据库
+        
+        Args:
+            paper: ArXiv论文数据
+            
+        Returns:
+            bool: 保存是否成功
+        """
+        try:
+            # 创建ArxivPaperModel实例
+            paper_model = ArxivPaperModel(
+                arxiv_id=paper.arxiv_id,
+                title=paper.title,
+                authors=paper.authors,
+                abstract=paper.snippet,  # ArxivData中使用snippet作为abstract
+                categories=paper.categories,
+                published_date=paper.published,
+                pdf_url=paper.pdf_url,
+                processing_status='completed',  # 处理完成后设置为completed
+                tags=[],  # 初始为空，可以后续添加
+                metadata={
+                    'search_query': getattr(paper, 'search_query', ''),
+                    'final_relevance_score': getattr(paper, 'final_relevance_score', 0.0),
+                    'abstract_relevance_score': getattr(paper, 'abstract_relevance_score', 0.0),
+                    'full_paper_relevance_score': getattr(paper, 'full_paper_relevance_score', 0.0),
+                    'paper_summarized': getattr(paper, 'paper_summarized', False)
+                },
+                # 结构化论文分析字段
+                research_background=getattr(paper, 'research_background', None),
+                research_objectives=getattr(paper, 'research_objectives', None),
+                methods=getattr(paper, 'methods', None),
+                key_findings=getattr(paper, 'key_findings', None),
+                conclusions=getattr(paper, 'conclusions', None),
+                limitations=getattr(paper, 'limitations', None),
+                future_work=getattr(paper, 'future_work', None),
+                keywords=getattr(paper, 'keywords', None)
+            )
+            
+            # 保存到数据库
+            success = self.db_ops.create(paper_model)
+            if success:
+                logger.info(f"论文成功保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
+                return True
+            else:
+                logger.error(f"论文保存到数据库失败: {paper.arxiv_id}")
+                return False
+        except Exception as e:
+            logger.error(f"保存论文到数据库时发生异常: {paper.arxiv_id}, 错误: {e}")
+            return False
         
     async def search_papers(self, query: str, num_results: int = 10) -> ArxivResult:
         """
@@ -344,7 +422,21 @@ class PaperGatherTask(Task):
         processed_papers = []
         
         for paper in papers:
-            # 第一步：分析摘要相关性
+            logger.info(f"开始处理论文: {paper.arxiv_id} - {paper.title[:50]}...")
+            
+            # 第一步：检查论文是否已在数据库中
+            existing_paper = await self.check_paper_in_database(paper.arxiv_id)
+            
+            if existing_paper:
+                logger.info(f"论文已在数据库中，跳过处理: {paper.arxiv_id}")
+                # 从数据库中的数据创建ArxivData对象，保持一致性
+                paper.final_is_relevant = existing_paper.processing_status == 'completed'
+                paper.final_relevance_score = existing_paper.metadata.get('final_relevance_score', 0.0) if existing_paper.metadata else 0.0
+                processed_papers.append(paper)
+                continue
+            
+            # 第二步：如果论文不在数据库中，进行摘要相关性分析
+            logger.debug(f"论文不在数据库中，开始分析: {paper.arxiv_id}")
             abstract_analysis = await self.analyze_paper_relevance(paper)
             
             # 将分析结果直接赋值给ArxivData对象
@@ -405,6 +497,15 @@ class PaperGatherTask(Task):
                     logger.warning(f"完整论文分析失败，使用摘要分析结果: {paper.title[:50]}...")
             else:
                 logger.debug(f"摘要相关性低 ({abstract_analysis.relevance_score:.2f})，跳过完整分析: {paper.title[:50]}...")
+            
+            # 第三步：如果论文符合要求（相关性达标），保存到数据库
+            if paper.final_is_relevant and paper.final_relevance_score >= self.config.relevance_threshold:
+                logger.info(f"论文符合要求，保存到数据库: {paper.arxiv_id} (评分: {paper.final_relevance_score:.2f})")
+                save_success = await self.save_paper_to_database(paper)
+                if not save_success:
+                    logger.warning(f"论文保存到数据库失败，但继续处理: {paper.arxiv_id}")
+            else:
+                logger.debug(f"论文不符合要求，不保存到数据库: {paper.arxiv_id} (相关性: {paper.final_is_relevant}, 评分: {paper.final_relevance_score:.2f})")
             
             processed_papers.append(paper)
         

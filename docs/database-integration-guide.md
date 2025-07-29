@@ -113,10 +113,19 @@ docker exec homesystem-redis redis-cli ping
 - **索引**: arxiv_id、processing_status、categories 等
 - **触发器**: 自动更新 updated_at 字段
 
-### 4. 运行使用示例
+### 4. 运行集成测试和示例
 
 ```bash
-# 运行简化版示例（推荐）
+# 运行完整集成测试（推荐首先执行）
+python test_arxiv_database_integration.py
+
+# 期望输出：所有4个测试通过 ✅
+# - 数据库连接
+# - 表结构创建  
+# - ArxivData集成
+# - 批量处理
+
+# 运行简化版示例
 python simple_arxiv_demo.py
 
 # 运行完整功能示例
@@ -140,6 +149,14 @@ python examples/database_usage_example.py
 | processing_status | VARCHAR(20) | 处理状态 | INDEX |
 | tags | JSONB | 标签数组 | - |
 | metadata | JSONB | 元数据（引用数等） | - |
+| **research_background** | TEXT | 研究背景 | - |
+| **research_objectives** | TEXT | 研究目标 | INDEX |
+| **methods** | TEXT | 研究方法 | - |
+| **key_findings** | TEXT | 主要发现 | - |
+| **conclusions** | TEXT | 结论 | - |
+| **limitations** | TEXT | 局限性 | - |
+| **future_work** | TEXT | 未来工作 | - |
+| **keywords** | TEXT | 关键词 | INDEX |
 | created_at | TIMESTAMP | 创建时间 | INDEX |
 | updated_at | TIMESTAMP | 更新时间 | - |
 
@@ -148,6 +165,31 @@ python examples/database_usage_example.py
 - `pending`: 待处理
 - `completed`: 已完成
 - `failed`: 处理失败
+
+### 新增：结构化论文分析功能
+
+系统现在支持论文的智能结构化分析，自动提取以下关键信息：
+
+```python
+# 结构化分析字段
+structured_fields = {
+    'research_background': '研究背景',      # 研究的背景和动机
+    'research_objectives': '研究目标',      # 具体的研究目标和问题
+    'methods': '研究方法',                   # 使用的方法和技术
+    'key_findings': '主要发现',              # 重要的发现和结果
+    'conclusions': '结论',                   # 得出的结论和见解
+    'limitations': '局限性',                 # 研究的限制和不足
+    'future_work': '未来工作',               # 后续研究方向
+    'keywords': '关键词'                     # 核心关键词
+}
+
+# 使用示例
+arxiv_data = ArxivData(result)
+arxiv_data.research_background = "深度学习技术在NLP领域的应用背景"
+arxiv_data.research_objectives = "探索和评估深度学习在NLP任务中的效果"
+arxiv_data.methods = "使用Transformer架构和预训练模型"
+# ... 其他字段
+```
 
 ## 💻 基础使用
 
@@ -262,12 +304,19 @@ print(f"论文引用数: {meta.get('citations')}")
 ### 3. 高级查询示例
 
 ```python
-# 全文搜索
+# 全文搜索（包含结构化字段）
 cursor.execute("""
-    SELECT arxiv_id, title FROM arxiv_papers 
-    WHERE title ILIKE %s OR abstract ILIKE %s
+    SELECT arxiv_id, title, research_objectives FROM arxiv_papers 
+    WHERE title ILIKE %s OR abstract ILIKE %s OR research_objectives ILIKE %s
     LIMIT 10
-""", ('%machine learning%', '%machine learning%'))
+""", ('%machine learning%', '%machine learning%', '%machine learning%'))
+
+# 基于关键词的智能搜索
+cursor.execute("""
+    SELECT arxiv_id, title, keywords, research_objectives FROM arxiv_papers 
+    WHERE keywords ILIKE %s OR research_objectives ILIKE %s
+    ORDER BY created_at DESC
+""", ('%深度学习%', '%深度学习%'))
 
 # JSON 标签查询
 cursor.execute("""
@@ -275,14 +324,28 @@ cursor.execute("""
     WHERE tags @> %s
 """, (json.dumps(['深度学习']),))
 
-# 按分类统计
+# 按分类统计（包含结构化分析）
 cursor.execute("""
     SELECT categories, COUNT(*) as count,
-           AVG(CAST(metadata->>'citation_count' AS INTEGER)) as avg_citations
+           AVG(CAST(metadata->>'citation_count' AS INTEGER)) as avg_citations,
+           COUNT(CASE WHEN research_objectives IS NOT NULL THEN 1 END) as structured_count
     FROM arxiv_papers 
     WHERE metadata->>'citation_count' IS NOT NULL
     GROUP BY categories 
     ORDER BY count DESC
+""")
+
+# 结构化分析完整性统计
+cursor.execute("""
+    SELECT 
+        COUNT(*) as total_papers,
+        COUNT(research_background) as has_background,
+        COUNT(research_objectives) as has_objectives,
+        COUNT(methods) as has_methods,
+        COUNT(key_findings) as has_findings,
+        COUNT(conclusions) as has_conclusions,
+        COUNT(keywords) as has_keywords
+    FROM arxiv_papers
 """)
 
 # 时间范围查询
@@ -328,6 +391,37 @@ docker exec homesystem-redis ls -la /data/
 ```
 
 ## 🔍 ArXiv 集成功能
+
+### 结构化论文分析工作流
+
+```python
+def analyze_paper_structure(arxiv_data):
+    """对论文进行结构化分析"""
+    
+    # 设置结构化分析字段
+    structured_analysis = {
+        'research_background': '分析论文的研究背景和动机',
+        'research_objectives': '提取具体的研究目标和要解决的问题',
+        'methods': '识别使用的研究方法、算法或技术',
+        'key_findings': '总结重要的发现、结果或贡献',
+        'conclusions': '概括得出的结论和见解',
+        'limitations': '识别研究的限制、不足或局限性',
+        'future_work': '提取作者提到的后续研究方向',
+        'keywords': '提取核心关键词和技术术语'
+    }
+    
+    # 实际应用中，这些字段可以通过LLM分析论文内容自动填充
+    for field, description in structured_analysis.items():
+        if hasattr(arxiv_data, field):
+            setattr(arxiv_data, field, f"基于{description}的分析结果")
+    
+    return arxiv_data
+
+# 使用示例
+arxiv_data = ArxivData(search_result)
+structured_paper = analyze_paper_structure(arxiv_data)
+print(f"结构化分析完成: {structured_paper.has_structured_data()}")
+```
 
 ### 论文自动管理工作流
 
@@ -512,6 +606,10 @@ CREATE INDEX IF NOT EXISTS idx_arxiv_papers_created_at ON arxiv_papers(created_a
 -- 可选的性能优化索引
 CREATE INDEX IF NOT EXISTS idx_arxiv_papers_published_date ON arxiv_papers(published_date);
 CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status_created ON arxiv_papers(processing_status, created_at);
+
+-- 结构化分析字段索引（新增）
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_keywords ON arxiv_papers(keywords);
+CREATE INDEX IF NOT EXISTS idx_arxiv_papers_research_objectives ON arxiv_papers(research_objectives);
 
 -- 全文搜索索引（可选）
 CREATE INDEX IF NOT EXISTS idx_arxiv_papers_title_fts ON arxiv_papers USING gin(to_tsvector('english', title));
@@ -1041,23 +1139,29 @@ Home System 数据库集成提供了完整的 ArXiv 论文管理解决方案，�
 ### ✅ 核心功能
 - **双数据库架构**: PostgreSQL + Redis 高性能组合
 - **智能去重**: 基于 arxiv_id 的精确去重机制
+- **结构化分析**: 论文的智能摘要和关键信息提取
 - **状态管理**: 完整的论文处理状态跟踪
 - **高性能查询**: 优化的索引和查询策略
 - **容器化部署**: Docker Compose 一键部署
+- **集成测试**: 完整的测试套件保证功能稳定
 
 ### 🚀 技术特性
 - **连接池管理**: 高效的数据库连接复用
 - **事务支持**: 自动事务管理和回滚
 - **缓存策略**: Redis 多层缓存优化
 - **批量操作**: 高效的批量数据处理
+- **结构化存储**: 8个专用字段存储论文分析结果
+- **智能索引**: 针对结构化字段的查询优化
 - **监控指标**: 完整的性能监控体系
 
 ### 📈 扩展能力
 - **模块化设计**: 易于扩展新功能
 - **API 友好**: 支持 REST API 集成
-- **分析能力**: 内置数据分析功能
+- **智能分析**: 基于LLM的论文内容分析
+- **多维查询**: 支持标题、摘要、结构化字段的综合搜索
 - **用户系统**: 支持多用户和权限管理
-- **推荐算法**: 智能论文推荐
+- **推荐算法**: 基于结构化分析的智能论文推荐
+- **趋势分析**: 基于关键词和研究目标的趋势识别
 
 ### 🎯 使用建议
 
@@ -1085,12 +1189,14 @@ Home System 数据库集成提供了完整的 ArXiv 论文管理解决方案，�
 
 ## 🔗 相关资源
 
+- **集成测试**: `test_arxiv_database_integration.py` - 完整的集成测试套件
 - **示例代码**: `simple_arxiv_demo.py` - 完整的使用示例
 - **Docker 配置**: `docker-compose.yml` - 容器编排配置
-- **数据库架构**: 本文档第4节 - 详细的表结构说明
+- **数据库架构**: 本文档第4节 - 详细的表结构说明（包含结构化字段）
 - **性能优化**: 本文档第7节 - 性能调优指南
 - **扩展开发**: 本文档第9节 - 自定义开发指南
+- **结构化分析**: 本文档第5节 - 智能论文分析功能
 
 ---
 
-📝 **文档版本**: v2.0 | **更新时间**: 2025-07-27 | **适用版本**: Home System v1.0+
+📝 **文档版本**: v2.1 | **更新时间**: 2025-07-28 | **适用版本**: Home System v1.0+ | **新增**: 结构化论文分析功能

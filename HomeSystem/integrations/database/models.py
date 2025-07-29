@@ -27,7 +27,7 @@ class BaseModel(ABC):
     
     @classmethod
     @abstractmethod
-    def from_dict(cls, data: Dict[str, Any]):
+    def from_dict(cls, data: Dict[str, Any]) -> 'BaseModel':
         """从字典创建实例"""
         pass
     
@@ -56,6 +56,16 @@ class ArxivPaperModel(BaseModel):
         self.processing_status = kwargs.get('processing_status', 'pending')  # pending, completed, failed
         self.tags = kwargs.get('tags', [])
         self.metadata = kwargs.get('metadata', {})
+        
+        # 结构化摘要字段
+        self.research_background = kwargs.get('research_background', None)
+        self.research_objectives = kwargs.get('research_objectives', None)
+        self.methods = kwargs.get('methods', None)
+        self.key_findings = kwargs.get('key_findings', None)
+        self.conclusions = kwargs.get('conclusions', None)
+        self.limitations = kwargs.get('limitations', None)
+        self.future_work = kwargs.get('future_work', None)
+        self.keywords = kwargs.get('keywords', None)
     
     @property
     def table_name(self) -> str:
@@ -74,12 +84,20 @@ class ArxivPaperModel(BaseModel):
             'processing_status': self.processing_status,
             'tags': json.dumps(self.tags) if isinstance(self.tags, list) else self.tags,
             'metadata': json.dumps(self.metadata) if isinstance(self.metadata, dict) else self.metadata,
+            'research_background': self.research_background,
+            'research_objectives': self.research_objectives,
+            'methods': self.methods,
+            'key_findings': self.key_findings,
+            'conclusions': self.conclusions,
+            'limitations': self.limitations,
+            'future_work': self.future_work,
+            'keywords': self.keywords,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
+    def from_dict(cls, data: Dict[str, Any]) -> 'ArxivPaperModel':
         # 处理JSON字段
         if 'tags' in data and isinstance(data['tags'], str):
             try:
@@ -109,6 +127,14 @@ class ArxivPaperModel(BaseModel):
             processing_status VARCHAR(20) DEFAULT 'pending',
             tags JSONB DEFAULT '[]',
             metadata JSONB DEFAULT '{}',
+            research_background TEXT DEFAULT NULL,
+            research_objectives TEXT DEFAULT NULL,
+            methods TEXT DEFAULT NULL,
+            key_findings TEXT DEFAULT NULL,
+            conclusions TEXT DEFAULT NULL,
+            limitations TEXT DEFAULT NULL,
+            future_work TEXT DEFAULT NULL,
+            keywords TEXT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -120,6 +146,8 @@ class ArxivPaperModel(BaseModel):
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_created_at ON arxiv_papers(created_at);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_published_date ON arxiv_papers(published_date);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status_created ON arxiv_papers(processing_status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_keywords ON arxiv_papers(keywords);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_research_objectives ON arxiv_papers(research_objectives);
         
         -- 创建更新时间戳触发器
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -170,7 +198,7 @@ class ArxivPaperModel(BaseModel):
     
     def get_formatted_info(self) -> str:
         """获取格式化的论文信息"""
-        return f"""
+        info = f"""
 论文ID: {self.arxiv_id}
 标题: {self.title}
 作者: {self.authors}
@@ -181,6 +209,68 @@ class ArxivPaperModel(BaseModel):
 创建时间: {self.created_at}
 更新时间: {self.updated_at}
         """.strip()
+        
+        # 添加结构化摘要字段（如果有值）
+        structured_fields = []
+        if self.research_background:
+            structured_fields.append(f"研究背景: {self.research_background}")
+        if self.research_objectives:
+            structured_fields.append(f"研究目标: {self.research_objectives}")
+        if self.methods:
+            structured_fields.append(f"研究方法: {self.methods}")
+        if self.key_findings:
+            structured_fields.append(f"主要发现: {self.key_findings}")
+        if self.conclusions:
+            structured_fields.append(f"结论: {self.conclusions}")
+        if self.limitations:
+            structured_fields.append(f"局限性: {self.limitations}")
+        if self.future_work:
+            structured_fields.append(f"未来工作: {self.future_work}")
+        if self.keywords:
+            structured_fields.append(f"关键词: {self.keywords}")
+        
+        if structured_fields:
+            info += "\n\n结构化信息:\n" + "\n".join(structured_fields)
+        
+        return info
+    
+    def set_structured_field(self, field_name: str, value: str):
+        """设置结构化摘要字段"""
+        valid_fields = [
+            'research_background', 'research_objectives', 'methods', 
+            'key_findings', 'conclusions', 'limitations', 'future_work', 'keywords'
+        ]
+        if field_name not in valid_fields:
+            raise ValueError(f"无效的字段名: {field_name}, 有效值: {valid_fields}")
+        
+        setattr(self, field_name, value)
+        self.update_timestamp()
+    
+    def get_structured_field(self, field_name: str) -> Optional[str]:
+        """获取结构化摘要字段"""
+        return getattr(self, field_name, None)
+    
+    def has_structured_data(self) -> bool:
+        """检查是否有结构化摘要数据"""
+        structured_fields = [
+            self.research_background, self.research_objectives, self.methods,
+            self.key_findings, self.conclusions, self.limitations, 
+            self.future_work, self.keywords
+        ]
+        return any(field for field in structured_fields)
+    
+    def get_structured_summary(self) -> Dict[str, Optional[str]]:
+        """获取所有结构化摘要字段的摘要"""
+        return {
+            'research_background': self.research_background,
+            'research_objectives': self.research_objectives,
+            'methods': self.methods,
+            'key_findings': self.key_findings,
+            'conclusions': self.conclusions,
+            'limitations': self.limitations,
+            'future_work': self.future_work,
+            'keywords': self.keywords
+        }
 
 
 class UserModel(BaseModel):
@@ -209,7 +299,7 @@ class UserModel(BaseModel):
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]):
+    def from_dict(cls, data: Dict[str, Any]) -> 'UserModel':
         if 'preferences' in data and isinstance(data['preferences'], str):
             try:
                 data['preferences'] = json.loads(data['preferences'])
