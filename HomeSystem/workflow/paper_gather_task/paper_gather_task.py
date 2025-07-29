@@ -185,11 +185,11 @@ class PaperGatherTask(Task):
             paper_model = ArxivPaperModel(
                 arxiv_id=paper.arxiv_id,
                 title=paper.title,
-                authors=paper.authors,
+                authors=getattr(paper, 'authors', ''),  # 使用getattr安全获取authors属性
                 abstract=paper.snippet,  # ArxivData中使用snippet作为abstract
                 categories=paper.categories,
-                published_date=paper.published,
-                pdf_url=paper.pdf_url,
+                published_date=getattr(paper, 'published_date', ''),  # 使用published_date而不是published
+                pdf_url=getattr(paper, 'pdf_link', paper.link.replace("abs", "pdf") if paper.link else ''),  # 使用pdf_link属性
                 processing_status='completed',  # 处理完成后设置为completed
                 tags=[],  # 初始为空，可以后续添加
                 metadata={
@@ -290,7 +290,9 @@ class PaperGatherTask(Task):
             # 执行OCR
             logger.debug("执行OCR识别...")
             ocr_result, status_info = paper.performOCR(max_pages=25)
-            
+
+            paper.ocr_result = ocr_result
+
             if not ocr_result or len(ocr_result.strip()) < 500:
                 logger.warning(f"OCR结果过短或为空，跳过完整分析: {len(ocr_result) if ocr_result else 0} 字符")
                 return None

@@ -865,11 +865,19 @@ class ArxivTool:
                 elif hasattr(entry, 'arxiv_primary_category'):
                     categories = [entry.arxiv_primary_category['term']]
                 
+                # 提取作者信息
+                authors = []
+                if hasattr(entry, 'authors'):
+                    authors = [author.name for author in entry.authors]
+                elif hasattr(entry, 'author'):
+                    authors = [entry.author]
+                
                 result = {
                     'title': entry.title,
                     'link': entry.link,
                     'snippet': entry.summary,
-                    'categories': ', '.join(categories) if categories else 'Unknown'
+                    'categories': ', '.join(categories) if categories else 'Unknown',
+                    'authors': ', '.join(authors) if authors else 'Unknown'
                 }
                 results.append(result)
             
