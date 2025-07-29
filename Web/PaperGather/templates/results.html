@@ -1,0 +1,555 @@
+{% extends "base.html" %}
+
+{% block title %}任务结果 - {{ task_id }} - PaperGather{% endblock %}
+
+{% block head %}
+<style>
+.paper-card {
+    transition: all 0.2s;
+    margin-bottom: 20px;
+}
+
+.paper-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.relevance-score {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+}
+
+.analysis-section {
+    margin-bottom: 15px;
+}
+
+.analysis-section h6 {
+    color: #495057;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 5px;
+}
+
+.keywords-container .badge {
+    margin: 2px;
+}
+
+.paper-meta {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.expand-btn {
+    cursor: pointer;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.expand-btn:hover {
+    text-decoration: underline;
+}
+
+.collapsed-content {
+    max-height: 150px;
+    overflow: hidden;
+    position: relative;
+}
+
+.collapsed-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, white);
+}
+
+.filter-sidebar {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.export-dropdown {
+    position: relative;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="fas fa-search-plus me-2"></i>任务结果</h1>
+                <p class="text-muted mb-0">
+                    任务ID: <code>{{ task_id }}</code> | 
+                    执行时间: {{ task_result.start_time | format_date }}
+                    {% if task_result.duration %}
+                    | 耗时: {{ task_result.duration | format_duration }}
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-download me-1"></i>导出结果
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="exportResults('json')">
+                            <i class="fas fa-file-code me-2"></i>JSON格式
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportResults('csv')">
+                            <i class="fas fa-file-csv me-2"></i>CSV格式
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportResults('pdf')">
+                            <i class="fas fa-file-pdf me-2"></i>PDF报告
+                        </a></li>
+                    </ul>
+                </div>
+                <a href="{{ url_for('task.task_status', task_id=task_id) }}" class="btn btn-outline-secondary ms-2">
+                    <i class="fas fa-arrow-left me-1"></i>返回任务状态
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 结果统计 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 class="text-primary">{{ papers | length }}</h4>
+                        <p class="text-muted mb-0">找到论文</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success">{{ papers | selectattr('abstract_is_relevant') | list | length }}</h4>
+                        <p class="text-muted mb-0">相关论文</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info">{{ papers | selectattr('research_objectives') | list | length }}</h4>
+                        <p class="text-muted mb-0">已分析论文</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning">{{ papers | selectattr('keywords') | list | length }}</h4>
+                        <p class="text-muted mb-0">提取关键词</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 筛选侧边栏 -->
+    <div class="col-lg-3">
+        <div class="filter-sidebar">
+            <h6><i class="fas fa-filter me-2"></i>筛选选项</h6>
+            
+            <!-- 相关性筛选 -->
+            <div class="mb-3">
+                <label class="form-label">相关性</label>
+                <div class="form-check">
+                    <input class="form-check-input filter-check" type="checkbox" id="relevant" value="relevant" checked>
+                    <label class="form-check-label" for="relevant">
+                        相关论文
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input filter-check" type="checkbox" id="irrelevant" value="irrelevant">
+                    <label class="form-check-label" for="irrelevant">
+                        不相关论文
+                    </label>
+                </div>
+            </div>
+            
+            <!-- 分析状态筛选 -->
+            <div class="mb-3">
+                <label class="form-label">分析状态</label>
+                <div class="form-check">
+                    <input class="form-check-input filter-check" type="checkbox" id="analyzed" value="analyzed" checked>
+                    <label class="form-check-label" for="analyzed">
+                        已详细分析
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input filter-check" type="checkbox" id="not_analyzed" value="not_analyzed">
+                    <label class="form-check-label" for="not_analyzed">
+                        仅摘要分析
+                    </label>
+                </div>
+            </div>
+            
+            <!-- 相关性分数范围 -->
+            <div class="mb-3">
+                <label class="form-label">相关性分数</label>
+                <input type="range" class="form-range" id="relevanceRange" min="0" max="1" step="0.1" value="0">
+                <div class="d-flex justify-content-between">
+                    <small>0.0</small>
+                    <small id="relevanceValue">0.0+</small>
+                    <small>1.0</small>
+                </div>
+            </div>
+            
+            <!-- 搜索框 -->
+            <div class="mb-3">
+                <label class="form-label">关键词搜索</label>
+                <input type="text" class="form-control" id="keywordSearch" placeholder="搜索标题或关键词...">
+            </div>
+            
+            <button class="btn btn-outline-secondary btn-sm w-100" onclick="resetFilters()">
+                <i class="fas fa-undo me-1"></i>重置筛选
+            </button>
+        </div>
+    </div>
+    
+    <!-- 论文列表 -->
+    <div class="col-lg-9">
+        <div id="papersContainer">
+            {% for paper in papers %}
+            <div class="card paper-card" data-relevant="{{ paper.abstract_is_relevant | lower }}" 
+                 data-analyzed="{{ 'true' if paper.research_objectives else 'false' }}"
+                 data-score="{{ paper.abstract_relevance_score or 0 }}"
+                 data-keywords="{{ paper.keywords | lower if paper.keywords else '' }}"
+                 data-title="{{ paper.title | lower }}">
+                
+                <!-- 相关性分数徽章 -->
+                {% if paper.abstract_relevance_score %}
+                <div class="relevance-score">
+                    {{ paper.abstract_relevance_score | format_relevance_score | safe }}
+                </div>
+                {% endif %}
+                
+                <div class="card-body">
+                    <!-- 论文标题和基本信息 -->
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="flex-grow-1">
+                            <h5 class="card-title">
+                                <a href="{{ paper.link }}" target="_blank" class="text-decoration-none">
+                                    {{ paper.title }}
+                                </a>
+                            </h5>
+                            <div class="paper-meta">
+                                <span><i class="fas fa-users me-1"></i>{{ paper.authors | truncate_text(100) }}</span>
+                                {% if paper.published_date %}
+                                | <span><i class="fas fa-calendar me-1"></i>{{ paper.published_date | format_date }}</span>
+                                {% endif %}
+                                {% if paper.categories %}
+                                | <span><i class="fas fa-tags me-1"></i>{{ paper.categories }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 摘要 -->
+                    <div class="analysis-section">
+                        <h6><i class="fas fa-file-text me-2"></i>摘要</h6>
+                        <div class="collapsed-content" id="abstract_{{ loop.index }}">
+                            <p class="text-muted">{{ paper.abstract }}</p>
+                        </div>
+                        <a class="expand-btn" onclick="toggleContent('abstract_{{ loop.index }}')">
+                            <small>展开完整摘要</small>
+                        </a>
+                    </div>
+                    
+                    <!-- 关键词 -->
+                    {% if paper.keywords %}
+                    <div class="analysis-section">
+                        <h6><i class="fas fa-key me-2"></i>关键词</h6>
+                        <div class="keywords-container">
+                            {% for keyword in paper.keywords.split(',') %}
+                            <span class="badge bg-secondary">{{ keyword.strip() }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- 结构化分析字段 -->
+                    {% if paper.research_background or paper.research_objectives or paper.methods or paper.key_findings or paper.conclusions or paper.limitations or paper.future_work %}
+                    <div class="mt-4">
+                        <h6 class="text-primary"><i class="fas fa-microscope me-2"></i>详细分析</h6>
+                        
+                        <div class="row">
+                            <!-- 研究背景 -->
+                            {% if paper.research_background %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-history me-1"></i>研究背景</h6>
+                                    <div class="collapsed-content" id="background_{{ loop.index }}">
+                                        <p class="small">{{ paper.research_background }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('background_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 研究目标 -->
+                            {% if paper.research_objectives %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-bullseye me-1"></i>研究目标</h6>
+                                    <div class="collapsed-content" id="objectives_{{ loop.index }}">
+                                        <p class="small">{{ paper.research_objectives }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('objectives_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 方法 -->
+                            {% if paper.methods %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-cog me-1"></i>研究方法</h6>
+                                    <div class="collapsed-content" id="methods_{{ loop.index }}">
+                                        <p class="small">{{ paper.methods }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('methods_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 主要发现 -->
+                            {% if paper.key_findings %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-lightbulb me-1"></i>主要发现</h6>
+                                    <div class="collapsed-content" id="findings_{{ loop.index }}">
+                                        <p class="small">{{ paper.key_findings }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('findings_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 结论 -->
+                            {% if paper.conclusions %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-check-circle me-1"></i>结论</h6>
+                                    <div class="collapsed-content" id="conclusions_{{ loop.index }}">
+                                        <p class="small">{{ paper.conclusions }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('conclusions_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 局限性 -->
+                            {% if paper.limitations %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-exclamation-triangle me-1"></i>局限性</h6>
+                                    <div class="collapsed-content" id="limitations_{{ loop.index }}">
+                                        <p class="small">{{ paper.limitations }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('limitations_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- 未来工作 -->
+                            {% if paper.future_work %}
+                            <div class="col-md-6 mb-3">
+                                <div class="analysis-section">
+                                    <h6><i class="fas fa-rocket me-1"></i>未来工作</h6>
+                                    <div class="collapsed-content" id="future_{{ loop.index }}">
+                                        <p class="small">{{ paper.future_work }}</p>
+                                    </div>
+                                    <a class="expand-btn" onclick="toggleContent('future_{{ loop.index }}')">
+                                        <small>展开/收起</small>
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- 操作按钮 -->
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                        <div>
+                            {% if paper.abstract_analysis_justification %}
+                            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" 
+                                    data-bs-target="#analysisModal" 
+                                    onclick="showAnalysisDetail('{{ paper.title | e }}', '{{ paper.abstract_analysis_justification | e }}')">
+                                <i class="fas fa-info-circle me-1"></i>分析详情
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <a href="{{ paper.pdf_link }}" target="_blank" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-file-pdf me-1"></i>PDF
+                            </a>
+                            <a href="{{ paper.link }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-external-link-alt me-1"></i>ArXiv
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- 无结果提示 -->
+        <div id="noResults" style="display: none;">
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">没有符合条件的论文</h5>
+                <p class="text-muted">请调整筛选条件后重试</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分析详情模态框 -->
+<div class="modal fade" id="analysisModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">分析详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 id="modalPaperTitle" class="text-primary mb-3"></h6>
+                <div id="modalAnalysisContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 初始化筛选
+    applyFilters();
+    
+    // 筛选条件变化时重新筛选
+    $('.filter-check').change(applyFilters);
+    $('#relevanceRange').on('input', function() {
+        $('#relevanceValue').text($(this).val() + '+');
+        applyFilters();
+    });
+    $('#keywordSearch').on('input', debounce(applyFilters, 300));
+});
+
+function applyFilters() {
+    const showRelevant = $('#relevant').is(':checked');
+    const showIrrelevant = $('#irrelevant').is(':checked');
+    const showAnalyzed = $('#analyzed').is(':checked');
+    const showNotAnalyzed = $('#not_analyzed').is(':checked');
+    const minScore = parseFloat($('#relevanceRange').val());
+    const keyword = $('#keywordSearch').val().toLowerCase();
+    
+    let visibleCount = 0;
+    
+    $('.paper-card').each(function() {
+        const $card = $(this);
+        const isRelevant = $card.data('relevant') === 'true';
+        const isAnalyzed = $card.data('analyzed') === 'true';
+        const score = parseFloat($card.data('score')) || 0;
+        const cardKeywords = $card.data('keywords') || '';
+        const cardTitle = $card.data('title') || '';
+        
+        let show = true;
+        
+        // 相关性筛选
+        if (!showRelevant && isRelevant) show = false;
+        if (!showIrrelevant && !isRelevant) show = false;
+        
+        // 分析状态筛选
+        if (!showAnalyzed && isAnalyzed) show = false;
+        if (!showNotAnalyzed && !isAnalyzed) show = false;
+        
+        // 分数筛选
+        if (score < minScore) show = false;
+        
+        // 关键词搜索
+        if (keyword && !cardKeywords.includes(keyword) && !cardTitle.includes(keyword)) {
+            show = false;
+        }
+        
+        if (show) {
+            $card.show();
+            visibleCount++;
+        } else {
+            $card.hide();
+        }
+    });
+    
+    // 显示/隐藏无结果提示
+    if (visibleCount === 0) {
+        $('#noResults').show();
+    } else {
+        $('#noResults').hide();
+    }
+}
+
+function resetFilters() {
+    $('#relevant').prop('checked', true);
+    $('#irrelevant').prop('checked', false);
+    $('#analyzed').prop('checked', true);
+    $('#not_analyzed').prop('checked', false);
+    $('#relevanceRange').val(0);
+    $('#relevanceValue').text('0.0+');
+    $('#keywordSearch').val('');
+    applyFilters();
+}
+
+function toggleContent(elementId) {
+    const element = $('#' + elementId);
+    const expandBtn = element.next('.expand-btn');
+    
+    if (element.hasClass('collapsed-content')) {
+        element.removeClass('collapsed-content');
+        expandBtn.html('<small>收起</small>');
+    } else {
+        element.addClass('collapsed-content');
+        expandBtn.html('<small>展开完整内容</small>');
+    }
+}
+
+function showAnalysisDetail(title, analysis) {
+    $('#modalPaperTitle').text(title);
+    $('#modalAnalysisContent').html('<p>' + analysis.replace(/\n/g, '<br>') + '</p>');
+}
+
+function exportResults(format) {
+    // 这里实现导出功能
+    alert('导出功能开发中，格式：' + format);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+</script>
+{% endblock %}

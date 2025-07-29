@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - PaperGather{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 页面标题 -->
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-tachometer-alt me-2"></i>系统仪表板</h1>
+            <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>新建任务
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 统计卡片 -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">总论文数</div>
+                        <div class="h5 mb-0 font-weight-bold">{{ stats.total_papers | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-file-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">已分析论文</div>
+                        <div class="h5 mb-0 font-weight-bold">{{ stats.analyzed_papers | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">相关论文</div>
+                        <div class="h5 mb-0 font-weight-bold">{{ stats.relevant_papers | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-star fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">运行中任务</div>
+                        <div class="h5 mb-0 font-weight-bold">{{ scheduled_tasks | length | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-cog fa-spin fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 最近论文 -->
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-newspaper me-2"></i>最近添加的论文
+                </h5>
+                <a href="/papers" class="btn btn-outline-primary btn-sm">查看全部</a>
+            </div>
+            <div class="card-body">
+                {% if recent_papers %}
+                    <div class="list-group list-group-flush">
+                        {% for paper in recent_papers %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    <a href="/paper/{{ paper.arxiv_id }}" class="text-decoration-none">
+                                        {{ paper.title | truncate_text(80) }}
+                                    </a>
+                                </h6>
+                                <small>{{ paper.created_at | format_date }}</small>
+                            </div>
+                            <p class="mb-1 text-muted">{{ paper.abstract | truncate_text(120) }}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if paper.keywords %}
+                                        {% for keyword in paper.keywords.split(',')[:3] %}
+                                            <span class="badge bg-secondary me-1">{{ keyword.strip() }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                {% if paper.abstract_relevance_score %}
+                                    <span class="badge bg-{{ 'success' if paper.abstract_relevance_score > 0.7 else 'warning' }}">
+                                        相关性: {{ (paper.abstract_relevance_score * 100) | round(1) }}%
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">暂无论文数据</p>
+                        <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+                            立即开始收集论文
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务状态 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tasks me-2"></i>任务状态
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- 定时任务 -->
+                <h6 class="text-muted mb-3">定时任务</h6>
+                {% if scheduled_tasks %}
+                    {% for task in scheduled_tasks %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <span class="fw-bold">{{ task.name }}</span>
+                            <br>
+                            <small class="text-muted">间隔: {{ task.interval_seconds }}秒</small>
+                        </div>
+                        <span class="badge bg-info">运行中</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-3">无运行中的定时任务</p>
+                {% endif %}
+
+                <!-- 最近任务 -->
+                <h6 class="text-muted mb-3 mt-4">最近执行</h6>
+                {% if recent_tasks %}
+                    {% for task in recent_tasks[:5] %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <span class="fw-bold">{{ task.task_id[:8] }}...</span>
+                            <br>
+                            <small class="text-muted">{{ task.start_time | format_date }}</small>
+                        </div>
+                        <span class="badge bg-{{ task.status | status_badge }}">
+                            {{ task.status }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('task.task_history') }}" class="btn btn-outline-primary btn-sm">
+                            查看全部历史
+                        </a>
+                    </div>
+                {% else %}
+                    <p class="text-muted">无执行历史</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速操作 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('main.config') }}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-plus fa-2x mb-2 d-block"></i>
+                            新建任务
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('task.task_history') }}" class="btn btn-outline-info w-100">
+                            <i class="fas fa-history fa-2x mb-2 d-block"></i>
+                            查看历史
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('task.scheduled_tasks') }}" class="btn btn-outline-success w-100">
+                            <i class="fas fa-clock fa-2x mb-2 d-block"></i>
+                            管理定时任务
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="/api/health" target="_blank" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-heartbeat fa-2x mb-2 d-block"></i>
+                            系统状态
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 定时刷新统计数据
+    setInterval(function() {
+        $.get('/api/papers/statistics', function(data) {
+            if (data.success) {
+                // 更新统计数字
+                // 这里可以添加动态更新逻辑
+            }
+        });
+    }, 30000); // 每30秒刷新
+});
+</script>
+{% endblock %}

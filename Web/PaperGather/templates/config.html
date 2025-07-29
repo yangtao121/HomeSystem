@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}任务配置 - PaperGather{% endblock %}
+
+{% block head %}
+<style>
+.config-section {
+    border-left: 4px solid #007bff;
+    padding-left: 15px;
+    margin-bottom: 30px;
+}
+
+.form-help {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.execution-mode-card {
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.execution-mode-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.execution-mode-card.selected {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.slider-container {
+    padding: 10px 0;
+}
+
+.range-input {
+    width: 100%;
+}
+
+.range-value {
+    font-weight: bold;
+    color: #007bff;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h1><i class="fas fa-cog me-2"></i>任务配置</h1>
+        <p class="text-muted">配置论文收集任务的参数，支持即时执行和定时执行两种模式</p>
+    </div>
+</div>
+
+<form id="taskConfigForm">
+    <!-- 执行模式选择 -->
+    <div class="config-section">
+        <h4><i class="fas fa-play-circle me-2"></i>执行模式</h4>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="card execution-mode-card" data-mode="immediate">
+                    <div class="card-body text-center">
+                        <i class="fas fa-bolt fa-3x text-primary mb-3"></i>
+                        <h5>即时执行</h5>
+                        <p class="text-muted">
+                            立即执行任务并返回结果<br>
+                            适合一次性的论文搜索需求
+                        </p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="execution_mode" 
+                                   id="mode_immediate" value="immediate" checked>
+                            <label class="form-check-label" for="mode_immediate">
+                                选择此模式
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card execution-mode-card" data-mode="scheduled">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clock fa-3x text-success mb-3"></i>
+                        <h5>定时执行</h5>
+                        <p class="text-muted">
+                            后台定时执行任务<br>
+                            适合持续监控最新论文
+                        </p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="execution_mode" 
+                                   id="mode_scheduled" value="scheduled">
+                            <label class="form-check-label" for="mode_scheduled">
+                                选择此模式
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 定时间隔设置 -->
+        <div id="scheduled_options" class="mt-3" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <h6><i class="fas fa-stopwatch me-2"></i>定时间隔设置</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="interval_seconds" class="form-label">执行间隔（秒）</label>
+                            <input type="number" class="form-control" id="interval_seconds" 
+                                   name="interval_seconds" value="3600" min="300" max="86400">
+                            <div class="form-help">建议间隔不少于5分钟（300秒）</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">常用间隔</label>
+                            <div class="btn-group d-block" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="setInterval(1800)">30分钟</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="setInterval(3600)">1小时</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="setInterval(21600)">6小时</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setInterval(86400)">24小时</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索配置 -->
+    <div class="config-section">
+        <h4><i class="fas fa-search me-2"></i>搜索配置</h4>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="search_query" class="form-label">搜索关键词 *</label>
+                <input type="text" class="form-control" id="search_query" name="search_query" 
+                       value="{{ default_config.search_query }}" required>
+                <div class="form-help">用于在ArXiv中搜索论文的关键词</div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="max_papers_per_search" class="form-label">每次搜索最大论文数</label>
+                <input type="number" class="form-control" id="max_papers_per_search" 
+                       name="max_papers_per_search" value="{{ default_config.max_papers_per_search }}" 
+                       min="1" max="100">
+                <div class="form-help">建议设置为20-50篇以平衡质量和速度</div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="user_requirements" class="form-label">用户需求描述 *</label>
+            <textarea class="form-control" id="user_requirements" name="user_requirements" 
+                      rows="3" required>{{ default_config.user_requirements }}</textarea>
+            <div class="form-help">详细描述您的研究需求，LLM将根据此描述评估论文相关性</div>
+        </div>
+    </div>
+
+    <!-- LLM配置 -->
+    <div class="config-section">
+        <h4><i class="fas fa-brain me-2"></i>LLM配置</h4>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="llm_model_name" class="form-label">LLM模型 *</label>
+                <select class="form-select" id="llm_model_name" name="llm_model_name" required>
+                    {% for model in available_models %}
+                    <option value="{{ model }}" 
+                            {% if model == default_config.llm_model_name %}selected{% endif %}>
+                        {{ model }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-help">选择用于论文分析的语言模型</div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="relevance_threshold" class="form-label">相关性阈值</label>
+                <div class="slider-container">
+                    <input type="range" class="form-range range-input" id="relevance_threshold" 
+                           name="relevance_threshold" min="0" max="1" step="0.1" 
+                           value="{{ default_config.relevance_threshold }}">
+                    <div class="d-flex justify-content-between">
+                        <small>0.0</small>
+                        <span class="range-value" id="relevance_value">{{ default_config.relevance_threshold }}</span>
+                        <small>1.0</small>
+                    </div>
+                </div>
+                <div class="form-help">只有超过此相关性分数的论文才会被保留</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 响应控制 -->
+    <div class="config-section">
+        <h4><i class="fas fa-list-ol me-2"></i>响应控制</h4>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label for="max_papers_in_response" class="form-label">最大论文数</label>
+                <input type="number" class="form-control" id="max_papers_in_response" 
+                       name="max_papers_in_response" value="{{ default_config.max_papers_in_response }}" 
+                       min="1" max="200">
+                <div class="form-help">响应中包含的最大论文数量</div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="max_relevant_papers_in_response" class="form-label">最大相关论文数</label>
+                <input type="number" class="form-control" id="max_relevant_papers_in_response" 
+                       name="max_relevant_papers_in_response" value="{{ default_config.max_relevant_papers_in_response }}" 
+                       min="1" max="50">
+                <div class="form-help">相关论文的最大数量</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 处理功能 -->
+    <div class="config-section">
+        <h4><i class="fas fa-tools me-2"></i>处理功能</h4>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="enable_paper_summarization" 
+                           name="enable_paper_summarization" 
+                           {% if default_config.enable_paper_summarization %}checked{% endif %}>
+                    <label class="form-check-label" for="enable_paper_summarization">
+                        启用论文总结
+                    </label>
+                </div>
+                <div class="form-help">对高相关性论文进行详细分析和总结</div>
+                
+                <div id="summarization_options" class="mt-3" 
+                     {% if not default_config.enable_paper_summarization %}style="display: none;"{% endif %}>
+                    <label for="summarization_threshold" class="form-label">总结阈值</label>
+                    <div class="slider-container">
+                        <input type="range" class="form-range range-input" id="summarization_threshold" 
+                               name="summarization_threshold" min="0" max="1" step="0.1" 
+                               value="{{ default_config.summarization_threshold }}">
+                        <div class="d-flex justify-content-between">
+                            <small>0.0</small>
+                            <span class="range-value" id="summarization_value">{{ default_config.summarization_threshold }}</span>
+                            <small>1.0</small>
+                        </div>
+                    </div>
+                    <div class="form-help">相关性分数超过此值的论文会被详细分析</div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="enable_translation" 
+                           name="enable_translation" 
+                           {% if default_config.enable_translation %}checked{% endif %}>
+                    <label class="form-check-label" for="enable_translation">
+                        启用翻译功能
+                    </label>
+                </div>
+                <div class="form-help">将英文论文的关键内容翻译为中文</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">准备执行任务</h5>
+                            <p class="mb-0 text-muted">请检查配置参数，然后选择执行方式</p>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
+                                <i class="fas fa-undo me-1"></i>重置
+                            </button>
+                            <button type="button" class="btn btn-outline-info me-2" onclick="validateConfig()">
+                                <i class="fas fa-check me-1"></i>验证配置
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="executeBtn">
+                                <i class="fas fa-play me-1"></i>执行任务
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- 执行结果模态框 -->
+<div class="modal fade" id="executionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">任务执行</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="executionResult"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="viewTaskBtn" style="display: none;">
+                    查看任务状态
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 执行模式卡片点击事件
+    $('.execution-mode-card').click(function() {
+        const mode = $(this).data('mode');
+        $('input[name="execution_mode"][value="' + mode + '"]').prop('checked', true);
+        $('.execution-mode-card').removeClass('selected');
+        $(this).addClass('selected');
+        
+        if (mode === 'scheduled') {
+            $('#scheduled_options').show();
+        } else {
+            $('#scheduled_options').hide();
+        }
+    });
+
+    // 初始化选中状态
+    $('input[name="execution_mode"]:checked').closest('.execution-mode-card').addClass('selected');
+
+    // 滑块值更新
+    $('#relevance_threshold').on('input', function() {
+        $('#relevance_value').text($(this).val());
+    });
+
+    $('#summarization_threshold').on('input', function() {
+        $('#summarization_value').text($(this).val());
+    });
+
+    // 论文总结开关
+    $('#enable_paper_summarization').change(function() {
+        if ($(this).is(':checked')) {
+            $('#summarization_options').show();
+        } else {
+            $('#summarization_options').hide();
+        }
+    });
+
+    // 表单提交
+    $('#taskConfigForm').submit(function(e) {
+        e.preventDefault();
+        executeTask();
+    });
+});
+
+function setInterval(seconds) {
+    $('#interval_seconds').val(seconds);
+}
+
+function resetForm() {
+    if (confirm('确定要重置所有配置吗？')) {
+        document.getElementById('taskConfigForm').reset();
+        $('.execution-mode-card').removeClass('selected');
+        $('input[name="execution_mode"]:checked').closest('.execution-mode-card').addClass('selected');
+        $('#relevance_value').text($('#relevance_threshold').val());
+        $('#summarization_value').text($('#summarization_threshold').val());
+    }
+}
+
+function validateConfig() {
+    const formData = getFormData();
+    
+    $.ajax({
+        url: '/config/validate',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                showAlert('配置验证通过！', 'success');
+            } else {
+                showAlert('配置验证失败: ' + response.error, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('验证请求失败', 'danger');
+        }
+    });
+}
+
+function executeTask() {
+    const formData = getFormData();
+    const mode = $('input[name="execution_mode"]:checked').val();
+    
+    $('#executeBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>执行中...');
+    
+    $.ajax({
+        url: '/task/execute',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            mode: mode,
+            config: formData
+        }),
+        success: function(response) {
+            if (response.success) {
+                showExecutionResult(response, true);
+            } else {
+                showExecutionResult(response, false);
+            }
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON || {error: '请求失败'};
+            showExecutionResult(response, false);
+        },
+        complete: function() {
+            $('#executeBtn').prop('disabled', false).html('<i class="fas fa-play me-1"></i>执行任务');
+        }
+    });
+}
+
+function getFormData() {
+    const formData = {};
+    const form = document.getElementById('taskConfigForm');
+    const formDataObj = new FormData(form);
+    
+    for (let [key, value] of formDataObj.entries()) {
+        if (key === 'enable_paper_summarization' || key === 'enable_translation') {
+            formData[key] = true;
+        } else if (key.includes('threshold') || key === 'relevance_threshold' || key === 'summarization_threshold') {
+            formData[key] = parseFloat(value);
+        } else if (key.includes('max_') || key.includes('interval_')) {
+            formData[key] = parseInt(value);
+        } else {
+            formData[key] = value;
+        }
+    }
+    
+    // 处理未选中的复选框
+    if (!$('#enable_paper_summarization').is(':checked')) {
+        formData['enable_paper_summarization'] = false;
+    }
+    if (!$('#enable_translation').is(':checked')) {
+        formData['enable_translation'] = false;
+    }
+    
+    return formData;
+}
+
+function showExecutionResult(response, success) {
+    let html = '';
+    if (success) {
+        html = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>任务执行成功</h6>
+                <p class="mb-1">${response.message}</p>
+                <small>任务ID: ${response.task_id}</small>
+            </div>
+        `;
+        $('#viewTaskBtn').show().data('task-id', response.task_id);
+    } else {
+        html = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-circle me-2"></i>任务执行失败</h6>
+                <p class="mb-0">${response.error}</p>
+            </div>
+        `;
+        $('#viewTaskBtn').hide();
+    }
+    
+    $('#executionResult').html(html);
+    $('#executionModal').modal('show');
+}
+
+function showAlert(message, type) {
+    const alert = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    $('main .container-fluid').prepend(alert);
+}
+
+// 查看任务状态按钮
+$(document).on('click', '#viewTaskBtn', function() {
+    const taskId = $(this).data('task-id');
+    window.open('/task/status/' + taskId, '_blank');
+});
+</script>
+{% endblock %}

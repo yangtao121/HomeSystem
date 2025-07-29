@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}错误 - PaperGather{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="text-center">
+            <i class="fas fa-exclamation-triangle fa-5x text-warning mb-4"></i>
+            <h2 class="mb-3">{{ error_code or '错误' }}</h2>
+            <p class="lead text-muted mb-4">{{ error }}</p>
+            
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                    <i class="fas fa-home me-1"></i>返回首页
+                </a>
+                <button class="btn btn-outline-secondary" onclick="history.back()">
+                    <i class="fas fa-arrow-left me-1"></i>返回上页
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
