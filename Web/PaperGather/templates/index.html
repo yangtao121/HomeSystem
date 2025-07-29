@@ -71,7 +71,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <div class="text-xs font-weight-bold text-uppercase mb-1">运行中任务</div>
-                        <div class="h5 mb-0 font-weight-bold">{{ scheduled_tasks | length | default(0) }}</div>
+                        <div class="h5 mb-0 font-weight-bold">{{ running_tasks_count | default(0) }}</div>
                     </div>
                     <div class="col-auto">
                         <i class="fas fa-cog fa-spin fa-2x"></i>
@@ -145,21 +145,29 @@
                 </h5>
             </div>
             <div class="card-body">
-                <!-- 定时任务 -->
-                <h6 class="text-muted mb-3">定时任务</h6>
-                {% if scheduled_tasks %}
-                    {% for task in scheduled_tasks %}
+                <!-- 运行中任务 -->
+                <h6 class="text-muted mb-3">运行中任务</h6>
+                {% if running_tasks_detail %}
+                    {% for task in running_tasks_detail %}
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
                             <span class="fw-bold">{{ task.name }}</span>
                             <br>
-                            <small class="text-muted">间隔: {{ task.interval_seconds }}秒</small>
+                            <small class="text-muted">
+                                {% if task.type == 'scheduled' %}
+                                    定时任务 - 间隔: {{ task.interval_seconds }}秒
+                                {% else %}
+                                    即时任务 - 进度: {{ (task.progress * 100) | round(1) }}%
+                                {% endif %}
+                            </small>
                         </div>
-                        <span class="badge bg-info">运行中</span>
+                        <span class="badge bg-{{ task.status | status_badge }}">
+                            {{ task.status }}
+                        </span>
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p class="text-muted mb-3">无运行中的定时任务</p>
+                    <p class="text-muted mb-3">无运行中任务</p>
                 {% endif %}
 
                 <!-- 最近任务 -->
@@ -235,15 +243,61 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
-    // 定时刷新统计数据
-    setInterval(function() {
+    // 定时刷新统计数据和运行中任务
+    function updateDashboard() {
+        // 更新统计数据
         $.get('/api/papers/statistics', function(data) {
             if (data.success) {
                 // 更新统计数字
                 // 这里可以添加动态更新逻辑
             }
         });
-    }, 30000); // 每30秒刷新
+        
+        // 更新运行中任务
+        $.get('/api/running_tasks', function(data) {
+            if (data.success) {
+                // 更新运行中任务计数
+                $('.card.bg-warning .h5').text(data.data.count);
+                
+                // 更新运行中任务详情
+                updateRunningTasksList(data.data.tasks);
+            }
+        });
+    }
+    
+    function updateRunningTasksList(tasks) {
+        const container = $('.card-body h6.text-muted:contains("运行中任务")').next();
+        
+        if (tasks && tasks.length > 0) {
+            let html = '';
+            tasks.forEach(function(task) {
+                const statusBadgeClass = PaperGather.Utils.getStatusBadgeClass(task.status);
+                const typeInfo = task.type === 'scheduled' 
+                    ? `定时任务 - 间隔: ${task.interval_seconds}秒`
+                    : `即时任务 - 进度: ${(task.progress * 100).toFixed(1)}%`;
+                
+                html += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <span class="fw-bold">${task.name}</span>
+                            <br>
+                            <small class="text-muted">${typeInfo}</small>
+                        </div>
+                        <span class="badge bg-${statusBadgeClass}">${task.status}</span>
+                    </div>
+                `;
+            });
+            container.html(html);
+        } else {
+            container.html('<p class="text-muted mb-3">无运行中任务</p>');
+        }
+    }
+    
+    // 初始加载
+    updateDashboard();
+    
+    // 定时刷新 - 15秒间隔更新运行中任务，30秒间隔更新统计
+    setInterval(updateDashboard, 15000);
 });
 </script>
 {% endblock %}

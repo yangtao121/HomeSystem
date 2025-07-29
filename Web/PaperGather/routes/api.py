@@ -209,6 +209,29 @@ def get_scheduled_tasks():
         }), 500
 
 
+@api_bp.route('/running_tasks')
+def get_running_tasks():
+    """获取运行中任务列表"""
+    try:
+        running_tasks = paper_gather_service.get_running_tasks_detail()
+        running_count = paper_gather_service.get_running_tasks_count()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tasks': running_tasks,
+                'count': running_count
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"获取运行中任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @api_bp.route('/health')
 def health_check():
     """健康检查"""

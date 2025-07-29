@@ -29,11 +29,17 @@ def index():
         # 获取正在运行的定时任务
         scheduled_tasks = paper_gather_service.get_scheduled_tasks()
         
+        # 获取运行中任务总数和详情
+        running_tasks_count = paper_gather_service.get_running_tasks_count()
+        running_tasks_detail = paper_gather_service.get_running_tasks_detail()
+        
         return render_template('index.html', 
                              stats=stats,
                              recent_papers=recent_papers,
                              recent_tasks=recent_tasks,
-                             scheduled_tasks=scheduled_tasks)
+                             scheduled_tasks=scheduled_tasks,
+                             running_tasks_count=running_tasks_count,
+                             running_tasks_detail=running_tasks_detail)
     
     except Exception as e:
         logger.error(f"首页加载失败: {e}")

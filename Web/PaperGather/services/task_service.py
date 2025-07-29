@@ -322,6 +322,50 @@ class PaperGatherService:
                 })
         return tasks
     
+    def get_running_tasks_count(self) -> int:
+        """获取运行中任务的总数（包括即时任务和定时任务）"""
+        running_count = 0
+        
+        with self.lock:
+            # 统计运行中的即时任务
+            for task_result in self.task_results.values():
+                if task_result.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                    running_count += 1
+            
+            # 统计定时任务（都视为运行中）
+            running_count += len(self.scheduled_tasks)
+        
+        return running_count
+    
+    def get_running_tasks_detail(self) -> List[Dict[str, Any]]:
+        """获取所有运行中任务的详细信息"""
+        running_tasks = []
+        
+        with self.lock:
+            # 添加运行中的即时任务
+            for task_id, task_result in self.task_results.items():
+                if task_result.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                    running_tasks.append({
+                        'task_id': task_id,
+                        'type': 'immediate',
+                        'status': task_result.status.value,
+                        'start_time': task_result.start_time.isoformat(),
+                        'progress': task_result.progress,
+                        'name': f"即时任务 {task_id[:8]}..."
+                    })
+            
+            # 添加定时任务
+            for task_id, task in self.scheduled_tasks.items():
+                running_tasks.append({
+                    'task_id': task_id,
+                    'type': 'scheduled',
+                    'status': 'running',
+                    'name': task.name,
+                    'interval_seconds': task.interval_seconds
+                })
+        
+        return running_tasks
+    
     def get_task_result(self, task_id: str) -> Optional[Dict[str, Any]]:
         """获取任务执行结果"""
         with self.lock:
