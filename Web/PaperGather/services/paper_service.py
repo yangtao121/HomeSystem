@@ -93,10 +93,10 @@ class PaperDataService:
     def get_recent_papers(self, limit: int = 10) -> List[Dict[str, Any]]:
         """获取最近添加的论文"""
         try:
-            papers = self.db_ops.get_all(
+            papers = self.db_ops.list_all(
                 ArxivPaperModel, 
-                order_by="created_at DESC", 
-                limit=limit
+                limit=limit,
+                order_by="created_at DESC"
             )
             return [self._paper_to_dict(paper) for paper in papers]
             

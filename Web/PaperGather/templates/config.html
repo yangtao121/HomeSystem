@@ -157,7 +157,7 @@
         <h4><i class="fas fa-brain me-2"></i>LLM配置</h4>
         <div class="row">
             <div class="col-md-6 mb-3">
-                <label for="llm_model_name" class="form-label">LLM模型 *</label>
+                <label for="llm_model_name" class="form-label">默认LLM模型 *</label>
                 <select class="form-select" id="llm_model_name" name="llm_model_name" required>
                     {% for model in available_models %}
                     <option value="{{ model }}" 
@@ -166,7 +166,7 @@
                     </option>
                     {% endfor %}
                 </select>
-                <div class="form-help">选择用于论文分析的语言模型</div>
+                <div class="form-help">选择用于论文分析的默认语言模型</div>
             </div>
             <div class="col-md-6 mb-3">
                 <label for="relevance_threshold" class="form-label">相关性阈值</label>
@@ -181,6 +181,72 @@
                     </div>
                 </div>
                 <div class="form-help">只有超过此相关性分数的论文才会被保留</div>
+            </div>
+        </div>
+        
+        <!-- 高级模型配置 -->
+        <div class="mt-3">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="enable_advanced_models">
+                <label class="form-check-label" for="enable_advanced_models">
+                    <strong>启用高级模型配置</strong>
+                </label>
+            </div>
+            <div class="form-help">对不同分析任务使用专门的模型</div>
+        </div>
+        
+        <div id="advanced_models_section" class="mt-3" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <h6><i class="fas fa-cogs me-2"></i>专用模型配置</h6>
+                    <p class="text-muted small mb-3">为不同分析任务选择专门的模型。留空则使用默认模型。</p>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="abstract_analysis_model" class="form-label">摘要分析模型</label>
+                            <select class="form-select" id="abstract_analysis_model" name="abstract_analysis_model">
+                                <option value="">使用默认模型</option>
+                                {% for model in available_models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-help">用于初步摘要相关性分析</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="full_paper_analysis_model" class="form-label">完整论文分析模型</label>
+                            <select class="form-select" id="full_paper_analysis_model" name="full_paper_analysis_model">
+                                <option value="">使用默认模型</option>
+                                {% for model in available_models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-help">用于完整论文深度分析</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="translation_model" class="form-label">翻译模型</label>
+                            <select class="form-select" id="translation_model" name="translation_model">
+                                <option value="">使用默认模型</option>
+                                {% for model in available_models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-help">用于英文到中文翻译</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="paper_analysis_model" class="form-label">论文总结模型</label>
+                            <select class="form-select" id="paper_analysis_model" name="paper_analysis_model">
+                                <option value="">使用默认模型</option>
+                                {% for model in available_models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-help">用于结构化论文内容提取</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -339,6 +405,17 @@ $(document).ready(function() {
         }
     });
 
+    // 高级模型配置开关
+    $('#enable_advanced_models').change(function() {
+        if ($(this).is(':checked')) {
+            $('#advanced_models_section').show();
+        } else {
+            $('#advanced_models_section').hide();
+            // 清空高级配置选择
+            $('#abstract_analysis_model, #full_paper_analysis_model, #translation_model, #paper_analysis_model').val('');
+        }
+    });
+
     // 表单提交
     $('#taskConfigForm').submit(function(e) {
         e.preventDefault();
@@ -357,6 +434,15 @@ function resetForm() {
         $('input[name="execution_mode"]:checked').closest('.execution-mode-card').addClass('selected');
         $('#relevance_value').text($('#relevance_threshold').val());
         $('#summarization_value').text($('#summarization_threshold').val());
+        
+        // 重置高级模型配置显示状态
+        $('#enable_advanced_models').prop('checked', false);
+        $('#advanced_models_section').hide();
+        
+        // 重置其他开关状态
+        if (!$('#enable_paper_summarization').is(':checked')) {
+            $('#summarization_options').hide();
+        }
     }
 }
 
@@ -435,6 +521,15 @@ function getFormData() {
     }
     if (!$('#enable_translation').is(':checked')) {
         formData['enable_translation'] = false;
+    }
+    
+    // 处理高级模型配置 - 空值转换为null，让后端使用默认模型
+    const advancedModelFields = ['abstract_analysis_model', 'full_paper_analysis_model', 
+                                'translation_model', 'paper_analysis_model'];
+    for (const field of advancedModelFields) {
+        if (!formData[field] || formData[field] === '') {
+            formData[field] = null;
+        }
     }
     
     return formData;

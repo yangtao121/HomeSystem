@@ -495,11 +495,12 @@ class PaperGatherTask(Task):
             logger.error(f"论文总结过程中发生异常: {e}")
             return None
         finally:
-            # 清理内存
-            if hasattr(paper, 'clearPdf'):
-                paper.clearPdf()
-            if hasattr(paper, 'clearOcrResult'):
-                paper.clearOcrResult()
+            # # 清理内存
+            # if hasattr(paper, 'clearPdf'):
+            #     paper.clearPdf()
+            # if hasattr(paper, 'clearOcrResult'):
+            #     paper.clearOcrResult()
+            pass
     
     async def process_papers(self, papers: ArxivResult) -> List[ArxivData]:
         """

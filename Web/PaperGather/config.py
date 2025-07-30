@@ -46,9 +46,12 @@ class Config:
 DEFAULT_TASK_CONFIG = {
     'search_query': 'navigation, dataset, learning based',
     'max_papers_per_search': 20,
-    'user_requirements': 'Methods for creating navigation datasets, how to generate simulation data.'
-    '',
+    'user_requirements': 'Methods for creating navigation datasets, how to generate simulation data.',
     'llm_model_name': 'ollama.Qwen3_30B',
+    'abstract_analysis_model': None,  # 使用llm_model_name作为默认值
+    'full_paper_analysis_model': None,  # 使用llm_model_name作为默认值
+    'translation_model': None,  # 使用llm_model_name作为默认值
+    'paper_analysis_model': None,  # 使用llm_model_name作为默认值
     'relevance_threshold': 0.7,
     'max_papers_in_response': 50,
     'max_relevant_papers_in_response': 10,

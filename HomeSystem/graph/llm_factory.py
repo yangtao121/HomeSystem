@@ -13,6 +13,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_deepseek import ChatDeepSeek
+from pydantic import SecretStr
 
 
 class LLMFactory:
@@ -145,12 +147,22 @@ class LLMFactory:
                 num_predict=params.pop('max_tokens'),
                 **params
             )
+        elif config['provider'] == 'deepseek':  # Use native ChatDeepSeek for DeepSeek models
+            api_key = os.getenv(config['api_key_env'])
+            # DeepSeek has max_tokens limit of 8192
+            if 'max_tokens' in params and params['max_tokens'] > 8192:
+                params['max_tokens'] = 8192
+            return ChatDeepSeek(
+                model=config['model_name'],
+                api_key=SecretStr(api_key) if api_key else None,
+                **params
+            )
         else:  # openai_compatible
             api_key = os.getenv(config['api_key_env'])
             base_url = os.getenv(config['base_url_env'], config['base_url'])
             return ChatOpenAI(
                 model=config['model_name'],
-                api_key=api_key,
+                api_key=SecretStr(api_key) if api_key else None,
                 base_url=base_url,
                 **params
             )
@@ -190,7 +202,7 @@ class LLMFactory:
             base_url = os.getenv(config['base_url_env'], config['base_url'])
             return OpenAIEmbeddings(
                 model=config['model_name'],
-                api_key=api_key,
+                api_key=SecretStr(api_key) if api_key else None,
                 base_url=base_url,
                 **kwargs
             )

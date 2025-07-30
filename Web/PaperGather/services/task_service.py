@@ -164,8 +164,9 @@ class PaperGatherService:
             # 过滤掉非PaperGatherTaskConfig参数
             valid_params = {
                 'interval_seconds', 'search_query', 'max_papers_per_search', 
-                'user_requirements', 'llm_model_name', 'relevance_threshold',
-                'max_papers_in_response', 'max_relevant_papers_in_response',
+                'user_requirements', 'llm_model_name', 'abstract_analysis_model',
+                'full_paper_analysis_model', 'translation_model', 'paper_analysis_model',
+                'relevance_threshold', 'max_papers_in_response', 'max_relevant_papers_in_response',
                 'enable_paper_summarization', 'summarization_threshold', 
                 'enable_translation', 'custom_settings'
             }
@@ -240,8 +241,9 @@ class PaperGatherService:
             # 过滤掉非PaperGatherTaskConfig参数
             valid_params = {
                 'interval_seconds', 'search_query', 'max_papers_per_search', 
-                'user_requirements', 'llm_model_name', 'relevance_threshold',
-                'max_papers_in_response', 'max_relevant_papers_in_response',
+                'user_requirements', 'llm_model_name', 'abstract_analysis_model',
+                'full_paper_analysis_model', 'translation_model', 'paper_analysis_model',
+                'relevance_threshold', 'max_papers_in_response', 'max_relevant_papers_in_response',
                 'enable_paper_summarization', 'summarization_threshold', 
                 'enable_translation', 'custom_settings'
             }
