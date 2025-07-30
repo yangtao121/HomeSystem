@@ -2,7 +2,7 @@
 import asyncio
 from typing import Dict, Any, List, Optional
 from HomeSystem.workflow.task import Task
-from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData
+from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData, ArxivSearchMode
 from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult, TranslationLLM
 from HomeSystem.graph.paper_analysis_agent import PaperAnalysisAgent, PaperAnalysisConfig
 from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
@@ -28,6 +28,11 @@ class PaperGatherTaskConfig:
                  enable_paper_summarization: bool = True,
                  summarization_threshold: float = 0.8,
                  enable_translation: bool = True,
+                 # 新增搜索模式相关参数
+                 search_mode: ArxivSearchMode = ArxivSearchMode.LATEST,
+                 start_year: Optional[int] = None,
+                 end_year: Optional[int] = None,
+                 after_year: Optional[int] = None,
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.interval_seconds = interval_seconds
@@ -54,14 +59,39 @@ class PaperGatherTaskConfig:
         self.enable_paper_summarization = enable_paper_summarization
         self.summarization_threshold = summarization_threshold
         self.enable_translation = enable_translation
+        # 新增搜索模式相关属性
+        self.search_mode = search_mode
+        self.start_year = start_year
+        self.end_year = end_year
+        self.after_year = after_year
         self.custom_settings = custom_settings or {}
+        
+        # 验证搜索模式参数
+        self._validate_search_mode_params()
         
         logger.info(f"论文收集任务配置初始化完成: "
                    f"间隔={interval_seconds}秒, "
                    f"查询='{search_query}', "
+                   f"搜索模式={search_mode.value}, "
                    f"最大论文数={max_papers_per_search}, "
                    f"启用论文总结={enable_paper_summarization}, "
                    f"启用翻译={enable_translation}")
+    
+    def _validate_search_mode_params(self):
+        """验证搜索模式参数的合法性"""
+        if self.search_mode == ArxivSearchMode.DATE_RANGE:
+            if self.start_year is None or self.end_year is None:
+                raise ValueError("DATE_RANGE搜索模式需要提供start_year和end_year参数")
+            if self.start_year > self.end_year:
+                raise ValueError("start_year不能大于end_year")
+            
+        elif self.search_mode == ArxivSearchMode.AFTER_YEAR:
+            if self.after_year is None:
+                raise ValueError("AFTER_YEAR搜索模式需要提供after_year参数")
+            from datetime import datetime
+            current_year = datetime.now().year
+            if self.after_year > current_year:
+                logger.warning(f"after_year ({self.after_year}) 大于当前年份 ({current_year})")
     
     def update_config(self, **kwargs):
         """更新配置参数"""
@@ -90,6 +120,11 @@ class PaperGatherTaskConfig:
             'enable_paper_summarization': self.enable_paper_summarization,
             'summarization_threshold': self.summarization_threshold,
             'enable_translation': self.enable_translation,
+            # 搜索模式相关配置
+            'search_mode': self.search_mode.value,
+            'start_year': self.start_year,
+            'end_year': self.end_year,
+            'after_year': self.after_year,
             'custom_settings': self.custom_settings
         }
 
@@ -314,7 +349,7 @@ class PaperGatherTask(Task):
         
     async def search_papers(self, query: str, num_results: int = 10) -> ArxivResult:
         """
-        搜索论文
+        根据配置的搜索模式搜索论文
         
         Args:
             query: 搜索查询
@@ -324,9 +359,18 @@ class PaperGatherTask(Task):
             ArxivResult: 搜索结果
         """
         try:
-            logger.info(f"搜索论文: {query}")
-            # 获取最新论文
-            results = self.arxiv_tool.getLatestPapers(query=query, num_results=num_results)
+            logger.info(f"使用搜索模式 {self.config.search_mode.value} 搜索论文: {query}")
+            
+            # 根据配置的搜索模式选择搜索方法
+            results = self.arxiv_tool.searchPapersByMode(
+                query=query,
+                mode=self.config.search_mode,
+                num_results=num_results,
+                start_year=self.config.start_year,
+                end_year=self.config.end_year,
+                after_year=self.config.after_year
+            )
+            
             logger.info(f"找到 {results.num_results} 篇论文")
             return results
         except Exception as e:

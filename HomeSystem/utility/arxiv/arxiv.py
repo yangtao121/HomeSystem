@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 import io
 from typing import Optional
+from enum import Enum
 
 import requests
 import xml.etree.ElementTree as ET
@@ -19,6 +20,15 @@ from pix2text import Pix2Text
 import fitz  # PyMuPDF
 from PIL import Image
 import numpy as np
+
+
+class ArxivSearchMode(Enum):
+    """ArXiv搜索模式枚举"""
+    LATEST = "latest"                    # 最新论文 (按提交日期降序)
+    MOST_RELEVANT = "most_relevant"      # 最相关 (按相关性排序)
+    RECENTLY_UPDATED = "recently_updated" # 最近更新 (按更新日期降序)
+    DATE_RANGE = "date_range"            # 指定年份范围
+    AFTER_YEAR = "after_year"            # 某年之后的论文
 
 
 class ArxivData:
@@ -935,6 +945,100 @@ class ArxivTool:
         直接从ArXiv API获取最新论文
         """
         return self.directArxivSearch(query, num_results, "submittedDate", "descending")
+
+    def getMostRelevantPapers(self, query: str, num_results: int = 20) -> ArxivResult:
+        """
+        获取最相关的论文，按相关性排序
+        
+        :param query: 搜索的查询
+        :type query: str
+        :param num_results: 返回的结果数量
+        :type num_results: int
+        :return: 搜索结果
+        :rtype: ArxivResult
+        """
+        return self.directArxivSearch(query, num_results, "relevance", "descending")
+
+    def searchPapersByDateRange(self, query: str, start_year: int, end_year: int, num_results: int = 20) -> ArxivResult:
+        """
+        搜索指定年份范围内的论文
+        
+        :param query: 搜索的查询
+        :type query: str
+        :param start_year: 开始年份
+        :type start_year: int
+        :param end_year: 结束年份
+        :type end_year: int
+        :param num_results: 返回的结果数量
+        :type num_results: int
+        :return: 搜索结果
+        :rtype: ArxivResult
+        """
+        # 构造带年份范围的查询
+        # ArXiv API支持submittedDate范围查询
+        date_query = f"{query} AND submittedDate:[{start_year}0101* TO {end_year}1231*]"
+        
+        logger.info(f"搜索年份范围 {start_year}-{end_year} 的论文: {query}")
+        return self.directArxivSearch(date_query, num_results, "submittedDate", "descending")
+
+    def searchPapersAfterYear(self, query: str, after_year: int, num_results: int = 20) -> ArxivResult:
+        """
+        搜索某年之后的论文
+        
+        :param query: 搜索的查询
+        :type query: str
+        :param after_year: 起始年份（包含该年）
+        :type after_year: int
+        :param num_results: 返回的结果数量
+        :type num_results: int
+        :return: 搜索结果
+        :rtype: ArxivResult
+        """
+        from datetime import datetime
+        current_year = datetime.now().year
+        
+        # 构造带年份范围的查询，从指定年份到当前年份
+        date_query = f"{query} AND submittedDate:[{after_year}0101* TO {current_year}1231*]"
+        
+        logger.info(f"搜索 {after_year} 年之后的论文: {query}")
+        return self.directArxivSearch(date_query, num_results, "submittedDate", "descending")
+
+    def searchPapersByMode(self, query: str, mode: ArxivSearchMode, num_results: int = 20, 
+                          start_year: int = None, end_year: int = None, after_year: int = None) -> ArxivResult:
+        """
+        根据搜索模式搜索论文的统一接口
+        
+        :param query: 搜索的查询
+        :type query: str
+        :param mode: 搜索模式
+        :type mode: ArxivSearchMode
+        :param num_results: 返回的结果数量
+        :type num_results: int
+        :param start_year: 开始年份（仅用于DATE_RANGE模式）
+        :type start_year: int
+        :param end_year: 结束年份（仅用于DATE_RANGE模式）
+        :type end_year: int
+        :param after_year: 起始年份（仅用于AFTER_YEAR模式）
+        :type after_year: int
+        :return: 搜索结果
+        :rtype: ArxivResult
+        """
+        if mode == ArxivSearchMode.LATEST:
+            return self.getLatestPapers(query, num_results)
+        elif mode == ArxivSearchMode.MOST_RELEVANT:
+            return self.getMostRelevantPapers(query, num_results)
+        elif mode == ArxivSearchMode.RECENTLY_UPDATED:
+            return self.getRecentlyUpdated(query, num_results)
+        elif mode == ArxivSearchMode.DATE_RANGE:
+            if start_year is None or end_year is None:
+                raise ValueError("DATE_RANGE模式需要提供start_year和end_year参数")
+            return self.searchPapersByDateRange(query, start_year, end_year, num_results)
+        elif mode == ArxivSearchMode.AFTER_YEAR:
+            if after_year is None:
+                raise ValueError("AFTER_YEAR模式需要提供after_year参数")
+            return self.searchPapersAfterYear(query, after_year, num_results)
+        else:
+            raise ValueError(f"不支持的搜索模式: {mode}")
 
     # 移除SearxNG相关方法，现在完全使用直接API
 
