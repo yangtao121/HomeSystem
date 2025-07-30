@@ -515,6 +515,147 @@
         </div>
     </div>
 </div>
+
+<!-- 编辑任务模态框 -->
+<div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTaskModalLabel">
+                    <i class="fas fa-edit me-2"></i>编辑历史任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editTaskForm">
+                    <!-- 基本配置 -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">基本配置</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="edit_search_query" class="form-label">搜索查询</label>
+                                <input type="text" class="form-control" id="edit_search_query" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_user_requirements" class="form-label">用户需求</label>
+                                <textarea class="form-control" id="edit_user_requirements" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_llm_model_name" class="form-label">LLM模型</label>
+                                <select class="form-select" id="edit_llm_model_name">
+                                    <option value="">选择模型...</option>
+                                    <!-- 模型选项将通过JavaScript动态加载 -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 高级配置 -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">高级配置</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_max_papers_per_search" class="form-label">最大论文数</label>
+                                        <input type="number" class="form-control" id="edit_max_papers_per_search" min="1" max="100" value="20">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_search_mode" class="form-label">搜索模式</label>
+                                        <select class="form-select" id="edit_search_mode">
+                                            <option value="latest">最新论文</option>
+                                            <option value="relevance">相关性排序</option>
+                                            <option value="date_range">日期范围</option>
+                                            <option value="after_year">指定年份之后</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 日期范围配置 -->
+                            <div id="edit_date_range_config" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="edit_start_year" class="form-label">开始年份</label>
+                                            <input type="number" class="form-control" id="edit_start_year" min="1991" max="2030">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="edit_end_year" class="form-label">结束年份</label>
+                                            <input type="number" class="form-control" id="edit_end_year" min="1991" max="2030">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 指定年份之后配置 -->
+                            <div id="edit_after_year_config" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="edit_after_year" class="form-label">年份之后</label>
+                                    <input type="number" class="form-control" id="edit_after_year" min="1991" max="2030">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_relevance_threshold" class="form-label">
+                                            相关性阈值 
+                                            <span class="badge bg-secondary" id="edit_relevance_threshold_value">70%</span>
+                                        </label>
+                                        <input type="range" class="form-range" id="edit_relevance_threshold" min="0.1" max="1.0" step="0.1" value="0.7">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_summarization_threshold" class="form-label">
+                                            摘要阈值 
+                                            <span class="badge bg-secondary" id="edit_summarization_threshold_value">80%</span>
+                                        </label>
+                                        <input type="range" class="form-range" id="edit_summarization_threshold" min="0.1" max="1.0" step="0.1" value="0.8">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="edit_enable_paper_summarization" checked>
+                                        <label class="form-check-label" for="edit_enable_paper_summarization">
+                                            启用论文摘要
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="edit_enable_translation" checked>
+                                        <label class="form-check-label" for="edit_enable_translation">
+                                            启用翻译
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="saveEditedTaskBtn" onclick="HistoryTaskManager.saveEditedTask()">
+                    <i class="fas fa-save me-1"></i>保存更改
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -767,6 +908,42 @@ function showAlert(message, type) {
 $(document).on('click', '#viewTaskBtn', function() {
     const taskId = $(this).data('task-id');
     window.open('/task/status/' + taskId, '_blank');
+});
+
+// 编辑模态框事件处理
+$('#edit_search_mode').change(function() {
+    const mode = $(this).val();
+    HistoryTaskManager.updateEditSearchModeFields(mode);
+});
+
+// 编辑表单阈值滑块事件
+$('#edit_relevance_threshold').on('input', function() {
+    const value = (parseFloat($(this).val()) * 100).toFixed(0);
+    $('#edit_relevance_threshold_value').text(value + '%');
+});
+
+$('#edit_summarization_threshold').on('input', function() {
+    const value = (parseFloat($(this).val()) * 100).toFixed(0);
+    $('#edit_summarization_threshold_value').text(value + '%');
+});
+
+// 当编辑模态框显示时，加载模型列表
+$('#editTaskModal').on('show.bs.modal', function() {
+    // 加载模型列表
+    $.get('/api/models')
+        .then(response => {
+            if (response.success) {
+                const modelSelect = $('#edit_llm_model_name');
+                modelSelect.empty().append('<option value="">选择模型...</option>');
+                
+                response.data.forEach(model => {
+                    modelSelect.append(`<option value="${model.id}">${model.name}</option>`);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('加载模型列表失败:', error);
+        });
 });
 </script>
 

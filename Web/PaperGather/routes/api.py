@@ -259,6 +259,38 @@ def delete_config_preset(preset_id):
         }), 500
 
 
+@api_bp.route('/task/history/<task_id>', methods=['PUT'])
+def update_task_history(task_id):
+    """更新历史任务记录"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供更新数据'
+            }), 400
+        
+        success, error_msg = paper_gather_service.update_task_history(task_id, data)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '历史任务更新成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg or '更新历史任务失败'
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"更新历史任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @api_bp.route('/task/history/<task_id>', methods=['DELETE'])
 def delete_task_history(task_id):
     """删除历史任务记录"""

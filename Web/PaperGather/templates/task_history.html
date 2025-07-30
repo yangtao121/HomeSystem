@@ -19,10 +19,33 @@
         <div class="card">
             <div class="card-body">
                 {% if results %}
+                <!-- 批量操作工具栏 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                    <label class="form-check-label" for="selectAll">
+                                        全选
+                                    </label>
+                                </div>
+                                <button class="btn btn-outline-danger" id="batchDeleteBtn" style="display: none;">
+                                    <i class="fas fa-trash me-1"></i>批量删除 (<span id="selectedCount">0</span>)
+                                </button>
+                            </div>
+                            <small class="text-muted">共 {{ results|length }} 个任务</small>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th width="50px">
+                                    <input class="form-check-input" type="checkbox" id="selectAllHeader" style="margin: 0;">
+                                </th>
                                 <th>任务ID</th>
                                 <th>开始时间</th>
                                 <th>结束时间</th>
@@ -34,7 +57,11 @@
                         </thead>
                         <tbody>
                             {% for result in results %}
-                            <tr>
+                            <tr data-task-id="{{ result.task_id }}">
+                                <td>
+                                    <input class="form-check-input row-checkbox" type="checkbox" 
+                                           value="{{ result.task_id }}" style="margin: 0;">
+                                </td>
                                 <td>
                                     <code>{{ result.task_id[:8] }}...</code>
                                 </td>
@@ -69,21 +96,26 @@
                                 <td>
                                     <div class="btn-group btn-group-sm">
                                         <a href="{{ url_for('task.task_status', task_id=result.task_id) }}" 
-                                           class="btn btn-outline-primary">
+                                           class="btn btn-outline-primary" title="查看详情">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         {% if result.status == 'completed' %}
                                         <a href="{{ url_for('task.task_results', task_id=result.task_id) }}" 
-                                           class="btn btn-outline-success">
+                                           class="btn btn-outline-success" title="查看结果">
                                             <i class="fas fa-search-plus"></i>
                                         </a>
                                         {% endif %}
                                         {% if result.status in ['pending', 'running'] %}
-                                        <button class="btn btn-outline-danger" 
-                                                onclick="cancelTask('{{ result.task_id }}')">
+                                        <button class="btn btn-outline-warning" 
+                                                onclick="cancelTask('{{ result.task_id }}')" title="取消任务">
                                             <i class="fas fa-stop"></i>
                                         </button>
                                         {% endif %}
+                                        <button class="btn btn-outline-danger" 
+                                                onclick="deleteTask('{{ result.task_id }}', '{{ result.task_id[:8] }}')" 
+                                                title="删除任务">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -148,6 +180,152 @@
 
 {% block scripts %}
 <script>
+$(document).ready(function() {
+    // 全选/取消全选功能
+    $('#selectAll, #selectAllHeader').change(function() {
+        const isChecked = $(this).prop('checked');
+        $('.row-checkbox').prop('checked', isChecked);
+        $('#selectAll, #selectAllHeader').prop('checked', isChecked);
+        updateBatchDeleteButton();
+    });
+    
+    // 单行复选框变化
+    $('.row-checkbox').change(function() {
+        const totalRows = $('.row-checkbox').length;
+        const checkedRows = $('.row-checkbox:checked').length;
+        
+        $('#selectAll, #selectAllHeader').prop('checked', checkedRows === totalRows);
+        updateBatchDeleteButton();
+    });
+    
+    // 批量删除按钮点击
+    $('#batchDeleteBtn').click(function() {
+        const selectedIds = $('.row-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selectedIds.length === 0) {
+            PaperGather.Utils.showNotification('请先选择要删除的任务', 'warning');
+            return;
+        }
+        
+        batchDeleteTasks(selectedIds);
+    });
+});
+
+// 更新批量删除按钮状态
+function updateBatchDeleteButton() {
+    const checkedCount = $('.row-checkbox:checked').length;
+    $('#selectedCount').text(checkedCount);
+    
+    if (checkedCount > 0) {
+        $('#batchDeleteBtn').show();
+    } else {
+        $('#batchDeleteBtn').hide();
+    }
+}
+
+// 单个任务删除
+function deleteTask(taskId, taskName) {
+    const confirmMessage = `确定要删除历史任务"${taskName}..."吗？\n\n注意：此操作不可撤销，任务记录将被永久删除。`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // 显示删除中状态
+    const deleteBtn = $(`button[onclick*="deleteTask('${taskId}'"]`);
+    const originalHtml = deleteBtn.html();
+    deleteBtn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+    
+    PaperGather.API.delete(`/api/task/history/${taskId}`)
+        .then(response => {
+            if (response.success) {
+                PaperGather.Utils.showNotification('历史任务删除成功', 'success');
+                // 移除表格行
+                $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
+                    $(this).remove();
+                    updateBatchDeleteButton();
+                });
+            } else {
+                throw new Error(response.error || '删除失败');
+            }
+        })
+        .catch(error => {
+            console.error('删除任务失败:', error);
+            PaperGather.Utils.showNotification(`删除失败: ${error.message}`, 'danger');
+            deleteBtn.html(originalHtml).prop('disabled', false);
+        });
+}
+
+// 批量删除任务
+function batchDeleteTasks(taskIds) {
+    const confirmMessage = `确定要删除选中的 ${taskIds.length} 个历史任务吗？\n\n注意：此操作不可撤销，所有选中的任务记录将被永久删除。`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // 显示删除进度
+    const batchBtn = $('#batchDeleteBtn');
+    const originalHtml = batchBtn.html();
+    let deletedCount = 0;
+    let failedCount = 0;
+    
+    batchBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>删除中...').prop('disabled', true);
+    
+    // 串行删除（避免并发问题）
+    let deletePromise = Promise.resolve();
+    
+    taskIds.forEach(taskId => {
+        deletePromise = deletePromise.then(() => {
+            return PaperGather.API.delete(`/api/task/history/${taskId}`)
+                .then(response => {
+                    if (response.success) {
+                        deletedCount++;
+                        // 移除表格行
+                        $(`tr[data-task-id="${taskId}"]`).fadeOut(200, function() {
+                            $(this).remove();
+                        });
+                        // 更新进度
+                        batchBtn.html(`<i class="fas fa-spinner fa-spin me-1"></i>删除中... (${deletedCount}/${taskIds.length})`);
+                    } else {
+                        throw new Error(response.error || '删除失败');
+                    }
+                })
+                .catch(error => {
+                    console.error(`删除任务 ${taskId} 失败:`, error);
+                    failedCount++;
+                });
+        });
+    });
+    
+    deletePromise.finally(() => {
+        // 重置按钮状态
+        batchBtn.html(originalHtml).prop('disabled', false);
+        
+        // 更新全选状态
+        $('#selectAll, #selectAllHeader').prop('checked', false);
+        updateBatchDeleteButton();
+        
+        // 显示结果通知
+        if (failedCount === 0) {
+            PaperGather.Utils.showNotification(`成功删除 ${deletedCount} 个历史任务`, 'success');
+        } else {
+            PaperGather.Utils.showNotification(
+                `删除完成：成功 ${deletedCount} 个，失败 ${failedCount} 个`, 
+                failedCount > deletedCount ? 'danger' : 'warning'
+            );
+        }
+        
+        // 如果页面没有任务了，刷新页面
+        if ($('tbody tr').length === 0) {
+            setTimeout(() => location.reload(), 1500);
+        }
+    });
+}
+
+// 取消任务（保持原有功能）
 function cancelTask(taskId) {
     if (!confirm('确定要取消任务 ' + taskId.substring(0, 8) + '... 吗？')) {
         return;

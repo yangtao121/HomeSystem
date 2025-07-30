@@ -126,6 +126,9 @@ $(document).ready(function() {
                                             <button class="btn btn-outline-info" onclick="HistoryTaskManager.viewTaskDetails('${task.task_id}')">
                                                 <i class="fas fa-eye me-1"></i>查看详情
                                             </button>
+                                            <button class="btn btn-outline-warning" onclick="HistoryTaskManager.editTask('${task.task_id}')">
+                                                <i class="fas fa-edit me-1"></i>编辑
+                                            </button>
                                             <button class="btn btn-outline-danger" onclick="HistoryTaskManager.deleteTask('${task.task_id}', '${this.escapeHtml(config.search_query || '未知查询').substring(0, 30)}')">
                                                 <i class="fas fa-trash me-1"></i>删除
                                             </button>
@@ -232,6 +235,135 @@ $(document).ready(function() {
             window.open(`/task/result/${taskId}`, '_blank');
         },
         
+        // 编辑历史任务
+        editTask: function(taskId) {
+            // 先获取任务配置
+            PaperGather.API.get(`/api/task/config/${taskId}`)
+                .then(response => {
+                    if (response.success) {
+                        // 存储当前编辑的任务ID
+                        this.currentEditingTaskId = taskId;
+                        
+                        // 填充编辑表单
+                        this.fillEditForm(response.data);
+                        
+                        // 显示编辑模态框
+                        $('#editTaskModal').modal('show');
+                    } else {
+                        throw new Error(response.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('获取任务配置失败:', error);
+                    PaperGather.Utils.showNotification(`获取任务配置失败: ${error.message}`, 'danger');
+                });
+        },
+        
+        // 填充编辑表单
+        fillEditForm: function(config) {
+            // 基本配置
+            $('#edit_search_query').val(config.search_query || '');
+            $('#edit_user_requirements').val(config.user_requirements || '');
+            $('#edit_llm_model_name').val(config.llm_model_name || '');
+            
+            // 高级配置
+            $('#edit_max_papers_per_search').val(config.max_papers_per_search || 20);
+            $('#edit_relevance_threshold').val(config.relevance_threshold || 0.7);
+            $('#edit_summarization_threshold').val(config.summarization_threshold || 0.8);
+            $('#edit_search_mode').val(config.search_mode || 'latest');
+            
+            // 更新阈值显示
+            $('#edit_relevance_threshold_value').text(((config.relevance_threshold || 0.7) * 100).toFixed(0) + '%');
+            $('#edit_summarization_threshold_value').text(((config.summarization_threshold || 0.8) * 100).toFixed(0) + '%');
+            
+            // 布尔值配置
+            $('#edit_enable_paper_summarization').prop('checked', config.enable_paper_summarization !== false);
+            $('#edit_enable_translation').prop('checked', config.enable_translation !== false);
+            
+            // 搜索模式相关配置
+            this.updateEditSearchModeFields(config.search_mode || 'latest');
+            if (config.start_year) $('#edit_start_year').val(config.start_year);
+            if (config.end_year) $('#edit_end_year').val(config.end_year);
+            if (config.after_year) $('#edit_after_year').val(config.after_year);
+        },
+        
+        // 更新编辑表单中的搜索模式字段
+        updateEditSearchModeFields: function(mode) {
+            $('#edit_date_range_config, #edit_after_year_config').hide();
+            
+            if (mode === 'date_range') {
+                $('#edit_date_range_config').show();
+            } else if (mode === 'after_year') {
+                $('#edit_after_year_config').show();
+            }
+        },
+        
+        // 保存编辑的任务
+        saveEditedTask: function() {
+            if (!this.currentEditingTaskId) {
+                PaperGather.Utils.showNotification('未找到要编辑的任务ID', 'danger');
+                return;
+            }
+            
+            // 收集表单数据
+            const updatedConfig = {
+                search_query: $('#edit_search_query').val(),
+                user_requirements: $('#edit_user_requirements').val(),
+                llm_model_name: $('#edit_llm_model_name').val(),
+                max_papers_per_search: parseInt($('#edit_max_papers_per_search').val()) || 20,
+                relevance_threshold: parseFloat($('#edit_relevance_threshold').val()) || 0.7,
+                summarization_threshold: parseFloat($('#edit_summarization_threshold').val()) || 0.8,
+                search_mode: $('#edit_search_mode').val() || 'latest',
+                enable_paper_summarization: $('#edit_enable_paper_summarization').is(':checked'),
+                enable_translation: $('#edit_enable_translation').is(':checked')
+            };
+            
+            // 添加搜索模式相关配置
+            const searchMode = $('#edit_search_mode').val();
+            if (searchMode === 'date_range') {
+                updatedConfig.start_year = parseInt($('#edit_start_year').val()) || null;
+                updatedConfig.end_year = parseInt($('#edit_end_year').val()) || null;
+            } else if (searchMode === 'after_year') {
+                updatedConfig.after_year = parseInt($('#edit_after_year').val()) || null;
+            }
+            
+            const updateData = {
+                config: updatedConfig
+            };
+            
+            // 显示保存中状态
+            const saveBtn = $('#saveEditedTaskBtn');
+            const originalText = saveBtn.html();
+            saveBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>保存中...').prop('disabled', true);
+            
+            // 发送更新请求
+            PaperGather.API.request(`/api/task/history/${this.currentEditingTaskId}`, {
+                method: 'PUT',
+                body: JSON.stringify(updateData),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(response => {
+                    if (response.success) {
+                        $('#editTaskModal').modal('hide');
+                        PaperGather.Utils.showNotification('历史任务更新成功', 'success');
+                        // 重新加载任务列表
+                        this.loadHistoryTasks();
+                    } else {
+                        throw new Error(response.error || '更新失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('更新历史任务失败:', error);
+                    PaperGather.Utils.showNotification(`更新失败: ${error.message}`, 'danger');
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    saveBtn.html(originalText).prop('disabled', false);
+                });
+        },
+        
         // 删除历史任务
         deleteTask: function(taskId, taskName) {
             const confirmMessage = `确定要删除历史任务"${taskName}"吗？\n\n注意：此操作不可撤销，任务记录将被永久删除。`;
@@ -251,7 +383,7 @@ $(document).ready(function() {
                     if (response.success) {
                         PaperGather.Utils.showNotification('历史任务删除成功', 'success');
                         // 重新加载任务列表
-                        this.loadTasks();
+                        this.loadHistoryTasks();
                     } else {
                         throw new Error(response.error || '删除失败');
                     }

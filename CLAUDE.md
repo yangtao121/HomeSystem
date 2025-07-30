@@ -33,6 +33,12 @@ HomeSystem is a Python-based intelligent home automation system that integrates 
 - **HomeSystem/utility/**: Utility modules
   - `arxiv/`: ArXiv paper search and database integration with duplicate detection
 
+- **Web/PaperGather/**: Flask web application for paper collection task management
+  - Provides intuitive web interface for configuring and monitoring PaperGatherTasks
+  - Supports dual execution modes: immediate and scheduled tasks
+  - Real-time task monitoring with progress tracking and result visualization
+  - Thread-safe task execution using ThreadPoolExecutor to prevent UI blocking
+
 - **Web/ExplorePaperData/**: Flask web application for paper data visualization
   - Provides dashboard, search, filtering, and detailed paper analysis views
   - Replaces command-line debug tools with intuitive web interface
@@ -106,6 +112,61 @@ class MyAgent(BaseGraph):
         # Initialize your agent with tools and nodes
 ```
 
+## Common Development Commands
+
+### PaperGather Web Application
+The PaperGather web interface provides a user-friendly way to configure and monitor paper collection tasks.
+
+**Starting the application:**
+```bash
+cd Web/PaperGather
+./start.sh
+```
+
+The start script automatically:
+- Checks Python environment and dependencies
+- Validates database connections
+- Creates default configuration files
+- Starts the web application on http://localhost:5001
+
+**Manual startup:**
+```bash
+cd Web/PaperGather
+pip install -r requirements.txt
+export FLASK_APP=app.py
+export FLASK_ENV=development
+python app.py
+```
+
+**Testing database connectivity:**
+```bash
+cd Web/PaperGather
+python -c "
+import sys, os
+sys.path.append(os.path.join(os.getcwd(), '..', '..'))
+from HomeSystem.integrations.database import DatabaseOperations
+db_ops = DatabaseOperations()
+print('Database connection successful')
+"
+```
+
+### HomeSystem Workflow Tasks
+**Running paper collection tasks programmatically:**
+```python
+from HomeSystem.workflow.paper_gather_task import PaperGatherTask, PaperGatherTaskConfig
+from HomeSystem.utility.arxiv import ArxivSearchMode
+
+config = PaperGatherTaskConfig(
+    search_query="machine learning transformers",
+    llm_model_name="ollama.Qwen3_30B",
+    search_mode=ArxivSearchMode.LATEST,
+    max_papers_per_search=20
+)
+
+task = PaperGatherTask(config=config)
+result = await task.run()
+```
+
 ## Configuration
 
 ### LLM Configuration
@@ -115,9 +176,55 @@ LLM providers are configured via YAML in `HomeSystem/graph/config/llm_providers.
 - Both cloud APIs and local Ollama models (14B+ parameters)
 - Embedding models for semantic search capabilities
 
+### PaperGather Web Configuration
+The web application uses environment variables configured in `Web/PaperGather/.env`:
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=15432
+DB_NAME=homesystem
+DB_USER=homesystem
+DB_PASSWORD=homesystem123
 
-## Project Structure Notes
+# Redis Configuration  
+REDIS_HOST=localhost
+REDIS_PORT=16379
+REDIS_DB=0
 
+# Flask Configuration
+FLASK_HOST=0.0.0.0
+FLASK_PORT=5001
+FLASK_DEBUG=True
+SECRET_KEY=papergather-dev-key-change-in-production
+```
+
+
+## Architecture and Development Notes
+
+### Web Application Architecture
+- **PaperGather Web**: Modular Flask application with separation of concerns
+  - `routes/`: Route handlers (main.py, task.py, api.py) for different functionality areas
+  - `services/`: Business logic layer (task_service.py, paper_service.py) with thread-safe operations
+  - `templates/`: Jinja2 templates with responsive Bootstrap UI
+  - `static/`: CSS, JavaScript, and asset files
+  - Thread-safe task execution using ThreadPoolExecutor and locks
+  - Real-time status updates via AJAX polling
+  - RESTful API endpoints for programmatic access
+
+### Task Execution Patterns
+- **Dual Mode System**: Immediate execution (web-blocking prevented) vs scheduled tasks (background daemon)
+- **Thread Safety**: All shared data structures protected with threading.Lock()
+- **Async Integration**: Web app bridges sync Flask with async HomeSystem workflows
+- **Progress Tracking**: Real-time progress updates through task status monitoring
+- **Data Persistence**: Task history and configuration presets stored in database
+
+### Key Integration Points
+- **LLMFactory**: Unified interface for multiple LLM providers (cloud + local)
+- **DatabaseOperations**: Centralized database access with auto-detection of Docker containers
+- **WorkflowEngine**: Background task scheduling and execution
+- **ArXiv Integration**: Paper search with multiple modes (latest, relevant, date ranges)
+
+### Development Patterns
 - Examples in `examples/` demonstrate usage patterns for each major component
 - Documentation in `docs/` provides detailed integration guides:
   - `database-integration-guide.md`: Complete PostgreSQL + Redis setup, ArXiv paper management, Docker deployment
@@ -130,3 +237,9 @@ LLM providers are configured via YAML in `HomeSystem/graph/config/llm_providers.
 - Workflow system supports signal-based graceful shutdown
 - Web interface provides modern alternative to command-line debugging tools
 - LLM configuration supports both cloud APIs and local models with unified interface
+
+### Testing and Debugging
+- Use the web interface at http://localhost:5001 for interactive task configuration and monitoring
+- Check `Web/PaperGather/app.log` for application logs
+- Database connectivity can be tested using the provided Python snippet
+- Task execution can be monitored in real-time through the web interface

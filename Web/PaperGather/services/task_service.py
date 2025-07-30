@@ -579,10 +579,24 @@ class PaperGatherService:
     def get_task_config_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
         """获取指定任务的配置（支持版本兼容性）"""
         try:
-            return self.data_manager.get_task_config_compatible(task_id)
+            config = self.data_manager.get_task_config_compatible(task_id)
+            if config:
+                # 处理枚举序列化问题
+                config = self._serialize_config_for_json(config)
+            return config
         except Exception as e:
             logger.error(f"获取任务配置失败: {e}")
             return None
+    
+    def _serialize_config_for_json(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """将配置中的特殊对象序列化为JSON可序列化的格式"""
+        serialized_config = config.copy()
+        
+        # 处理ArxivSearchMode枚举
+        if 'search_mode' in serialized_config and isinstance(serialized_config['search_mode'], ArxivSearchMode):
+            serialized_config['search_mode'] = serialized_config['search_mode'].value
+        
+        return serialized_config
     
     def save_config_preset(self, name: str, config_dict: Dict[str, Any], description: str = "") -> tuple[bool, Optional[str]]:
         """保存配置预设"""
@@ -603,7 +617,12 @@ class PaperGatherService:
     def load_config_presets(self) -> List[Dict[str, Any]]:
         """加载所有配置预设"""
         try:
-            return self.data_manager.load_config_presets()
+            presets = self.data_manager.load_config_presets()
+            # 处理每个预设中的序列化问题
+            for preset in presets:
+                if 'config' in preset:
+                    preset['config'] = self._serialize_config_for_json(preset['config'])
+            return presets
         except Exception as e:
             logger.error(f"加载配置预设失败: {e}")
             return []
@@ -616,6 +635,24 @@ class PaperGatherService:
             
         except Exception as e:
             error_msg = f"删除配置预设失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def update_task_history(self, task_id: str, updated_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """更新历史任务记录"""
+        try:
+            # 验证更新数据
+            if "config" in updated_data:
+                # 验证配置的有效性
+                is_valid, error_msg = self.validate_config(updated_data["config"])
+                if not is_valid:
+                    return False, f"配置验证失败: {error_msg}"
+            
+            success = self.data_manager.update_task_history(task_id, updated_data)
+            return success, None if success else "更新历史任务失败，未找到指定任务"
+            
+        except Exception as e:
+            error_msg = f"更新历史任务失败: {str(e)}"
             logger.error(error_msg)
             return False, error_msg
     

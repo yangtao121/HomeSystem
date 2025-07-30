@@ -454,6 +454,60 @@ class PaperGatherDataManager:
             logger.error(f"删除配置预设失败: {e}")
             return False
     
+    def update_task_history(self, task_id: str, updated_data: Dict[str, Any]) -> bool:
+        """
+        更新历史任务记录
+        
+        Args:
+            task_id: 任务ID
+            updated_data: 更新的数据（仅更新config部分）
+            
+        Returns:
+            更新是否成功
+        """
+        try:
+            # 搜索所有历史文件
+            history_files = list(self.task_history_dir.glob("*_tasks.json"))
+            
+            for history_file in history_files:
+                try:
+                    with open(history_file, 'r', encoding='utf-8') as f:
+                        history_data = json.load(f)
+                    
+                    # 查找并更新指定任务
+                    tasks = history_data.get("tasks", [])
+                    task_found = False
+                    
+                    for task in tasks:
+                        if task.get("task_id") == task_id:
+                            # 只更新config部分，保留执行结果和时间信息
+                            if "config" in updated_data:
+                                task["config"] = updated_data["config"]
+                                # 添加更新时间戳
+                                task["updated_at"] = datetime.now().isoformat()
+                                task_found = True
+                                break
+                    
+                    # 如果找到并更新了任务
+                    if task_found:
+                        # 保存修改后的文件
+                        with open(history_file, 'w', encoding='utf-8') as f:
+                            json.dump(history_data, f, ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+                        
+                        logger.info(f"历史任务 {task_id} 已在 {history_file} 中更新")
+                        return True
+                        
+                except Exception as e:
+                    logger.error(f"处理历史文件 {history_file} 失败: {e}")
+                    continue
+            
+            logger.warning(f"未找到历史任务 {task_id}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"更新历史任务失败: {e}")
+            return False
+
     def delete_task_history(self, task_id: str) -> bool:
         """
         删除历史任务记录
