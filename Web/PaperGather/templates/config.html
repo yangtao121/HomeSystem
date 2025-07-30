@@ -150,6 +150,47 @@
                       rows="3" required>{{ default_config.user_requirements }}</textarea>
             <div class="form-help">详细描述您的研究需求，LLM将根据此描述评估论文相关性</div>
         </div>
+        
+        <!-- 搜索模式配置 -->
+        <div class="mb-3">
+            <label for="search_mode" class="form-label">搜索模式</label>
+            <select class="form-select" id="search_mode" name="search_mode">
+                {% for mode in available_search_modes %}
+                <option value="{{ mode.value }}" 
+                        {% if mode.value == default_config.search_mode %}selected{% endif %}
+                        data-description="{{ mode.description }}">
+                    {{ mode.label }}
+                </option>
+                {% endfor %}
+            </select>
+            <div class="form-help" id="search_mode_help">{{ available_search_modes[0].description }}</div>
+        </div>
+        
+        <!-- 日期范围搜索参数 -->
+        <div id="date_range_options" class="row mb-3" style="display: none;">
+            <div class="col-md-6">
+                <label for="start_year" class="form-label">起始年份</label>
+                <input type="number" class="form-control" id="start_year" name="start_year" 
+                       min="1991" max="2024" value="2022">
+                <div class="form-help">ArXiv论文起始年份（1991年开始）</div>
+            </div>
+            <div class="col-md-6">
+                <label for="end_year" class="form-label">结束年份</label>
+                <input type="number" class="form-control" id="end_year" name="end_year" 
+                       min="1991" max="2024" value="2023">
+                <div class="form-help">搜索的结束年份</div>
+            </div>
+        </div>
+        
+        <!-- 某年之后搜索参数 -->
+        <div id="after_year_options" class="mb-3" style="display: none;">
+            <div class="col-md-6">
+                <label for="after_year" class="form-label">起始年份</label>
+                <input type="number" class="form-control" id="after_year" name="after_year" 
+                       min="1991" max="2024" value="2024">
+                <div class="form-help">搜索此年份之后的论文</div>
+            </div>
+        </div>
     </div>
 
     <!-- LLM配置 -->
@@ -416,6 +457,16 @@ $(document).ready(function() {
         }
     });
 
+    // 搜索模式选择变化
+    $('#search_mode').change(function() {
+        const selectedMode = $(this).val();
+        updateSearchModeOptions(selectedMode);
+        updateSearchModeHelp();
+    });
+
+    // 初始化搜索模式选项
+    updateSearchModeOptions($('#search_mode').val());
+
     // 表单提交
     $('#taskConfigForm').submit(function(e) {
         e.preventDefault();
@@ -425,6 +476,25 @@ $(document).ready(function() {
 
 function setInterval(seconds) {
     $('#interval_seconds').val(seconds);
+}
+
+function updateSearchModeOptions(selectedMode) {
+    // 隐藏所有选项
+    $('#date_range_options').hide();
+    $('#after_year_options').hide();
+    
+    // 根据选择的模式显示相应选项
+    if (selectedMode === 'date_range') {
+        $('#date_range_options').show();
+    } else if (selectedMode === 'after_year') {
+        $('#after_year_options').show();
+    }
+}
+
+function updateSearchModeHelp() {
+    const selectedOption = $('#search_mode option:selected');
+    const description = selectedOption.data('description');
+    $('#search_mode_help').text(description);
 }
 
 function resetForm() {
@@ -443,6 +513,10 @@ function resetForm() {
         if (!$('#enable_paper_summarization').is(':checked')) {
             $('#summarization_options').hide();
         }
+        
+        // 重置搜索模式选项
+        updateSearchModeOptions($('#search_mode').val());
+        updateSearchModeHelp();
     }
 }
 
@@ -508,7 +582,7 @@ function getFormData() {
             formData[key] = true;
         } else if (key.includes('threshold') || key === 'relevance_threshold' || key === 'summarization_threshold') {
             formData[key] = parseFloat(value);
-        } else if (key.includes('max_') || key.includes('interval_')) {
+        } else if (key.includes('max_') || key.includes('interval_') || key.includes('_year')) {
             formData[key] = parseInt(value);
         } else {
             formData[key] = value;
@@ -530,6 +604,16 @@ function getFormData() {
         if (!formData[field] || formData[field] === '') {
             formData[field] = null;
         }
+    }
+    
+    // 处理搜索模式相关参数 - 根据搜索模式决定哪些参数有效
+    const searchMode = formData['search_mode'];
+    if (searchMode !== 'date_range') {
+        formData['start_year'] = null;
+        formData['end_year'] = null;
+    }
+    if (searchMode !== 'after_year') {
+        formData['after_year'] = null;
     }
     
     return formData;

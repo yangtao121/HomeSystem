@@ -53,9 +53,13 @@ def config():
         # 获取可用的LLM模型
         available_models = paper_gather_service.get_available_models()
         
+        # 获取可用的搜索模式
+        available_search_modes = paper_gather_service.get_available_search_modes()
+        
         return render_template('config.html', 
                              default_config=DEFAULT_TASK_CONFIG,
-                             available_models=available_models)
+                             available_models=available_models,
+                             available_search_modes=available_search_modes)
     
     except Exception as e:
         logger.error(f"配置页面加载失败: {e}")

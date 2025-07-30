@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from HomeSystem.workflow.paper_gather_task.paper_gather_task import PaperGatherTask, PaperGatherTaskConfig
+from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode
 from HomeSystem.workflow.engine import WorkflowEngine
 from HomeSystem.graph.llm_factory import LLMFactory
 from loguru import logger
@@ -94,6 +95,16 @@ class PaperGatherService:
             logger.error(f"获取可用模型失败: {e}")
             return ["ollama.Qwen3_30B"]  # 返回默认模型作为备选
     
+    def get_available_search_modes(self) -> List[Dict[str, str]]:
+        """获取可用的搜索模式列表"""
+        return [
+            {'value': ArxivSearchMode.LATEST.value, 'label': '最新论文', 'description': '按提交日期降序排列'},
+            {'value': ArxivSearchMode.MOST_RELEVANT.value, 'label': '最相关', 'description': '按相关性排序'},
+            {'value': ArxivSearchMode.RECENTLY_UPDATED.value, 'label': '最近更新', 'description': '按更新日期降序排列'},
+            {'value': ArxivSearchMode.DATE_RANGE.value, 'label': '日期范围', 'description': '搜索指定年份范围的论文'},
+            {'value': ArxivSearchMode.AFTER_YEAR.value, 'label': '某年之后', 'description': '搜索某年之后的论文'}
+        ]
+    
     def validate_config(self, config_dict: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """验证配置参数"""
         try:
@@ -117,6 +128,39 @@ class PaperGatherService:
             available_models = self.get_available_models()
             if config_dict.get('llm_model_name') not in available_models:
                 return False, f"LLM模型不可用: {config_dict.get('llm_model_name')}"
+            
+            # 验证搜索模式相关参数
+            search_mode = config_dict.get('search_mode', 'latest')
+            try:
+                mode_enum = ArxivSearchMode(search_mode)
+            except ValueError:
+                return False, f"无效的搜索模式: {search_mode}"
+            
+            # 验证日期范围搜索参数
+            if mode_enum == ArxivSearchMode.DATE_RANGE:
+                start_year = config_dict.get('start_year')
+                end_year = config_dict.get('end_year')
+                if start_year is None or end_year is None:
+                    return False, "日期范围搜索模式需要提供起始年份和结束年份"
+                if not isinstance(start_year, int) or not isinstance(end_year, int):
+                    return False, "起始年份和结束年份必须是整数"
+                if start_year > end_year:
+                    return False, "起始年份不能大于结束年份"
+                if start_year < 1991:  # ArXiv 1991年开始
+                    return False, "起始年份不能早于1991年"
+                
+            # 验证某年之后搜索参数
+            elif mode_enum == ArxivSearchMode.AFTER_YEAR:
+                after_year = config_dict.get('after_year')
+                if after_year is None:
+                    return False, "某年之后搜索模式需要提供after_year参数"
+                if not isinstance(after_year, int):
+                    return False, "after_year必须是整数"
+                if after_year < 1991:
+                    return False, "after_year不能早于1991年"
+                from datetime import datetime
+                if after_year > datetime.now().year:
+                    return False, f"after_year ({after_year}) 不能大于当前年份 ({datetime.now().year})"
             
             return True, None
             
@@ -168,9 +212,15 @@ class PaperGatherService:
                 'full_paper_analysis_model', 'translation_model', 'paper_analysis_model',
                 'relevance_threshold', 'max_papers_in_response', 'max_relevant_papers_in_response',
                 'enable_paper_summarization', 'summarization_threshold', 
-                'enable_translation', 'custom_settings'
+                'enable_translation', 'custom_settings',
+                # 新增搜索模式相关参数
+                'search_mode', 'start_year', 'end_year', 'after_year'
             }
             filtered_config = {k: v for k, v in config_dict_copy.items() if k in valid_params}
+            
+            # 转换搜索模式字符串为枚举
+            if 'search_mode' in filtered_config and isinstance(filtered_config['search_mode'], str):
+                filtered_config['search_mode'] = ArxivSearchMode(filtered_config['search_mode'])
             
             config = PaperGatherTaskConfig(**filtered_config)
             
@@ -245,9 +295,16 @@ class PaperGatherService:
                 'full_paper_analysis_model', 'translation_model', 'paper_analysis_model',
                 'relevance_threshold', 'max_papers_in_response', 'max_relevant_papers_in_response',
                 'enable_paper_summarization', 'summarization_threshold', 
-                'enable_translation', 'custom_settings'
+                'enable_translation', 'custom_settings',
+                # 新增搜索模式相关参数
+                'search_mode', 'start_year', 'end_year', 'after_year'
             }
             filtered_config = {k: v for k, v in config_dict.items() if k in valid_params}
+            
+            # 转换搜索模式字符串为枚举
+            if 'search_mode' in filtered_config and isinstance(filtered_config['search_mode'], str):
+                filtered_config['search_mode'] = ArxivSearchMode(filtered_config['search_mode'])
+            
             config = PaperGatherTaskConfig(**filtered_config)
             
             # 创建任务

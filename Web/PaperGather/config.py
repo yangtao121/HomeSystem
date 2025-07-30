@@ -57,5 +57,10 @@ DEFAULT_TASK_CONFIG = {
     'max_relevant_papers_in_response': 10,
     'enable_paper_summarization': True,
     'summarization_threshold': 0.8,
-    'enable_translation': True
+    'enable_translation': True,
+    # 新增搜索模式相关配置
+    'search_mode': 'latest',  # ArxivSearchMode.LATEST.value
+    'start_year': None,
+    'end_year': None,
+    'after_year': None
 }

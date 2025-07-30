@@ -170,6 +170,12 @@ FLASK_HOST=0.0.0.0
 FLASK_PORT=5001
 FLASK_DEBUG=True
 SECRET_KEY=papergather-dev-key-change-in-production
+
+# 搜索模式配置
+DEFAULT_SEARCH_MODE=latest
+DEFAULT_START_YEAR=2022
+DEFAULT_END_YEAR=2023
+DEFAULT_AFTER_YEAR=2024
 EOF
         print_success "已创建默认.env文件"
     fi
