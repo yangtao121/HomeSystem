@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from HomeSystem.workflow.paper_gather_task.paper_gather_task import PaperGatherTask, PaperGatherTaskConfig
 from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode
 from HomeSystem.workflow.engine import WorkflowEngine
+from HomeSystem.workflow.scheduler import TaskScheduler
 from HomeSystem.graph.llm_factory import LLMFactory
 from loguru import logger
 
@@ -72,7 +73,7 @@ class PaperGatherService:
     
     def __init__(self):
         self.llm_factory = LLMFactory()
-        self.workflow_engine: Optional[WorkflowEngine] = None
+        self.task_scheduler: Optional[TaskScheduler] = None
         self.scheduled_tasks: Dict[str, PaperGatherTask] = {}
         self.task_results: Dict[str, TaskResult] = {}
         
@@ -82,9 +83,10 @@ class PaperGatherService:
         # 线程锁保证数据安全
         self.lock = threading.Lock()
         
-        # 后台引擎线程
-        self.engine_thread: Optional[threading.Thread] = None
-        self.engine_running = False
+        # 后台调度器线程
+        self.scheduler_thread: Optional[threading.Thread] = None
+        self.scheduler_running = False
+        self.scheduler_shutdown_event = None
         
     def get_available_models(self) -> List[str]:
         """获取可用的LLM模型列表"""
@@ -313,12 +315,25 @@ class PaperGatherService:
             with self.lock:
                 self.scheduled_tasks[task_id] = paper_task
             
-            # 如果WorkflowEngine未初始化或未运行，则启动
-            if not self.engine_running:
-                self._start_workflow_engine()
+            # 如果TaskScheduler未初始化或未运行，则启动
+            if not self.scheduler_running:
+                self._start_task_scheduler()
             
-            # 添加任务到引擎
-            self.workflow_engine.add_task(paper_task)
+            # 等待调度器初始化完成（最多等待5秒）
+            import time
+            max_wait = 5.0
+            wait_interval = 0.1
+            waited = 0.0
+            
+            while self.task_scheduler is None and waited < max_wait:
+                time.sleep(wait_interval)
+                waited += wait_interval
+            
+            # 添加任务到调度器
+            if self.task_scheduler:
+                self.task_scheduler.add_task(paper_task)
+            else:
+                raise Exception("任务调度器初始化超时")
             
             logger.info(f"后台定时任务已启动: {task_id}, 间隔: {config.interval_seconds}秒")
             return True, task_id, None
@@ -328,27 +343,45 @@ class PaperGatherService:
             logger.error(error_msg)
             return False, "", error_msg
     
-    def _start_workflow_engine(self):
-        """启动WorkflowEngine在后台线程"""
-        if self.engine_running:
+    def _start_task_scheduler(self):
+        """启动TaskScheduler在后台线程（不使用信号处理）"""
+        if self.scheduler_running:
             return
         
-        def run_engine():
+        def run_scheduler():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                self.workflow_engine = WorkflowEngine()
-                self.engine_running = True
-                logger.info("WorkflowEngine已启动")
-                loop.run_until_complete(self.workflow_engine.run())
+                self.task_scheduler = TaskScheduler()
+                self.scheduler_shutdown_event = asyncio.Event()
+                self.scheduler_running = True
+                logger.info("TaskScheduler已启动")
+                
+                # 启动调度器
+                loop.run_until_complete(self._run_scheduler_loop())
             except Exception as e:
-                logger.error(f"WorkflowEngine运行异常: {e}")
+                logger.error(f"TaskScheduler运行异常: {e}")
             finally:
-                self.engine_running = False
+                self.scheduler_running = False
                 loop.close()
         
-        self.engine_thread = threading.Thread(target=run_engine, daemon=True)
-        self.engine_thread.start()
+        self.scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+        self.scheduler_thread.start()
+    
+    async def _run_scheduler_loop(self):
+        """运行调度器循环（不使用信号处理）"""
+        try:
+            # 启动调度器任务
+            scheduler_task = asyncio.create_task(self.task_scheduler.start())
+            
+            # 在Web环境中，我们不使用信号处理，而是让任务持续运行
+            # 调度器会在守护线程中运行，当主进程结束时自动终止
+            await scheduler_task
+            
+        except Exception as e:
+            logger.error(f"调度器循环出错: {e}")
+        finally:
+            logger.info("TaskScheduler已停止")
     
     def stop_scheduled_task(self, task_id: str) -> tuple[bool, Optional[str]]:
         """停止后台定时任务"""
@@ -356,6 +389,12 @@ class PaperGatherService:
             with self.lock:
                 if task_id not in self.scheduled_tasks:
                     return False, "任务不存在"
+                
+                task = self.scheduled_tasks[task_id]
+                
+                # 从调度器中移除任务
+                if self.task_scheduler:
+                    self.task_scheduler.remove_task(task.name)
                 
                 # 清理任务记录
                 del self.scheduled_tasks[task_id]
