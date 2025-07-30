@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from HomeSystem.workflow.paper_gather_task.paper_gather_task import PaperGatherTask, PaperGatherTaskConfig
+from HomeSystem.workflow.paper_gather_task.data_manager import PaperGatherDataManager, ConfigVersionManager
 from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode
 from HomeSystem.workflow.engine import WorkflowEngine
 from HomeSystem.workflow.scheduler import TaskScheduler
@@ -77,6 +78,9 @@ class PaperGatherService:
         self.scheduled_tasks: Dict[str, PaperGatherTask] = {}
         self.task_results: Dict[str, TaskResult] = {}
         
+        # 数据管理器
+        self.data_manager = PaperGatherDataManager()
+        
         # 线程池用于执行任务
         self.executor = ThreadPoolExecutor(max_workers=3)
         
@@ -88,6 +92,40 @@ class PaperGatherService:
         self.scheduler_running = False
         self.scheduler_shutdown_event = None
         
+        # 启动时加载历史数据
+        self._load_historical_data()
+    
+    def _load_historical_data(self):
+        """加载历史数据到内存"""
+        try:
+            # 加载最近的任务结果到内存（用于状态查询）
+            recent_tasks = self.data_manager.load_task_history(limit=50)
+            
+            with self.lock:
+                for task_data in recent_tasks:
+                    task_id = task_data.get("task_id")
+                    if task_id:
+                        # 创建TaskResult对象
+                        start_time = datetime.fromisoformat(task_data.get("start_time"))
+                        end_time_str = task_data.get("end_time")
+                        end_time = datetime.fromisoformat(end_time_str) if end_time_str else None
+                        
+                        task_result = TaskResult(
+                            task_id=task_id,
+                            status=TaskStatus(task_data.get("status", "completed")),
+                            start_time=start_time,
+                            end_time=end_time,
+                            result_data=task_data.get("result", {}),
+                            progress=1.0 if task_data.get("status") == "completed" else 0.0
+                        )
+                        
+                        self.task_results[task_id] = task_result
+            
+            logger.info(f"加载了 {len(recent_tasks)} 个历史任务到内存")
+            
+        except Exception as e:
+            logger.error(f"加载历史数据失败: {e}")
+    
     def get_available_models(self) -> List[str]:
         """获取可用的LLM模型列表"""
         try:
@@ -243,6 +281,10 @@ class PaperGatherService:
                 task_result.result_data = result
                 task_result.progress = 1.0
             
+            # 保存到持久化存储
+            self._save_task_to_persistent_storage(task_id, config_dict_copy, result, 
+                                                 task_result.start_time, task_result.end_time, "completed")
+            
             logger.info(f"任务执行完成: {task_id}")
             return task_result
             
@@ -256,7 +298,33 @@ class PaperGatherService:
                 task_result.error_message = error_msg
                 task_result.progress = 0.0
             
+            # 保存失败任务到持久化存储
+            self._save_task_to_persistent_storage(task_id, config_dict_copy, {"error": error_msg}, 
+                                                 task_result.start_time, task_result.end_time, "failed")
+            
             return task_result
+    
+    def _save_task_to_persistent_storage(self, task_id: str, config_dict: Dict[str, Any], 
+                                       result_data: Dict[str, Any], start_time: datetime, 
+                                       end_time: datetime, status: str):
+        """保存任务到持久化存储"""
+        try:
+            # 在后台线程中异步保存，避免阻塞主流程
+            def save_async():
+                self.data_manager.save_task_complete(
+                    task_id=task_id,
+                    config_dict=config_dict,
+                    result_data=result_data,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=status
+                )
+            
+            # 提交到线程池执行
+            self.executor.submit(save_async)
+            
+        except Exception as e:
+            logger.error(f"提交持久化存储任务失败: {e}")
     
     def start_immediate_task(self, config_dict: Dict[str, Any]) -> str:
         """
@@ -493,6 +561,116 @@ class PaperGatherService:
             self.task_results = keep_results
             
             logger.info(f"清理旧任务结果，保留最近的 {keep_last_n} 个")
+    
+    def get_task_history(self, limit: int = 100, start_date: Optional[datetime] = None,
+                        end_date: Optional[datetime] = None, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取任务历史记录"""
+        try:
+            return self.data_manager.load_task_history(
+                limit=limit,
+                start_date=start_date,
+                end_date=end_date,
+                status_filter=status_filter
+            )
+        except Exception as e:
+            logger.error(f"获取任务历史失败: {e}")
+            return []
+    
+    def get_task_config_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """获取指定任务的配置（支持版本兼容性）"""
+        try:
+            return self.data_manager.get_task_config_compatible(task_id)
+        except Exception as e:
+            logger.error(f"获取任务配置失败: {e}")
+            return None
+    
+    def save_config_preset(self, name: str, config_dict: Dict[str, Any], description: str = "") -> tuple[bool, Optional[str]]:
+        """保存配置预设"""
+        try:
+            # 配置验证
+            is_valid, error_msg = self.validate_config(config_dict)
+            if not is_valid:
+                return False, error_msg
+            
+            success = self.data_manager.save_config_preset(name, config_dict, description)
+            return success, None if success else "保存预设失败"
+            
+        except Exception as e:
+            error_msg = f"保存配置预设失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def load_config_presets(self) -> List[Dict[str, Any]]:
+        """加载所有配置预设"""
+        try:
+            return self.data_manager.load_config_presets()
+        except Exception as e:
+            logger.error(f"加载配置预设失败: {e}")
+            return []
+    
+    def delete_config_preset(self, preset_id: str) -> tuple[bool, Optional[str]]:
+        """删除配置预设"""
+        try:
+            success = self.data_manager.delete_config_preset(preset_id)
+            return success, None if success else "删除预设失败"
+            
+        except Exception as e:
+            error_msg = f"删除配置预设失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def delete_task_history(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """删除历史任务记录"""
+        try:
+            success = self.data_manager.delete_task_history(task_id)
+            return success, None if success else "删除历史任务失败，未找到指定任务"
+            
+        except Exception as e:
+            error_msg = f"删除历史任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def start_task_from_config(self, config_dict: Dict[str, Any], mode: TaskMode = TaskMode.IMMEDIATE) -> tuple[bool, str, Optional[str]]:
+        """基于配置启动任务"""
+        try:
+            # 应用配置兼容性处理
+            compatible_config = ConfigVersionManager.ensure_config_compatibility(config_dict)
+            
+            # 配置验证
+            is_valid, error_msg = self.validate_config(compatible_config)
+            if not is_valid:
+                return False, "", error_msg
+            
+            # 根据模式启动任务
+            if mode == TaskMode.IMMEDIATE:
+                task_id = self.start_immediate_task(compatible_config)
+                return True, task_id, None
+            else:
+                success, task_id, error_msg = self.start_scheduled_task(compatible_config)
+                return success, task_id, error_msg
+                
+        except Exception as e:
+            error_msg = f"启动任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, "", error_msg
+    
+    def get_data_statistics(self) -> Dict[str, Any]:
+        """获取数据统计信息"""
+        try:
+            stats = self.data_manager.get_statistics()
+            
+            # 添加运行时统计
+            with self.lock:
+                stats["memory_tasks"] = len(self.task_results)
+                stats["running_tasks"] = len([r for r in self.task_results.values() 
+                                            if r.status in [TaskStatus.PENDING, TaskStatus.RUNNING]])
+                stats["scheduled_tasks"] = len(self.scheduled_tasks)
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"获取数据统计失败: {e}")
+            return {}
     
     def cancel_task(self, task_id: str) -> tuple[bool, Optional[str]]:
         """取消正在运行的任务"""

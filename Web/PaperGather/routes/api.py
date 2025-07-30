@@ -56,19 +56,24 @@ def get_task_status(task_id):
 
 @api_bp.route('/task/history')
 def get_task_history():
-    """获取任务历史"""
+    """获取任务历史（包含持久化数据）"""
     try:
         page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
+        per_page = min(int(request.args.get('per_page', 20)), 100)
+        status_filter = request.args.get('status', '').strip()
         
-        all_results = paper_gather_service.get_all_task_results()
-        sorted_results = sorted(all_results, key=lambda x: x['start_time'], reverse=True)
+        # 使用新的历史记录获取方法
+        limit = per_page * page  # 获取足够的数据进行分页
+        all_results = paper_gather_service.get_task_history(
+            limit=limit * 2,  # 获取更多数据以确保分页准确
+            status_filter=status_filter if status_filter else None
+        )
         
         # 分页
-        total = len(sorted_results)
+        total = len(all_results)
         start = (page - 1) * per_page
         end = start + per_page
-        results = sorted_results[start:end]
+        results = all_results[start:end]
         
         return jsonify({
             'success': True,
@@ -83,6 +88,215 @@ def get_task_history():
     
     except Exception as e:
         logger.error(f"获取任务历史失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/task/config/<task_id>')
+def get_task_config(task_id):
+    """获取指定任务的配置（支持版本兼容性）"""
+    try:
+        config = paper_gather_service.get_task_config_by_id(task_id)
+        
+        if not config:
+            return jsonify({
+                'success': False,
+                'error': '任务不存在或配置获取失败'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': config
+        })
+    
+    except Exception as e:
+        logger.error(f"获取任务配置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/task/start_from_config', methods=['POST'])
+def start_task_from_config():
+    """基于配置启动新任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供JSON数据'
+            }), 400
+        
+        config_dict = data.get('config', {})
+        task_mode = data.get('mode', 'immediate')  # immediate 或 scheduled
+        
+        if not config_dict:
+            return jsonify({
+                'success': False,
+                'error': '缺少配置参数'
+            }), 400
+        
+        # 导入TaskMode枚举
+        from services.task_service import TaskMode
+        mode = TaskMode.IMMEDIATE if task_mode == 'immediate' else TaskMode.SCHEDULED
+        
+        success, task_id, error_msg = paper_gather_service.start_task_from_config(config_dict, mode)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'task_id': task_id,
+                    'mode': task_mode
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"基于配置启动任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/config/presets')
+def get_config_presets():
+    """获取所有配置预设"""
+    try:
+        presets = paper_gather_service.load_config_presets()
+        
+        return jsonify({
+            'success': True,
+            'data': presets
+        })
+    
+    except Exception as e:
+        logger.error(f"获取配置预设失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/config/presets', methods=['POST'])
+def save_config_preset():
+    """保存配置预设"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供JSON数据'
+            }), 400
+        
+        name = data.get('name', '').strip()
+        config_dict = data.get('config', {})
+        description = data.get('description', '').strip()
+        
+        if not name:
+            return jsonify({
+                'success': False,
+                'error': '预设名称不能为空'
+            }), 400
+        
+        if not config_dict:
+            return jsonify({
+                'success': False,
+                'error': '配置不能为空'
+            }), 400
+        
+        success, error_msg = paper_gather_service.save_config_preset(name, config_dict, description)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '配置预设保存成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"保存配置预设失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/config/presets/<preset_id>', methods=['DELETE'])
+def delete_config_preset(preset_id):
+    """删除配置预设"""
+    try:
+        success, error_msg = paper_gather_service.delete_config_preset(preset_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '配置预设删除成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"删除配置预设失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/task/history/<task_id>', methods=['DELETE'])
+def delete_task_history(task_id):
+    """删除历史任务记录"""
+    try:
+        success, error_msg = paper_gather_service.delete_task_history(task_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '历史任务删除成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg or '删除历史任务失败'
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"删除历史任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/data/statistics')
+def get_data_statistics():
+    """获取数据统计信息"""
+    try:
+        stats = paper_gather_service.get_data_statistics()
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+    
+    except Exception as e:
+        logger.error(f"获取数据统计失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

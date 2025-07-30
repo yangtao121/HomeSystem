@@ -238,7 +238,7 @@ class PaperGatherTask(Task):
     
     async def translate_paper_fields(self, paper: ArxivData) -> None:
         """
-        将论文的英文结构化字段翻译为中文并直接覆盖原字段
+        将论文的英文结构化字段翻译为中文并直接覆盖原字段 (并发版本)
         
         Args:
             paper: 论文数据对象，会直接修改其字段
@@ -248,7 +248,7 @@ class PaperGatherTask(Task):
             return
             
         try:
-            logger.debug(f"开始翻译论文字段: {paper.title[:50]}...")
+            logger.debug(f"开始并发翻译论文字段: {paper.title[:50]}...")
             
             # 定义需要翻译的字段
             fields_to_translate = [
@@ -256,22 +256,59 @@ class PaperGatherTask(Task):
                 'key_findings', 'conclusions', 'limitations', 'future_work', "snippet"
             ]
             
-            # 翻译每个字段
+            # 收集需要翻译的字段和内容
+            texts_to_translate = []
+            field_names_to_translate = []
+            
             for field_name in fields_to_translate:
                 field_value = getattr(paper, field_name, None)
                 if field_value and field_value.strip() and field_value != '无':
-                    try:
-                        translation_result = self.translator.translate_text(field_value)
-                        # 直接覆盖原字段
-                        setattr(paper, field_name, translation_result.translated_text)
-                        logger.debug(f"字段 {field_name} 翻译完成 (质量: {translation_result.translation_quality})")
-                    except Exception as e:
-                        logger.error(f"翻译字段 {field_name} 失败: {e}")
+                    texts_to_translate.append((field_name, field_value))
+                    field_names_to_translate.append(field_name)
             
-            logger.debug(f"论文字段翻译完成: {paper.title[:50]}...")
+            if not texts_to_translate:
+                logger.debug(f"没有需要翻译的字段: {paper.title[:50]}...")
+                return
+            
+            logger.debug(f"准备并发翻译 {len(texts_to_translate)} 个字段: {field_names_to_translate}")
+            
+            # 使用批量并发翻译
+            translation_results = await self.translator.translate_texts_batch(texts_to_translate)
+            
+            # 将翻译结果应用到字段
+            for i, (field_name, original_text) in enumerate(texts_to_translate):
+                if i < len(translation_results):
+                    translation_result = translation_results[i]
+                    # 直接覆盖原字段
+                    setattr(paper, field_name, translation_result.translated_text)
+                    logger.debug(f"字段 {field_name} 翻译完成 (质量: {translation_result.translation_quality})")
+                else:
+                    logger.warning(f"字段 {field_name} 翻译结果缺失，保持原文")
+            
+            logger.info(f"论文字段并发翻译完成: {paper.title[:50]}... (翻译了 {len(translation_results)} 个字段)")
             
         except Exception as e:
-            logger.error(f"翻译论文字段时发生异常: {e}")
+            logger.error(f"并发翻译论文字段时发生异常: {e}")
+            # 如果并发翻译失败，回退到原来的逐个翻译方式
+            logger.info("回退到逐个翻译模式")
+            try:
+                fields_to_translate = [
+                    'research_background', 'research_objectives', 'methods', 
+                    'key_findings', 'conclusions', 'limitations', 'future_work', "snippet"
+                ]
+                
+                for field_name in fields_to_translate:
+                    field_value = getattr(paper, field_name, None)
+                    if field_value and field_value.strip() and field_value != '无':
+                        try:
+                            translation_result = self.translator.translate_text(field_value)
+                            setattr(paper, field_name, translation_result.translated_text)
+                            logger.debug(f"字段 {field_name} 回退翻译完成 (质量: {translation_result.translation_quality})")
+                        except Exception as e:
+                            logger.error(f"回退翻译字段 {field_name} 失败: {e}")
+                            
+            except Exception as fallback_error:
+                logger.error(f"回退翻译也失败了: {fallback_error}")
     
     async def check_paper_in_database(self, arxiv_id: str) -> Optional[ArxivPaperModel]:
         """

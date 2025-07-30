@@ -1,0 +1,21 @@
+# PaperGather任务数据目录
+# 忽略任务执行结果和用户配置数据，防止敏感信息提交
+
+# 任务历史记录文件
+task_history/*.json
+
+# 用户配置预设文件
+config_presets/*.json
+
+# 定时任务状态文件
+scheduled_tasks.json
+
+# 临时文件
+*.tmp
+*.log
+
+# 保留目录结构但忽略内容
+!task_history/
+!config_presets/
+!.gitignore
+!README.md

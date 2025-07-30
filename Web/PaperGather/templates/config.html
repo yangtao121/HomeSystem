@@ -49,8 +49,117 @@
 {% block content %}
 <div class="row">
     <div class="col-12 mb-4">
-        <h1><i class="fas fa-cog me-2"></i>任务配置</h1>
-        <p class="text-muted">配置论文收集任务的参数，支持即时执行和定时执行两种模式</p>
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="fas fa-cog me-2"></i>任务配置</h1>
+                <p class="text-muted">配置论文收集任务的参数，支持即时执行和定时执行两种模式</p>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary" id="loadHistoryTaskBtn">
+                    <i class="fas fa-history me-1"></i>从历史任务加载
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="loadPresetBtn">
+                    <i class="fas fa-bookmark me-1"></i>加载预设
+                </button>
+                <button type="button" class="btn btn-outline-success" id="savePresetBtn">
+                    <i class="fas fa-save me-1"></i>保存预设
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 历史任务模态框 -->
+<div class="modal fade" id="historyTaskModal" tabindex="-1" aria-labelledby="historyTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="historyTaskModalLabel">
+                    <i class="fas fa-history me-2"></i>历史任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <select class="form-select" id="historyStatusFilter">
+                            <option value="">所有状态</option>
+                            <option value="completed">已完成</option>
+                            <option value="failed">失败</option>
+                            <option value="stopped">已停止</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="historySearchInput" placeholder="搜索任务...">
+                            <button class="btn btn-outline-secondary" type="button" id="refreshHistoryBtn">
+                                <i class="fas fa-refresh"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="historyTaskList">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 配置预设模态框 -->
+<div class="modal fade" id="presetModal" tabindex="-1" aria-labelledby="presetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="presetModalLabel">
+                    <i class="fas fa-bookmark me-2"></i>配置预设
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="presetList">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 保存预设模态框 -->
+<div class="modal fade" id="savePresetModal" tabindex="-1" aria-labelledby="savePresetModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="savePresetModalLabel">
+                    <i class="fas fa-save me-2"></i>保存配置预设
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="savePresetForm">
+                    <div class="mb-3">
+                        <label for="presetName" class="form-label">预设名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="presetName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="presetDescription" class="form-label">描述（可选）</label>
+                        <textarea class="form-control" id="presetDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmSavePresetBtn">保存</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -660,4 +769,7 @@ $(document).on('click', '#viewTaskBtn', function() {
     window.open('/task/status/' + taskId, '_blank');
 });
 </script>
+
+<!-- 引入配置页面专用的JavaScript -->
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
 {% endblock %}

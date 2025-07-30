@@ -4,7 +4,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 from HomeSystem.graph.llm_factory import llm_factory
 from pydantic import BaseModel, Field
 from loguru import logger
-from typing import cast
+from typing import cast, List
 
 
 class AbstractAnalysisResult(BaseModel):
@@ -211,6 +211,115 @@ class TranslationLLM:
                 translation_quality="low",
                 notes=f"翻译错误: {str(e)}"
             )
+    
+    async def translate_texts_batch(self, texts_with_field_names: List[tuple]) -> List[TranslationResult]:
+        """
+        批量并发翻译多个文本
+        
+        Args:
+            texts_with_field_names: [(field_name, text), ...] 的列表
+            
+        Returns:
+            List[TranslationResult]: 翻译结果列表，与输入顺序对应
+        """
+        if not texts_with_field_names:
+            return []
+        
+        try:
+            # 准备消息列表
+            messages_list = []
+            for field_name, text in texts_with_field_names:
+                prompt = f"""请将以下英文文本翻译成中文：
+
+英文文本：{text}
+
+要求：
+- 提供准确流畅的中文翻译
+- 保持学术语调和精确性
+- 评估翻译质量（high/medium/low）
+- 如有特殊术语或翻译难点，请添加注释
+
+请确保翻译自然，适合中文学术读者阅读。"""
+                
+                messages = [
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt}
+                ]
+                messages_list.append(messages)
+            
+            # 尝试使用LangChain的abatch方法进行并发调用
+            try:
+                logger.info(f"开始批量翻译 {len(texts_with_field_names)} 个字段 (模型: {self.model_name})")
+                logger.info("尝试使用LangChain abatch方法...")
+                
+                batch_start_time = __import__('time').time()
+                results = await self.structured_llm.abatch(
+                    messages_list,
+                    config={"max_concurrency": 3}  # 限制并发数以防止API过载
+                )
+                batch_time = __import__('time').time() - batch_start_time
+                
+                logger.info(f"abatch方法完成，耗时: {batch_time:.2f}秒，成功翻译 {len(results)} 个字段")
+                return [cast(TranslationResult, result) for result in results]
+                
+            except Exception as batch_error:
+                logger.warning(f"abatch方法失败，回退到asyncio.gather: {batch_error}")
+                
+                # 回退到使用asyncio.gather + ainvoke
+                import asyncio
+                
+                async def translate_single(messages):
+                    try:
+                        result = await self.structured_llm.ainvoke(messages)
+                        return cast(TranslationResult, result)
+                    except Exception as e:
+                        field_name = texts_with_field_names[messages_list.index(messages)][0]
+                        logger.error(f"翻译字段 {field_name} 失败: {e}")
+                        return TranslationResult(
+                            original_text=texts_with_field_names[messages_list.index(messages)][1],
+                            translated_text=f"翻译失败: {str(e)}",
+                            translation_quality="low",
+                            notes=f"翻译错误: {str(e)}"
+                        )
+                
+                # 使用asyncio.gather进行并发调用，限制并发数
+                semaphore = asyncio.Semaphore(3)  # 限制并发数为3
+                
+                async def translate_with_semaphore(messages):
+                    async with semaphore:
+                        return await translate_single(messages)
+                
+                results = await asyncio.gather(
+                    *[translate_with_semaphore(messages) for messages in messages_list],
+                    return_exceptions=True
+                )
+                
+                # 处理异常结果
+                final_results = []
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        field_name, text = texts_with_field_names[i]
+                        logger.error(f"翻译字段 {field_name} 异常: {result}")
+                        final_results.append(TranslationResult(
+                            original_text=text,
+                            translated_text=f"翻译异常: {str(result)}",
+                            translation_quality="low",
+                            notes=f"翻译异常: {str(result)}"
+                        ))
+                    else:
+                        final_results.append(result)
+                
+                return final_results
+                
+        except Exception as e:
+            logger.error(f"批量翻译过程中发生严重错误: {e}")
+            # 返回错误结果
+            return [TranslationResult(
+                original_text=text,
+                translated_text=f"翻译失败: {str(e)}",
+                translation_quality="low",
+                notes=f"批量翻译错误: {str(e)}"
+            ) for field_name, text in texts_with_field_names]
     
 
         
