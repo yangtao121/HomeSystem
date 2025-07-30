@@ -51,10 +51,10 @@ Do NOT use scores like 85, 9, or any number greater than 1.0.
 Please make a quick and accurate preliminary judgment based on the abstract content."""
         
         # Create LLM instance
-        self.base_llm = llm_factory.create_llm(model_name=model_name)
+        self.base_llm = llm_factory.create_llm(model_name=self.model_name)
         self.structured_llm = self.base_llm.with_structured_output(AbstractAnalysisResult)
         
-        logger.info(f"Initialized abstract analysis LLM: {model_name}")
+        logger.info(f"Initialized abstract analysis LLM: {self.model_name}")
     
     def analyze_abstract(self, abstract: str, user_requirements: str) -> AbstractAnalysisResult:
         """Analyze a single paper abstract"""
@@ -115,10 +115,10 @@ Provide detailed justification based on the full paper analysis.
 NOTE: Only analyze papers in English."""
         
         # Create LLM instance
-        self.base_llm = llm_factory.create_llm(model_name=model_name)
+        self.base_llm = llm_factory.create_llm(model_name=self.model_name)
         self.structured_llm = self.base_llm.with_structured_output(FullAnalysisResult)
         
-        logger.info(f"Initialized full paper analysis LLM: {model_name}")
+        logger.info(f"Initialized full paper analysis LLM: {self.model_name}")
     
     def analyze_full_paper(self, paper_content: str, user_requirements: str) -> FullAnalysisResult:
         """Analyze a complete paper content"""
@@ -175,10 +175,10 @@ class TranslationLLM:
 请将给定的英文文本翻译成中文，同时保持学术严谨性和可读性。"""
         
         # Create LLM instance
-        self.base_llm = llm_factory.create_llm(model_name=model_name)
+        self.base_llm = llm_factory.create_llm(model_name=self.model_name)
         self.structured_llm = self.base_llm.with_structured_output(TranslationResult)
         
-        logger.info(f"初始化翻译LLM: {model_name}")
+        logger.info(f"初始化翻译LLM: {self.model_name}")
     
     def translate_text(self, english_text: str) -> TranslationResult:
         """将英文文本翻译为中文"""

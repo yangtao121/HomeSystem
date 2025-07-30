@@ -18,6 +18,10 @@ class PaperGatherTaskConfig:
                  max_papers_per_search: int = 20,
                  user_requirements: str = "寻找机器学习和人工智能领域的最新研究论文",
                  llm_model_name: str = "ollama.Qwen3_30B",
+                 abstract_analysis_model: Optional[str] = None,
+                 full_paper_analysis_model: Optional[str] = None,
+                 translation_model: Optional[str] = None,
+                 paper_analysis_model: Optional[str] = None,
                  relevance_threshold: float = 0.7,
                  max_papers_in_response: int = 50,
                  max_relevant_papers_in_response: int = 10,
@@ -31,6 +35,19 @@ class PaperGatherTaskConfig:
         self.max_papers_per_search = max_papers_per_search
         self.user_requirements = user_requirements
         self.llm_model_name = llm_model_name
+
+        if not abstract_analysis_model:
+            abstract_analysis_model = llm_model_name
+        self.abstract_analysis_model = abstract_analysis_model
+        if not full_paper_analysis_model:
+            full_paper_analysis_model = llm_model_name
+        self.full_paper_analysis_model = full_paper_analysis_model
+        if not translation_model:
+            translation_model = llm_model_name
+        self.translation_model = translation_model
+        if not paper_analysis_model:
+            paper_analysis_model = llm_model_name
+        self.paper_analysis_model = paper_analysis_model
         self.relevance_threshold = relevance_threshold
         self.max_papers_in_response = max_papers_in_response
         self.max_relevant_papers_in_response = max_relevant_papers_in_response
@@ -63,6 +80,10 @@ class PaperGatherTaskConfig:
             'max_papers_per_search': self.max_papers_per_search,
             'user_requirements': self.user_requirements,
             'llm_model_name': self.llm_model_name,
+            'abstract_analysis_model': self.abstract_analysis_model,
+            'full_paper_analysis_model': self.full_paper_analysis_model,
+            'translation_model': self.translation_model,
+            'paper_analysis_model': self.paper_analysis_model,
             'relevance_threshold': self.relevance_threshold,
             'max_papers_in_response': self.max_papers_in_response,
             'max_relevant_papers_in_response': self.max_relevant_papers_in_response,
@@ -90,9 +111,15 @@ class PaperGatherTask(Task):
         
         # 初始化工具
         self.arxiv_tool = ArxivTool()
-        self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
-        self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
-        self.translator = TranslationLLM()
+        self.llm_analyzer = AbstractAnalysisLLM(
+            model_name=self.config.abstract_analysis_model 
+        )
+        self.full_paper_analyzer = FullPaperAnalysisLLM(
+            model_name=self.config.full_paper_analysis_model
+        )
+        self.translator = TranslationLLM(
+            model_name=self.config.translation_model 
+        )
         
         # 初始化数据库操作
         self.db_ops = DatabaseOperations()
@@ -100,7 +127,7 @@ class PaperGatherTask(Task):
         # 初始化论文分析智能体（用于论文总结）
         if self.config.enable_paper_summarization:
             paper_analysis_config = PaperAnalysisConfig(
-                model_name=self.config.llm_model_name,
+                model_name=self.config.paper_analysis_model,
                 memory_enabled=False,
                 parallel_execution=True,
                 validate_results=True
@@ -116,30 +143,50 @@ class PaperGatherTask(Task):
         """更新任务配置"""
         self.config.update_config(**kwargs)
         
-        # 如果更新了模型名称，需要重新初始化LLM分析器
-        if 'llm_model_name' in kwargs:
-            self.llm_analyzer = AbstractAnalysisLLM(model_name=self.config.llm_model_name)
-            self.full_paper_analyzer = FullPaperAnalysisLLM(model_name=self.config.llm_model_name)
-            self.translator = TranslationLLM()
+        # 如果更新了任何模型配置，需要重新初始化相应的LLM分析器
+        model_related_keys = [
+            'llm_model_name', 'abstract_analysis_model', 
+            'full_paper_analysis_model', 'translation_model', 'paper_analysis_model'
+        ]
+        
+        if any(key in kwargs for key in model_related_keys):
+            # 重新初始化摘要分析器
+            if 'llm_model_name' in kwargs or 'abstract_analysis_model' in kwargs:
+                self.llm_analyzer = AbstractAnalysisLLM(
+                    model_name=self.config.abstract_analysis_model or self.config.llm_model_name
+                )
+                logger.info(f"重新初始化摘要分析器: {self.llm_analyzer.model_name}")
+            
+            # 重新初始化完整论文分析器
+            if 'llm_model_name' in kwargs or 'full_paper_analysis_model' in kwargs:
+                self.full_paper_analyzer = FullPaperAnalysisLLM(
+                    model_name=self.config.full_paper_analysis_model or self.config.llm_model_name
+                )
+                logger.info(f"重新初始化完整论文分析器: {self.full_paper_analyzer.model_name}")
+            
+            # 重新初始化翻译器
+            if 'llm_model_name' in kwargs or 'translation_model' in kwargs:
+                self.translator = TranslationLLM(
+                    model_name=self.config.translation_model or self.config.llm_model_name
+                )
+                logger.info(f"重新初始化翻译器: {self.translator.model_name}")
             
             # 重新初始化论文分析智能体
-            if self.config.enable_paper_summarization:
+            if ('llm_model_name' in kwargs or 'paper_analysis_model' in kwargs) and self.config.enable_paper_summarization:
                 paper_analysis_config = PaperAnalysisConfig(
-                    model_name=self.config.llm_model_name,
+                    model_name=self.config.paper_analysis_model or self.config.llm_model_name,
                     memory_enabled=False,
                     parallel_execution=True,
                     validate_results=True
                 )
                 self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
-                logger.info(f"重新初始化论文分析智能体: {self.config.llm_model_name}")
-            
-            logger.info(f"重新初始化LLM分析器: {self.config.llm_model_name}")
+                logger.info(f"重新初始化论文分析智能体: {self.paper_analysis_agent.config.model_name}")
             
         # 如果更新了论文总结开关，需要相应地初始化或清理论文分析智能体
         if 'enable_paper_summarization' in kwargs:
             if self.config.enable_paper_summarization and not self.paper_analysis_agent:
                 paper_analysis_config = PaperAnalysisConfig(
-                    model_name=self.config.llm_model_name,
+                    model_name=self.config.paper_analysis_model or self.config.llm_model_name,
                     memory_enabled=False,
                     parallel_execution=True,
                     validate_results=True
