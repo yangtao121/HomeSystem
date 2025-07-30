@@ -109,9 +109,15 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     {% if paper.keywords %}
-                                        {% for keyword in paper.keywords.split(',')[:3] %}
-                                            <span class="badge bg-secondary me-1">{{ keyword.strip() }}</span>
-                                        {% endfor %}
+                                        {% if paper.keywords is string %}
+                                            {% for keyword in paper.keywords.split(',')[:3] %}
+                                                <span class="badge bg-secondary me-1">{{ keyword.strip() }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            {% for keyword in paper.keywords[:3] %}
+                                                <span class="badge bg-secondary me-1">{{ keyword }}</span>
+                                            {% endfor %}
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                                 {% if paper.abstract_relevance_score %}

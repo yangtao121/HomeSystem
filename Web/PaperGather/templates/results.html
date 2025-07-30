@@ -262,9 +262,15 @@
                     <div class="analysis-section">
                         <h6><i class="fas fa-key me-2"></i>关键词</h6>
                         <div class="keywords-container">
-                            {% for keyword in paper.keywords.split(',') %}
-                            <span class="badge bg-secondary">{{ keyword.strip() }}</span>
-                            {% endfor %}
+                            {% if paper.keywords is string %}
+                                {% for keyword in paper.keywords.split(',') %}
+                                <span class="badge bg-secondary">{{ keyword.strip() }}</span>
+                                {% endfor %}
+                            {% else %}
+                                {% for keyword in paper.keywords %}
+                                <span class="badge bg-secondary">{{ keyword }}</span>
+                                {% endfor %}
+                            {% endif %}
                         </div>
                     </div>
                     {% endif %}
