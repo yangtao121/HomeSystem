@@ -478,6 +478,54 @@ def get_running_tasks():
         }), 500
 
 
+@api_bp.route('/search/translate', methods=['POST'])
+def translate_chinese_search():
+    """中文搜索需求转换为英文搜索关键词和需求描述"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供JSON数据'
+            }), 400
+        
+        chinese_input = data.get('chinese_input', '').strip()
+        model_name = data.get('model_name', 'ollama.Qwen3_30B')
+        
+        if not chinese_input:
+            return jsonify({
+                'success': False,
+                'error': '请输入中文搜索需求'
+            }), 400
+        
+        # 导入并创建中文搜索助手
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        from HomeSystem.workflow.paper_gather_task.chinese_search_assistant import ChineseSearchAssistantLLM
+        
+        assistant = ChineseSearchAssistantLLM(model_name=model_name)
+        result = assistant.convert_chinese_to_english_search(chinese_input)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'search_keywords': result.search_keywords,
+                'user_requirements': result.user_requirements,
+                'confidence': result.confidence,
+                'notes': result.notes,
+                'model_used': model_name
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"中文搜索转换失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"转换失败: {str(e)}"
+        }), 500
+
+
 @api_bp.route('/health')
 def health_check():
     """健康检查"""

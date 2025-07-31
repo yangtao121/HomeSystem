@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 import uuid
 from loguru import logger
-from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode
+from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode, ArxivData
 
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -18,7 +18,61 @@ class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, ArxivSearchMode):
             return obj.value
+        elif isinstance(obj, ArxivData):
+            # 将ArxivData对象转换为可序列化的字典
+            return self._arxiv_data_to_dict(obj)
         return super().default(obj)
+    
+    def _arxiv_data_to_dict(self, arxiv_data: ArxivData) -> dict:
+        """
+        将ArxivData对象转换为可JSON序列化的字典
+        
+        Args:
+            arxiv_data: ArxivData对象
+            
+        Returns:
+            可序列化的字典
+        """
+        # 获取对象的所有属性，排除不可序列化的部分
+        result = {}
+        
+        # 基本信息字段
+        basic_fields = [
+            'title', 'link', 'snippet', 'categories', 'pdf_link', 'pdf_path',
+            'tag', 'arxiv_id', 'published_date'
+        ]
+        
+        # 结构化摘要字段
+        abstract_fields = [
+            'research_background', 'research_objectives', 'methods', 
+            'key_findings', 'conclusions', 'limitations', 'future_work', 'keywords'
+        ]
+        
+        # 分析相关字段
+        analysis_fields = [
+            'abstract_is_relevant', 'abstract_relevance_score', 'abstract_analysis_justification',
+            'full_paper_analyzed', 'full_paper_is_relevant', 'full_paper_relevance_score',
+            'full_paper_analysis_justification', 'paper_summarized', 'paper_summary',
+            'final_is_relevant', 'final_relevance_score', 'search_query'
+        ]
+        
+        # OCR结果字段（排除pdf二进制数据）
+        ocr_fields = ['ocr_result']
+        
+        # 合并所有要序列化的字段
+        all_fields = basic_fields + abstract_fields + analysis_fields + ocr_fields
+        
+        for field in all_fields:
+            if hasattr(arxiv_data, field):
+                value = getattr(arxiv_data, field)
+                # 确保值是可序列化的
+                if value is not None:
+                    result[field] = value
+        
+        # 添加类型标识，便于反序列化时识别
+        result['_type'] = 'ArxivData'
+        
+        return result
 
 
 class ConfigVersionManager:

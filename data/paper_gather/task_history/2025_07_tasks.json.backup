@@ -1,0 +1,56 @@
+{
+  "tasks": [
+    {
+      "task_id": "664184dd-4b18-4a7d-87f9-56dac43c757f",
+      "config": {
+        "execution_mode": "immediate",
+        "interval_seconds": 0,
+        "search_query": "image navigation action prediction depth map control policy",
+        "max_papers_per_search": 20,
+        "user_requirements": "I am looking for research papers that focus on image-based navigation systems where the input is an image or depth map and the output directly corresponds to control actions such as velocity. The research should involve learning or planning strategies for mapping visual inputs to low-level motor commands in autonomous navigation tasks.",
+        "search_mode": "latest",
+        "start_year": null,
+        "end_year": null,
+        "after_year": null,
+        "llm_model_name": "ollama.Qwen3_30B",
+        "relevance_threshold": 0.5,
+        "abstract_analysis_model": null,
+        "full_paper_analysis_model": "deepseek.DeepSeek_V3",
+        "translation_model": null,
+        "paper_analysis_model": "deepseek.DeepSeek_V3",
+        "max_papers_in_response": 50,
+        "max_relevant_papers_in_response": 10,
+        "enable_paper_summarization": true,
+        "summarization_threshold": 0.5,
+        "enable_translation": true
+      },
+      "result": {
+        "message": "论文收集任务执行完成",
+        "total_papers": 20,
+        "relevant_papers": 1,
+        "search_query": "image navigation action prediction depth map control policy",
+        "user_requirements": "I am looking for research papers that focus on image-based navigation systems where the input is an image or depth map and the output directly corresponds to control actions such as velocity. The research should involve learning or planning strategies for mapping visual inputs to low-level motor commands in autonomous navigation tasks.",
+        "config": {
+          "interval_seconds": 0,
+          "search_query": "image navigation action prediction depth map control policy",
+          "max_papers_per_search": 20,
+          "user_requirements": "I am looking for research papers that focus on image-based navigation systems where the input is an image or depth map and the output directly corresponds to control actions such as velocity. The research should involve learning or planning strategies for mapping visual inputs to low-level motor commands in autonomous navigation tasks.",
+          "llm_model_name": "ollama.Qwen3_30B",
+          "abstract_analysis_model": "ollama.Qwen3_30B",
+          "full_paper_analysis_model": "deepseek.DeepSeek_V3",
+          "translation_model": "ollama.Qwen3_30B",
+          "paper_analysis_model": "deepseek.DeepSeek_V3",
+          "relevance_threshold": 0.5,
+          "max_papers_in_response": 50,
+          "max_relevant_papers_in_response": 10,
+          "enable_paper_summarization": true,
+          "summarization_threshold": 0.5,
+          "enable_translation": true,
+          "search_mode": "latest",
+          "start_year": null,
+          "end_year": null,
+          "after_year": null,
+          "custom_settings": {}
+        },
+        "papers": [
+          

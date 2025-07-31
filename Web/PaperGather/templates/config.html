@@ -238,6 +238,69 @@
     <!-- 搜索配置 -->
     <div class="config-section">
         <h4><i class="fas fa-search me-2"></i>搜索配置</h4>
+        
+        <!-- 中文搜索助手 -->
+        <div class="card mb-4" style="border-left: 4px solid #28a745;">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-language me-2 text-success"></i>中文搜索助手
+                    <small class="text-muted">- 一键生成英文搜索参数</small>
+                </h6>
+                <p class="card-text small text-muted mb-3">
+                    输入中文描述，AI自动生成专业的英文搜索关键词和需求描述，让您的论文搜索更精准
+                </p>
+                
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label for="chinese_search_input" class="form-label">中文研究需求</label>
+                        <textarea class="form-control" id="chinese_search_input" rows="3" 
+                                  placeholder="例如：我想找关于深度学习在医疗图像分析中应用的最新论文，特别是在CT扫描和MRI图像处理方面的研究"></textarea>
+                        <div class="form-help">用中文描述您的研究兴趣和需求</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="chinese_assistant_model" class="form-label">转换模型</label>
+                        <select class="form-select" id="chinese_assistant_model">
+                            {% for model in available_models %}
+                            <option value="{{ model }}" {% if model == default_config.llm_model_name %}selected{% endif %}>
+                                {{ model }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-help">选择用于转换的LLM模型</div>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-success" id="translateSearchBtn">
+                        <i class="fas fa-magic me-1"></i>智能转换
+                    </button>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>转换结果将自动填入下方的搜索关键词和需求描述字段
+                    </small>
+                </div>
+                
+                <!-- 转换状态和结果显示 -->
+                <div id="translation_status" class="mt-3" style="display: none;">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm text-success me-2" role="status">
+                            <span class="visually-hidden">转换中...</span>
+                        </div>
+                        <span class="text-success">正在转换中，请稍候...</span>
+                    </div>
+                </div>
+                
+                <div id="translation_result" class="mt-3" style="display: none;">
+                    <div class="alert alert-success">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-check-circle me-1"></i>转换成功
+                            <span id="confidence_badge" class="badge bg-success ms-2"></span>
+                        </h6>
+                        <div id="translation_notes" class="small mb-0"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label for="search_query" class="form-label">搜索关键词 *</label>
@@ -926,6 +989,84 @@ $('#edit_summarization_threshold').on('input', function() {
     const value = (parseFloat($(this).val()) * 100).toFixed(0);
     $('#edit_summarization_threshold_value').text(value + '%');
 });
+
+// 中文搜索助手功能
+$('#translateSearchBtn').click(function() {
+    const chineseInput = $('#chinese_search_input').val().trim();
+    const modelName = $('#chinese_assistant_model').val();
+    
+    if (!chineseInput) {
+        showAlert('请输入中文研究需求', 'warning');
+        return;
+    }
+    
+    // 显示加载状态
+    $('#translation_status').show();
+    $('#translation_result').hide();
+    $('#translateSearchBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>转换中...');
+    
+    // 调用API
+    $.ajax({
+        url: '/api/search/translate',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            chinese_input: chineseInput,
+            model_name: modelName
+        }),
+        success: function(response) {
+            if (response.success) {
+                // 填充转换结果到表单
+                $('#search_query').val(response.data.search_keywords);
+                $('#user_requirements').val(response.data.user_requirements);
+                
+                // 显示转换结果反馈
+                displayTranslationResult(response.data);
+                
+                showAlert('中文搜索需求转换成功！已自动填入搜索关键词和需求描述', 'success');
+            } else {
+                showAlert('转换失败: ' + response.error, 'danger');
+                $('#translation_result').hide();
+            }
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON || {error: '请求失败'};
+            showAlert('转换请求失败: ' + response.error, 'danger');
+            $('#translation_result').hide();
+        },
+        complete: function() {
+            $('#translation_status').hide();
+            $('#translateSearchBtn').prop('disabled', false).html('<i class="fas fa-magic me-1"></i>智能转换');
+        }
+    });
+});
+
+function displayTranslationResult(data) {
+    // 设置质量徽章
+    const confidenceBadge = $('#confidence_badge');
+    let badgeClass = 'bg-success';
+    let confidenceText = '高质量';
+    
+    if (data.confidence === 'medium') {
+        badgeClass = 'bg-warning';
+        confidenceText = '中等质量';
+    } else if (data.confidence === 'low') {
+        badgeClass = 'bg-danger';
+        confidenceText = '需要优化';
+    }
+    
+    confidenceBadge.removeClass('bg-success bg-warning bg-danger').addClass(badgeClass).text(confidenceText);
+    
+    // 设置说明文字
+    let notesText = data.notes || '转换完成';
+    if (data.model_used) {
+        notesText += ` (使用模型: ${data.model_used})`;
+    }
+    $('#translation_notes').text(notesText);
+    
+    // 显示结果
+    $('#translation_result').show();
+}
 
 // 当编辑模态框显示时，加载模型列表
 $('#editTaskModal').on('show.bs.modal', function() {
