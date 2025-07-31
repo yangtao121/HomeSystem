@@ -376,12 +376,16 @@ class PaperGatherTask(Task):
             success = self.db_ops.create(paper_model)
             if success:
                 logger.info(f"论文成功保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
+                # 标记论文已保存到数据库
+                paper.saved_to_database = True
                 return True
             else:
                 logger.error(f"论文保存到数据库失败: {paper.arxiv_id}")
+                paper.saved_to_database = False
                 return False
         except Exception as e:
             logger.error(f"保存论文到数据库时发生异常: {paper.arxiv_id}, 错误: {e}")
+            paper.saved_to_database = False
             return False
         
     async def search_papers(self, query: str, num_results: int = 10) -> ArxivResult:
@@ -598,6 +602,10 @@ class PaperGatherTask(Task):
         for paper in papers:
             logger.info(f"开始处理论文: {paper.arxiv_id} - {paper.title[:50]}...")
             
+            # 初始化论文处理标记
+            paper.saved_to_database = False
+            paper.full_paper_analyzed = False
+            
             # 第一步：检查论文是否已在数据库中
             existing_paper = await self.check_paper_in_database(paper.arxiv_id)
             
@@ -606,6 +614,7 @@ class PaperGatherTask(Task):
                 # 从数据库中的数据创建ArxivData对象，保持一致性
                 paper.final_is_relevant = existing_paper.processing_status == 'completed'
                 paper.final_relevance_score = existing_paper.metadata.get('final_relevance_score', 0.0) if existing_paper.metadata else 0.0
+                paper.saved_to_database = True  # 已在数据库中的论文标记为已保存
                 processed_papers.append(paper)
                 continue
             
@@ -698,6 +707,7 @@ class PaperGatherTask(Task):
         
         all_papers = []
         total_relevant_papers = 0
+        total_saved_papers = 0
         
         try:
             # 处理搜索查询
@@ -715,6 +725,7 @@ class PaperGatherTask(Task):
                     "message": "未找到相关论文",
                     "total_papers": 0,
                     "relevant_papers": 0,
+                    "saved_papers": 0,
                     "search_query": self.config.search_query,
                     "user_requirements": self.config.user_requirements,
                     "config": self.config.get_config_dict()
@@ -728,6 +739,11 @@ class PaperGatherTask(Task):
                              if p.final_is_relevant and p.final_relevance_score >= self.config.relevance_threshold]
             total_relevant_papers = len(relevant_papers)
             
+            # 统计保存到数据库的论文数量
+            saved_papers = [p for p in processed_papers 
+                          if hasattr(p, 'saved_to_database') and p.saved_to_database]
+            total_saved_papers = len(saved_papers)
+            
             # 添加查询标识
             for paper in processed_papers:
                 paper.search_query = self.config.search_query
@@ -735,17 +751,20 @@ class PaperGatherTask(Task):
             all_papers = processed_papers
             
             logger.info(f"查询 '{self.config.search_query}' 完成: 找到 {len(processed_papers)} 篇论文，"
-                       f"其中 {len(relevant_papers)} 篇相关（阈值: {self.config.relevance_threshold}）")
+                       f"其中 {len(relevant_papers)} 篇相关（阈值: {self.config.relevance_threshold}），"
+                       f"保存了 {total_saved_papers} 篇到数据库")
             
             # 按最终相关性评分排序
             all_papers.sort(key=lambda x: x.final_relevance_score, reverse=True)
             
-            logger.info(f"论文收集任务完成: 总共处理 {len(all_papers)} 篇论文，其中 {total_relevant_papers} 篇相关")
+            logger.info(f"论文收集任务完成: 总共处理 {len(all_papers)} 篇论文，其中 {total_relevant_papers} 篇相关，{total_saved_papers} 篇已保存")
             
             return {
                 "message": "论文收集任务执行完成",
                 "total_papers": len(all_papers),
                 "relevant_papers": total_relevant_papers,
+                "saved_papers": total_saved_papers,
+                "analyzed_papers": len([p for p in processed_papers if hasattr(p, 'full_paper_analyzed') and p.full_paper_analyzed]),
                 "search_query": self.config.search_query,
                 "user_requirements": self.config.user_requirements,
                 "config": self.config.get_config_dict(),
@@ -759,5 +778,6 @@ class PaperGatherTask(Task):
                 "message": f"论文收集任务执行失败: {str(e)}",
                 "total_papers": 0,
                 "relevant_papers": 0,
+                "saved_papers": 0,
                 "error": str(e)
             }

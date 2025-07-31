@@ -47,7 +47,7 @@ DEFAULT_TASK_CONFIG = {
     'search_query': 'navigation, dataset, learning based',
     'max_papers_per_search': 20,
     'user_requirements': 'Methods for creating navigation datasets, how to generate simulation data.',
-    'llm_model_name': 'ollama.Qwen3_30B',
+    'llm_model_name': 'deepseek.DeepSeek_V3',  # 使用DeepSeek作为默认模型
     'abstract_analysis_model': None,  # 使用llm_model_name作为默认值
     'full_paper_analysis_model': None,  # 使用llm_model_name作为默认值
     'translation_model': None,  # 使用llm_model_name作为默认值
@@ -60,7 +60,9 @@ DEFAULT_TASK_CONFIG = {
     'enable_translation': True,
     # 新增搜索模式相关配置
     'search_mode': 'latest',  # ArxivSearchMode.LATEST.value
-    'start_year': None,
-    'end_year': None,
-    'after_year': None
+    'start_year': 2023,  # 提供默认的开始年份
+    'end_year': 2024,    # 提供默认的结束年份
+    'after_year': 2023,  # 提供默认的后续年份
+    # 添加间隔配置（用于定时任务）
+    'interval_seconds': 3600  # 默认1小时间隔
 }

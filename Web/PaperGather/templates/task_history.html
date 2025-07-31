@@ -181,6 +181,9 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
+    // 页面加载时验证任务数据完整性
+    validateTaskData();
+    
     // 全选/取消全选功能
     $('#selectAll, #selectAllHeader').change(function() {
         const isChecked = $(this).prop('checked');
@@ -246,6 +249,19 @@ function deleteTask(taskId, taskName) {
                 $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
                     $(this).remove();
                     updateBatchDeleteButton();
+                    
+                    // 如果表格为空，显示空状态
+                    if ($('tbody tr').length === 0) {
+                        $('tbody').html(`
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">暂无历史任务</p>
+                                    <a href="/" class="btn btn-primary">返回首页</a>
+                                </td>
+                            </tr>
+                        `);
+                    }
                 });
             } else {
                 throw new Error(response.error || '删除失败');
@@ -253,8 +269,43 @@ function deleteTask(taskId, taskName) {
         })
         .catch(error => {
             console.error('删除任务失败:', error);
-            PaperGather.Utils.showNotification(`删除失败: ${error.message}`, 'danger');
-            deleteBtn.html(originalHtml).prop('disabled', false);
+            // 根据HTTP状态码或错误类型显示不同信息
+            let errorMessage = error.message || '删除失败';
+            let shouldRemoveFromPage = false;
+            
+            // 检查是否是404错误或"不存在"相关错误
+            if (error.status === 404 || 
+                errorMessage.includes('未找到') || 
+                errorMessage.includes('不存在') ||
+                errorMessage.includes('TASK_NOT_FOUND')) {
+                errorMessage = '任务已被删除或不存在';
+                shouldRemoveFromPage = true;
+            }
+            
+            if (shouldRemoveFromPage) {
+                // 如果任务不存在，从页面移除显示并显示成功消息
+                $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
+                    $(this).remove();
+                    updateBatchDeleteButton();
+                    
+                    // 如果表格为空，显示空状态
+                    if ($('tbody tr').length === 0) {
+                        $('tbody').html(`
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">暂无历史任务</p>
+                                    <a href="/" class="btn btn-primary">返回首页</a>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                });
+                PaperGather.Utils.showNotification('任务已被清理', 'info');
+            } else {
+                PaperGather.Utils.showNotification(`删除失败: ${errorMessage}`, 'danger');
+                deleteBtn.html(originalHtml).prop('disabled', false);
+            }
         });
 }
 
@@ -295,7 +346,24 @@ function batchDeleteTasks(taskIds) {
                 })
                 .catch(error => {
                     console.error(`删除任务 ${taskId} 失败:`, error);
-                    failedCount++;
+                    
+                    // 检查是否是404错误或"不存在"相关错误
+                    const isNotFoundError = error.status === 404 || 
+                        (error.message && (
+                            error.message.includes('未找到') || 
+                            error.message.includes('不存在') ||
+                            error.message.includes('TASK_NOT_FOUND')
+                        ));
+                    
+                    if (isNotFoundError) {
+                        // 不算作失败，从页面移除
+                        $(`tr[data-task-id="${taskId}"]`).fadeOut(200, function() {
+                            $(this).remove();
+                        });
+                        console.info(`任务 ${taskId} 已被清理（不存在）`);
+                    } else {
+                        failedCount++;
+                    }
                 });
         });
     });
@@ -337,6 +405,69 @@ function cancelTask(taskId) {
         } else {
             alert('取消任务失败: ' + response.error);
         }
+    });
+}
+
+// 验证任务数据完整性
+function validateTaskData() {
+    // 获取页面上显示的所有任务ID
+    const displayedTaskIds = [];
+    $('tr[data-task-id]').each(function() {
+        const taskId = $(this).data('task-id');
+        if (taskId) {
+            displayedTaskIds.push(taskId);
+        }
+    });
+    
+    if (displayedTaskIds.length === 0) {
+        return; // 没有任务显示，无需验证
+    }
+    
+    // 通过API验证这些任务是否真实存在
+    $.get('/api/task/history?per_page=100', function(response) {
+        if (response.success) {
+            const actualTaskIds = response.data.map(task => task.task_id);
+            
+            // 检查页面显示的任务是否在实际数据中
+            const orphanedTasks = displayedTaskIds.filter(id => !actualTaskIds.includes(id));
+            
+            if (orphanedTasks.length > 0) {
+                console.warn('发现 ' + orphanedTasks.length + ' 个不存在的任务，将自动移除');
+                
+                // 移除不存在的任务行
+                orphanedTasks.forEach(taskId => {
+                    $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
+                        $(this).remove();
+                        updateBatchDeleteButton();
+                    });
+                });
+                
+                // 显示通知
+                setTimeout(() => {
+                    PaperGather.Utils.showNotification(
+                        `已清理 ${orphanedTasks.length} 个无效的任务记录`, 
+                        'info'
+                    );
+                }, 1000);
+                
+                // 检查是否需要显示空状态
+                setTimeout(() => {
+                    if ($('tbody tr').length === 0) {
+                        $('tbody').html(`
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">暂无历史任务</p>
+                                    <a href="/" class="btn btn-primary">返回首页</a>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                }, 1500);
+            }
+        }
+    }).fail(function() {
+        console.warn('任务数据验证失败，可能存在网络问题');
     });
 }
 </script>

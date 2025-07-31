@@ -96,44 +96,249 @@ class PaperGatherService:
         self._load_historical_data()
     
     def _load_historical_data(self):
-        """加载历史数据到内存"""
+        """加载历史数据到内存 - 增强版本，支持错误恢复和数据兼容性"""
+        loaded_count = 0
+        error_count = 0
+        
         try:
             # 加载最近的任务结果到内存（用于状态查询）
             recent_tasks = self.data_manager.load_task_history(limit=50)
+            logger.info(f"从数据库获取到 {len(recent_tasks)} 个历史任务记录")
             
             with self.lock:
                 for task_data in recent_tasks:
-                    task_id = task_data.get("task_id")
-                    if task_id:
-                        # 创建TaskResult对象
-                        start_time = datetime.fromisoformat(task_data.get("start_time"))
-                        end_time_str = task_data.get("end_time")
-                        end_time = datetime.fromisoformat(end_time_str) if end_time_str else None
+                    try:
+                        task_id = task_data.get("task_id")
+                        if not task_id:
+                            logger.warning(f"跳过无效任务记录: 缺少task_id - {task_data}")
+                            error_count += 1
+                            continue
                         
+                        # 数据兼容性处理 - 安全解析时间字段
+                        start_time = self._safe_parse_datetime(
+                            task_data.get("start_time"), 
+                            f"任务 {task_id} 的start_time"
+                        )
+                        if not start_time:
+                            error_count += 1
+                            continue
+                        
+                        end_time_str = task_data.get("end_time")
+                        end_time = None
+                        if end_time_str:
+                            end_time = self._safe_parse_datetime(
+                                end_time_str, 
+                                f"任务 {task_id} 的end_time"
+                            )
+                        
+                        # 安全解析状态字段
+                        status_str = task_data.get("status", "completed")
+                        try:
+                            status = TaskStatus(status_str)
+                        except ValueError:
+                            logger.warning(f"任务 {task_id} 状态无效: {status_str}, 使用默认状态 'completed'")
+                            status = TaskStatus.COMPLETED
+                        
+                        # 计算进度
+                        progress = 1.0 if status == TaskStatus.COMPLETED else 0.0
+                        if status == TaskStatus.FAILED:
+                            progress = 0.0
+                        elif status == TaskStatus.RUNNING:
+                            progress = 0.5  # 运行中任务设置为50%进度
+                        
+                        # 创建TaskResult对象
                         task_result = TaskResult(
                             task_id=task_id,
-                            status=TaskStatus(task_data.get("status", "completed")),
+                            status=status,
                             start_time=start_time,
                             end_time=end_time,
                             result_data=task_data.get("result", {}),
-                            progress=1.0 if task_data.get("status") == "completed" else 0.0
+                            error_message=task_data.get("error_message"),
+                            progress=progress
                         )
                         
                         self.task_results[task_id] = task_result
+                        loaded_count += 1
+                        
+                    except Exception as task_error:
+                        error_count += 1
+                        logger.warning(f"加载单个历史任务失败: {task_error}, 任务数据: {task_data}")
+                        continue
             
-            logger.info(f"加载了 {len(recent_tasks)} 个历史任务到内存")
+            if loaded_count > 0:
+                logger.info(f"✅ 成功加载了 {loaded_count} 个历史任务到内存")
+            if error_count > 0:
+                logger.warning(f"⚠️  跳过了 {error_count} 个无效的历史任务记录")
+            
+            # 如果所有任务都加载失败，记录详细错误但不阻止应用启动
+            if loaded_count == 0 and len(recent_tasks) > 0:
+                logger.error(f"❌ 所有 {len(recent_tasks)} 个历史任务记录都无法加载，但应用将继续启动")
+                
+        except Exception as e:
+            logger.error(f"❌ 加载历史数据失败: {e}")
+            logger.info("🔄 应用将在没有历史数据的情况下继续启动")
+            # 不抛出异常，让应用继续启动
+    
+    def _safe_parse_datetime(self, date_str, field_description):
+        """安全解析日期时间字符串，支持多种格式"""
+        if not date_str:
+            return None
+        
+        try:
+            # 如果已经是datetime对象，直接返回
+            if isinstance(date_str, datetime):
+                return date_str
+            
+            # 尝试解析ISO格式
+            if isinstance(date_str, str):
+                # 处理带Z结尾的UTC时间
+                if date_str.endswith('Z'):
+                    return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                # 处理标准ISO格式
+                elif 'T' in date_str:
+                    return datetime.fromisoformat(date_str)
+                # 处理其他常见格式
+                else:
+                    # 尝试常见的日期格式
+                    formats = [
+                        '%Y-%m-%d %H:%M:%S',
+                        '%Y-%m-%d %H:%M:%S.%f',
+                        '%Y-%m-%dT%H:%M:%S',
+                        '%Y-%m-%dT%H:%M:%S.%f',
+                        '%Y-%m-%d'
+                    ]
+                    
+                    for fmt in formats:
+                        try:
+                            return datetime.strptime(date_str, fmt)
+                        except ValueError:
+                            continue
+            
+            logger.warning(f"无法解析日期时间: {field_description} = {date_str}")
+            return None
             
         except Exception as e:
-            logger.error(f"加载历史数据失败: {e}")
+            logger.warning(f"解析日期时间时出错: {field_description} = {date_str}, 错误: {e}")
+            return None
     
     def get_available_models(self) -> List[str]:
-        """获取可用的LLM模型列表"""
+        """获取可用的LLM模型列表 - 增强版本，支持错误恢复和详细诊断"""
         try:
+            # 检查LLMFactory是否正确初始化
+            if not self.llm_factory:
+                logger.error("❌ LLMFactory 未正确初始化")
+                return self._get_fallback_models("LLMFactory未初始化")
+            
+            # 尝试获取模型列表
             chat_models = self.llm_factory.get_available_llm_models()
+            
+            if not chat_models:
+                logger.warning("⚠️  LLMFactory 返回了空的模型列表")
+                # 尝试诊断原因
+                self._diagnose_llm_config_issues()
+                return self._get_fallback_models("没有可用的模型")
+            
+            logger.info(f"✅ 成功获取 {len(chat_models)} 个可用LLM模型")
             return chat_models
+            
+        except ImportError as e:
+            logger.error(f"❌ LLM依赖包导入失败: {e}")
+            return self._get_fallback_models(f"依赖包导入失败: {e}")
+        except FileNotFoundError as e:
+            logger.error(f"❌ LLM配置文件不存在: {e}")
+            return self._get_fallback_models(f"配置文件不存在: {e}")
         except Exception as e:
-            logger.error(f"获取可用模型失败: {e}")
-            return ["ollama.Qwen3_30B"]  # 返回默认模型作为备选
+            logger.error(f"❌ 获取可用模型失败: {e}")
+            # 尝试诊断问题
+            self._diagnose_llm_config_issues()
+            return self._get_fallback_models(f"未知错误: {e}")
+    
+    def _get_fallback_models(self, reason: str) -> List[str]:
+        """获取备用模型列表"""
+        fallback_models = [
+            "deepseek.DeepSeek_V3",
+            "ollama.Qwen3_30B", 
+            "ollama.DeepSeek_R1_14B"
+        ]
+        logger.info(f"🔄 使用备用模型列表: {fallback_models} (原因: {reason})")
+        return fallback_models
+    
+    def _diagnose_llm_config_issues(self):
+        """诊断LLM配置问题"""
+        try:
+            import os
+            from pathlib import Path
+            
+            # 检查配置文件
+            config_path = Path(__file__).parent.parent.parent / "HomeSystem" / "graph" / "config" / "llm_providers.yaml"
+            if not config_path.exists():
+                logger.error(f"❌ LLM配置文件不存在: {config_path}")
+            else:
+                logger.info(f"✅ LLM配置文件存在: {config_path}")
+            
+            # 检查环境变量
+            api_keys = {
+                'DEEPSEEK_API_KEY': os.getenv('DEEPSEEK_API_KEY'),
+                'SILICONFLOW_API_KEY': os.getenv('SILICONFLOW_API_KEY'),
+                'VOLCANO_API_KEY': os.getenv('VOLCANO_API_KEY'),
+                'MOONSHOT_API_KEY': os.getenv('MOONSHOT_API_KEY'),
+                'OLLAMA_BASE_URL': os.getenv('OLLAMA_BASE_URL')
+            }
+            
+            logger.info("🔍 环境变量检查:")
+            for key, value in api_keys.items():
+                if key == 'OLLAMA_BASE_URL':
+                    # Ollama URL可以为空，使用默认值
+                    status = "✅ 已设置" if value else "ℹ️  使用默认值(http://localhost:11434)"
+                else:
+                    # API密钥检查
+                    if not value:
+                        status = "❌ 未设置"
+                    elif value.startswith('your_'):
+                        status = "⚠️  未配置(使用示例值)"
+                    else:
+                        status = "✅ 已设置"
+                
+                logger.info(f"  {key}: {status}")
+            
+            # 检查Ollama连接
+            self._check_ollama_connection()
+            
+        except Exception as e:
+            logger.error(f"诊断LLM配置时出错: {e}")
+    
+    def _check_ollama_connection(self):
+        """检查Ollama服务连接"""
+        try:
+            import requests
+            import os
+            
+            ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+            
+            # 尝试连接Ollama
+            response = requests.get(f"{ollama_url}/api/tags", timeout=5)
+            
+            if response.status_code == 200:
+                models_data = response.json()
+                model_count = len(models_data.get('models', []))
+                logger.info(f"✅ Ollama服务连接正常，发现 {model_count} 个本地模型")
+                
+                # 列出可用的本地模型
+                if model_count > 0:
+                    model_names = [model.get('name', 'unknown') for model in models_data.get('models', [])]
+                    logger.info(f"   本地模型: {', '.join(model_names[:5])}{'...' if model_count > 5 else ''}")
+            else:
+                logger.warning(f"⚠️  Ollama服务响应异常: HTTP {response.status_code}")
+                
+        except requests.ConnectionError:
+            logger.warning(f"⚠️  无法连接到Ollama服务 ({ollama_url})")
+            logger.info("   请检查Ollama是否已启动: ollama serve")
+        except requests.Timeout:
+            logger.warning(f"⚠️  连接Ollama服务超时 ({ollama_url})")
+        except ImportError:
+            logger.warning("⚠️  requests包未安装，无法检查Ollama连接")
+        except Exception as e:
+            logger.warning(f"⚠️  检查Ollama连接时出错: {e}")
     
     def get_available_search_modes(self) -> List[Dict[str, str]]:
         """获取可用的搜索模式列表"""
@@ -146,66 +351,171 @@ class PaperGatherService:
         ]
     
     def validate_config(self, config_dict: Dict[str, Any]) -> tuple[bool, Optional[str]]:
-        """验证配置参数"""
+        """验证配置参数 - 增强版本，支持类型转换和详细错误信息"""
         try:
+            if not isinstance(config_dict, dict):
+                return False, "配置必须是字典格式"
+            
             # 检查必需参数
             required_fields = ['search_query', 'user_requirements', 'llm_model_name']
             for field in required_fields:
-                if not config_dict.get(field):
-                    return False, f"缺少必需参数: {field}"
+                value = config_dict.get(field)
+                if not value or (isinstance(value, str) and not value.strip()):
+                    return False, f"缺少必需参数或参数为空: {field}"
             
-            # 检查数值范围
-            if not (0.0 <= config_dict.get('relevance_threshold', 0.7) <= 1.0):
-                return False, "relevance_threshold 必须在 0.0-1.0 范围内"
+            # 数值范围验证 - 支持字符串转换
+            validation_rules = [
+                {
+                    'field': 'relevance_threshold',
+                    'default': 0.7,
+                    'min': 0.0,
+                    'max': 1.0,
+                    'type': float,
+                    'description': '相关性阈值'
+                },
+                {
+                    'field': 'summarization_threshold', 
+                    'default': 0.8,
+                    'min': 0.0,
+                    'max': 1.0,
+                    'type': float,
+                    'description': '摘要生成阈值'
+                },
+                {
+                    'field': 'max_papers_per_search',
+                    'default': 20,
+                    'min': 1,
+                    'max': 100,
+                    'type': int,
+                    'description': '每次搜索的最大论文数'
+                },
+                {
+                    'field': 'max_papers_in_response',
+                    'default': 50,
+                    'min': 1,
+                    'max': 200,
+                    'type': int,
+                    'description': '响应中的最大论文数'
+                },
+                {
+                    'field': 'max_relevant_papers_in_response',
+                    'default': 10,
+                    'min': 1,
+                    'max': 50,
+                    'type': int,
+                    'description': '响应中的最大相关论文数'
+                }
+            ]
             
-            if not (0.0 <= config_dict.get('summarization_threshold', 0.8) <= 1.0):
-                return False, "summarization_threshold 必须在 0.0-1.0 范围内"
+            for rule in validation_rules:
+                field = rule['field']
+                value = config_dict.get(field, rule['default'])
+                
+                # 类型转换和验证
+                try:
+                    if rule['type'] == float:
+                        converted_value = float(value)
+                    elif rule['type'] == int:
+                        converted_value = int(float(value))  # 支持 "20.0" -> 20
+                    else:
+                        converted_value = value
+                    
+                    # 范围检查
+                    if not (rule['min'] <= converted_value <= rule['max']):
+                        return False, f"{rule['description']} 必须在 {rule['min']}-{rule['max']} 范围内，当前值: {converted_value}"
+                    
+                    # 更新配置中的值（确保类型正确）
+                    config_dict[field] = converted_value
+                    
+                except (ValueError, TypeError) as e:
+                    return False, f"{rule['description']} 格式无效: {value} (错误: {e})"
             
-            if not (1 <= config_dict.get('max_papers_per_search', 20) <= 100):
-                return False, "max_papers_per_search 必须在 1-100 范围内"
+            # 布尔值验证和转换
+            boolean_fields = ['enable_paper_summarization', 'enable_translation']
+            for field in boolean_fields:
+                if field in config_dict:
+                    value = config_dict[field]
+                    if isinstance(value, str):
+                        if value.lower() in ['true', '1', 'yes', 'on']:
+                            config_dict[field] = True
+                        elif value.lower() in ['false', '0', 'no', 'off']:
+                            config_dict[field] = False
+                        else:
+                            return False, f"{field} 必须是布尔值"
+                    elif not isinstance(value, bool):
+                        return False, f"{field} 必须是布尔值"
             
-            # 检查模型是否可用
+            # 模型可用性检查（使用更宽松的检查）
+            llm_model_name = config_dict.get('llm_model_name')
             available_models = self.get_available_models()
-            if config_dict.get('llm_model_name') not in available_models:
-                return False, f"LLM模型不可用: {config_dict.get('llm_model_name')}"
+            
+            if llm_model_name not in available_models:
+                # 记录警告但不阻止配置（允许用户使用新模型）
+                logger.warning(f"⚠️  LLM模型 '{llm_model_name}' 当前不在可用列表中")
+                logger.info(f"   可用模型: {', '.join(available_models[:5])}{'...' if len(available_models) > 5 else ''}")
+                # 不返回错误，允许用户使用未在列表中的模型
             
             # 验证搜索模式相关参数
             search_mode = config_dict.get('search_mode', 'latest')
             try:
                 mode_enum = ArxivSearchMode(search_mode)
             except ValueError:
-                return False, f"无效的搜索模式: {search_mode}"
+                available_modes = [mode.value for mode in ArxivSearchMode]
+                return False, f"无效的搜索模式: {search_mode}，可用模式: {', '.join(available_modes)}"
             
             # 验证日期范围搜索参数
             if mode_enum == ArxivSearchMode.DATE_RANGE:
                 start_year = config_dict.get('start_year')
                 end_year = config_dict.get('end_year')
+                
                 if start_year is None or end_year is None:
                     return False, "日期范围搜索模式需要提供起始年份和结束年份"
-                if not isinstance(start_year, int) or not isinstance(end_year, int):
+                
+                # 类型转换
+                try:
+                    start_year = int(start_year)
+                    end_year = int(end_year)
+                    config_dict['start_year'] = start_year
+                    config_dict['end_year'] = end_year
+                except (ValueError, TypeError):
                     return False, "起始年份和结束年份必须是整数"
+                
+                # 逻辑检查
                 if start_year > end_year:
-                    return False, "起始年份不能大于结束年份"
+                    return False, f"起始年份 ({start_year}) 不能大于结束年份 ({end_year})"
                 if start_year < 1991:  # ArXiv 1991年开始
-                    return False, "起始年份不能早于1991年"
+                    return False, f"起始年份 ({start_year}) 不能早于1991年"
+                
+                current_year = datetime.now().year
+                if end_year > current_year:
+                    return False, f"结束年份 ({end_year}) 不能大于当前年份 ({current_year})"
                 
             # 验证某年之后搜索参数
             elif mode_enum == ArxivSearchMode.AFTER_YEAR:
                 after_year = config_dict.get('after_year')
                 if after_year is None:
                     return False, "某年之后搜索模式需要提供after_year参数"
-                if not isinstance(after_year, int):
+                
+                try:
+                    after_year = int(after_year)
+                    config_dict['after_year'] = after_year
+                except (ValueError, TypeError):
                     return False, "after_year必须是整数"
+                
                 if after_year < 1991:
-                    return False, "after_year不能早于1991年"
-                from datetime import datetime
-                if after_year > datetime.now().year:
-                    return False, f"after_year ({after_year}) 不能大于当前年份 ({datetime.now().year})"
+                    return False, f"after_year ({after_year}) 不能早于1991年"
+                
+                current_year = datetime.now().year
+                if after_year > current_year:
+                    return False, f"after_year ({after_year}) 不能大于当前年份 ({current_year})"
             
+            logger.info("✅ 配置验证通过")
             return True, None
             
         except Exception as e:
-            return False, f"配置验证失败: {str(e)}"
+            error_msg = f"配置验证时发生异常: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
     
     def _run_task_async(self, task_id: str, config_dict: Dict[str, Any]):
         """在单独线程中异步运行任务"""
@@ -648,7 +958,17 @@ class PaperGatherService:
                 if not is_valid:
                     return False, f"配置验证失败: {error_msg}"
             
+            # 更新持久化存储
             success = self.data_manager.update_task_history(task_id, updated_data)
+            
+            if success and "config" in updated_data:
+                # 同步更新内存缓存中的任务（如果存在）
+                with self.lock:
+                    if task_id in self.task_results:
+                        # 这里暂不更新内存中的任务配置，因为TaskResult对象不包含config字段
+                        # 内存中主要是运行时状态，历史配置存储在持久化层
+                        logger.info(f"任务 {task_id} 配置已在持久化存储中更新")
+            
             return success, None if success else "更新历史任务失败，未找到指定任务"
             
         except Exception as e:
@@ -659,7 +979,16 @@ class PaperGatherService:
     def delete_task_history(self, task_id: str) -> tuple[bool, Optional[str]]:
         """删除历史任务记录"""
         try:
+            # 从持久化存储删除
             success = self.data_manager.delete_task_history(task_id)
+            
+            if success:
+                # 同步删除内存缓存中的任务
+                with self.lock:
+                    if task_id in self.task_results:
+                        del self.task_results[task_id]
+                        logger.info(f"已从内存缓存中删除任务: {task_id}")
+                
             return success, None if success else "删除历史任务失败，未找到指定任务"
             
         except Exception as e:

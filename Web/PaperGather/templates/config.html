@@ -641,6 +641,49 @@
                                 </div>
                             </div>
 
+                            <!-- 高级模型配置 -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_abstract_analysis_model" class="form-label">摘要分析模型</label>
+                                        <select class="form-select" id="edit_abstract_analysis_model">
+                                            <option value="">使用默认模型</option>
+                                            <!-- 模型选项将通过JavaScript动态加载 -->
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_full_paper_analysis_model" class="form-label">完整论文分析模型</label>
+                                        <select class="form-select" id="edit_full_paper_analysis_model">
+                                            <option value="">使用默认模型</option>
+                                            <!-- 模型选项将通过JavaScript动态加载 -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_translation_model" class="form-label">翻译模型</label>
+                                        <select class="form-select" id="edit_translation_model">
+                                            <option value="">使用默认模型</option>
+                                            <!-- 模型选项将通过JavaScript动态加载 -->
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="edit_paper_analysis_model" class="form-label">论文总结模型</label>
+                                        <select class="form-select" id="edit_paper_analysis_model">
+                                            <option value="">使用默认模型</option>
+                                            <!-- 模型选项将通过JavaScript动态加载 -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- 日期范围配置 -->
                             <div id="edit_date_range_config" style="display: none;">
                                 <div class="row">
@@ -1074,11 +1117,23 @@ $('#editTaskModal').on('show.bs.modal', function() {
     $.get('/api/models')
         .then(response => {
             if (response.success) {
-                const modelSelect = $('#edit_llm_model_name');
-                modelSelect.empty().append('<option value="">选择模型...</option>');
+                // 为所有模型选择框添加选项
+                const modelSelects = [
+                    '#edit_llm_model_name',
+                    '#edit_abstract_analysis_model',
+                    '#edit_full_paper_analysis_model',
+                    '#edit_translation_model',
+                    '#edit_paper_analysis_model'
+                ];
                 
-                response.data.forEach(model => {
-                    modelSelect.append(`<option value="${model.id}">${model.name}</option>`);
+                modelSelects.forEach(selectId => {
+                    const modelSelect = $(selectId);
+                    const defaultText = selectId === '#edit_llm_model_name' ? '选择模型...' : '使用默认模型';
+                    modelSelect.empty().append(`<option value="">${defaultText}</option>`);
+                    
+                    response.data.forEach(model => {
+                        modelSelect.append(`<option value="${model.id}">${model.name}</option>`);
+                    });
                 });
             }
         })

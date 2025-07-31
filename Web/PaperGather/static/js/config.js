@@ -193,6 +193,12 @@ $(document).ready(function() {
             if (config.user_requirements) $('#user_requirements').val(config.user_requirements);
             if (config.llm_model_name) $('#llm_model_name').val(config.llm_model_name);
             
+            // 高级模型配置
+            if (config.abstract_analysis_model) $('#abstract_analysis_model').val(config.abstract_analysis_model);
+            if (config.full_paper_analysis_model) $('#full_paper_analysis_model').val(config.full_paper_analysis_model);
+            if (config.translation_model) $('#translation_model').val(config.translation_model);
+            if (config.paper_analysis_model) $('#paper_analysis_model').val(config.paper_analysis_model);
+            
             // 高级配置
             if (config.max_papers_per_search !== undefined) $('#max_papers_per_search').val(config.max_papers_per_search);
             if (config.relevance_threshold !== undefined) {
@@ -266,6 +272,12 @@ $(document).ready(function() {
             $('#edit_user_requirements').val(config.user_requirements || '');
             $('#edit_llm_model_name').val(config.llm_model_name || '');
             
+            // 高级模型配置
+            $('#edit_abstract_analysis_model').val(config.abstract_analysis_model || '');
+            $('#edit_full_paper_analysis_model').val(config.full_paper_analysis_model || '');
+            $('#edit_translation_model').val(config.translation_model || '');
+            $('#edit_paper_analysis_model').val(config.paper_analysis_model || '');
+            
             // 高级配置
             $('#edit_max_papers_per_search').val(config.max_papers_per_search || 20);
             $('#edit_relevance_threshold').val(config.relevance_threshold || 0.7);
@@ -310,6 +322,10 @@ $(document).ready(function() {
                 search_query: $('#edit_search_query').val(),
                 user_requirements: $('#edit_user_requirements').val(),
                 llm_model_name: $('#edit_llm_model_name').val(),
+                abstract_analysis_model: $('#edit_abstract_analysis_model').val() || '',
+                full_paper_analysis_model: $('#edit_full_paper_analysis_model').val() || '',
+                translation_model: $('#edit_translation_model').val() || '',
+                paper_analysis_model: $('#edit_paper_analysis_model').val() || '',
                 max_papers_per_search: parseInt($('#edit_max_papers_per_search').val()) || 20,
                 relevance_threshold: parseFloat($('#edit_relevance_threshold').val()) || 0.7,
                 summarization_threshold: parseFloat($('#edit_summarization_threshold').val()) || 0.8,
@@ -584,6 +600,10 @@ $(document).ready(function() {
                 search_query: $('#search_query').val() || '',
                 user_requirements: $('#user_requirements').val() || '',
                 llm_model_name: $('#llm_model_name').val() || '',
+                abstract_analysis_model: $('#abstract_analysis_model').val() || '',
+                full_paper_analysis_model: $('#full_paper_analysis_model').val() || '',
+                translation_model: $('#translation_model').val() || '',
+                paper_analysis_model: $('#paper_analysis_model').val() || '',
                 max_papers_per_search: parseInt($('#max_papers_per_search').val()) || 20,
                 relevance_threshold: parseFloat($('#relevance_threshold').val()) || 0.7,
                 summarization_threshold: parseFloat($('#summarization_threshold').val()) || 0.8,
@@ -638,6 +658,20 @@ $(document).ready(function() {
     $('#historySearchInput').on('input', PaperGather.Utils.debounce(function() {
         HistoryTaskManager.renderHistoryTasks(HistoryTaskManager.currentTasks, $(this).val());
     }, 300));
+    
+    // 编辑模态框的阈值滑块事件
+    $('#edit_relevance_threshold').on('input', function() {
+        $('#edit_relevance_threshold_value').text(($(this).val() * 100).toFixed(0) + '%');
+    });
+    
+    $('#edit_summarization_threshold').on('input', function() {
+        $('#edit_summarization_threshold_value').text(($(this).val() * 100).toFixed(0) + '%');
+    });
+    
+    // 编辑模态框的搜索模式变化事件
+    $('#edit_search_mode').on('change', function() {
+        HistoryTaskManager.updateEditSearchModeFields($(this).val());
+    });
     
     // 全局暴露管理器
     window.HistoryTaskManager = HistoryTaskManager;

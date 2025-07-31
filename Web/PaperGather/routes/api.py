@@ -303,10 +303,18 @@ def delete_task_history(task_id):
                 'message': '历史任务删除成功'
             })
         else:
-            return jsonify({
-                'success': False,
-                'error': error_msg or '删除历史任务失败'
-            }), 400
+            # 如果是"未找到"错误，返回404状态码
+            if error_msg and ('未找到' in error_msg or '不存在' in error_msg):
+                return jsonify({
+                    'success': False,
+                    'error': '任务不存在或已被删除',
+                    'code': 'TASK_NOT_FOUND'
+                }), 404
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': error_msg or '删除历史任务失败'
+                }), 400
     
     except Exception as e:
         logger.error(f"删除历史任务失败: {e}")
@@ -523,6 +531,101 @@ def translate_chinese_search():
         return jsonify({
             'success': False,
             'error': f"转换失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/config/status')
+def get_config_status():
+    """获取配置模块状态"""
+    try:
+        status = {
+            'success': True,
+            'modules': {
+                'llm_factory': {'status': 'unknown', 'message': '', 'details': {}},
+                'search_modes': {'status': 'unknown', 'message': '', 'details': {}},
+                'task_history': {'status': 'unknown', 'message': '', 'details': {}},
+                'database': {'status': 'unknown', 'message': '', 'details': {}}
+            },
+            'overall_status': 'unknown'
+        }
+        
+        # 检查LLM配置
+        try:
+            models = paper_gather_service.get_available_models()
+            status['modules']['llm_factory'] = {
+                'status': 'healthy',
+                'message': f'成功加载 {len(models)} 个LLM模型',
+                'details': {'model_count': len(models), 'models': models[:3]}
+            }
+        except Exception as e:
+            status['modules']['llm_factory'] = {
+                'status': 'error',
+                'message': f'LLM模型加载失败: {str(e)}',
+                'details': {'error': str(e)}
+            }
+        
+        # 检查搜索模式
+        try:
+            search_modes = paper_gather_service.get_available_search_modes()
+            status['modules']['search_modes'] = {
+                'status': 'healthy',
+                'message': f'成功加载 {len(search_modes)} 个搜索模式',
+                'details': {'mode_count': len(search_modes)}
+            }
+        except Exception as e:
+            status['modules']['search_modes'] = {
+                'status': 'error',
+                'message': f'搜索模式加载失败: {str(e)}',
+                'details': {'error': str(e)}
+            }
+        
+        # 检查任务历史
+        try:
+            task_count = len(paper_gather_service.get_all_task_results())
+            status['modules']['task_history'] = {
+                'status': 'healthy',
+                'message': f'成功加载 {task_count} 个历史任务',
+                'details': {'task_count': task_count}
+            }
+        except Exception as e:
+            status['modules']['task_history'] = {
+                'status': 'warning',
+                'message': f'历史任务加载部分失败: {str(e)}',
+                'details': {'error': str(e)}
+            }
+        
+        # 检查数据库连接
+        try:
+            stats = paper_data_service.get_paper_statistics()
+            status['modules']['database'] = {
+                'status': 'healthy',
+                'message': '数据库连接正常',
+                'details': {'total_papers': stats.get('total_papers', 0)}
+            }
+        except Exception as e:
+            status['modules']['database'] = {
+                'status': 'error',
+                'message': f'数据库连接失败: {str(e)}',
+                'details': {'error': str(e)}
+            }
+        
+        # 计算整体状态
+        module_statuses = [module['status'] for module in status['modules'].values()]
+        if 'error' in module_statuses:
+            status['overall_status'] = 'error'
+        elif 'warning' in module_statuses:
+            status['overall_status'] = 'warning'
+        else:
+            status['overall_status'] = 'healthy'
+        
+        return jsonify(status)
+    
+    except Exception as e:
+        logger.error(f"获取配置状态失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'overall_status': 'error'
         }), 500
 
 
