@@ -193,6 +193,9 @@ $(document).ready(function() {
             if (config.user_requirements) $('#user_requirements').val(config.user_requirements);
             if (config.llm_model_name) $('#llm_model_name').val(config.llm_model_name);
             
+            // 任务信息配置
+            if (config.task_name) $('#task_name').val(config.task_name);
+            
             // 高级模型配置
             if (config.abstract_analysis_model) $('#abstract_analysis_model').val(config.abstract_analysis_model);
             if (config.full_paper_analysis_model) $('#full_paper_analysis_model').val(config.full_paper_analysis_model);
@@ -210,8 +213,17 @@ $(document).ready(function() {
                 $('#summarization_threshold_value').text((config.summarization_threshold * 100).toFixed(0) + '%');
             }
             
+            // 响应控制配置
+            if (config.max_papers_in_response !== undefined) $('#max_papers_in_response').val(config.max_papers_in_response);
+            if (config.max_relevant_papers_in_response !== undefined) $('#max_relevant_papers_in_response').val(config.max_relevant_papers_in_response);
+            
             // 搜索模式
             if (config.search_mode) $('#search_mode').val(config.search_mode);
+            
+            // 搜索模式相关的年份配置
+            if (config.start_year !== undefined) $('#start_year').val(config.start_year);
+            if (config.end_year !== undefined) $('#end_year').val(config.end_year);
+            if (config.after_year !== undefined) $('#after_year').val(config.after_year);
             
             // 布尔值配置
             if (config.enable_paper_summarization !== undefined) {
@@ -268,6 +280,7 @@ $(document).ready(function() {
         // 填充编辑表单
         fillEditForm: function(config) {
             // 基本配置
+            $('#edit_task_name').val(config.task_name || '');
             $('#edit_search_query').val(config.search_query || '');
             $('#edit_user_requirements').val(config.user_requirements || '');
             $('#edit_llm_model_name').val(config.llm_model_name || '');
@@ -319,6 +332,7 @@ $(document).ready(function() {
             
             // 收集表单数据
             const updatedConfig = {
+                task_name: $('#edit_task_name').val(),
                 search_query: $('#edit_search_query').val(),
                 user_requirements: $('#edit_user_requirements').val(),
                 llm_model_name: $('#edit_llm_model_name').val(),
@@ -599,12 +613,15 @@ $(document).ready(function() {
             const config = {
                 search_query: $('#search_query').val() || '',
                 user_requirements: $('#user_requirements').val() || '',
+                task_name: $('#task_name').val() || '',
                 llm_model_name: $('#llm_model_name').val() || '',
                 abstract_analysis_model: $('#abstract_analysis_model').val() || '',
                 full_paper_analysis_model: $('#full_paper_analysis_model').val() || '',
                 translation_model: $('#translation_model').val() || '',
                 paper_analysis_model: $('#paper_analysis_model').val() || '',
                 max_papers_per_search: parseInt($('#max_papers_per_search').val()) || 20,
+                max_papers_in_response: parseInt($('#max_papers_in_response').val()) || 50,
+                max_relevant_papers_in_response: parseInt($('#max_relevant_papers_in_response').val()) || 10,
                 relevance_threshold: parseFloat($('#relevance_threshold').val()) || 0.7,
                 summarization_threshold: parseFloat($('#summarization_threshold').val()) || 0.8,
                 search_mode: $('#search_mode').val() || 'latest',

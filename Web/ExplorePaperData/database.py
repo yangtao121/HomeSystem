@@ -201,7 +201,8 @@ class PaperService:
             self.db_manager.set_cache(cache_key, stats, timeout=900)
             return stats
     
-    def search_papers(self, query: str = "", category: str = "", status: str = "", 
+    def search_papers(self, query: str = "", category: str = "", status: str = "",
+                     task_name: str = "", task_id: str = "", 
                      page: int = 1, per_page: int = 20) -> Tuple[List[Dict], int]:
         """搜索论文"""
         with self.db_manager.get_db_connection() as conn:
@@ -227,6 +228,14 @@ class PaperService:
                 conditions.append("processing_status = %s")
                 params.append(status)
             
+            if task_name:
+                conditions.append("task_name ILIKE %s")
+                params.append(f"%{task_name}%")
+                
+            if task_id:
+                conditions.append("task_id = %s")
+                params.append(task_id)
+            
             where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
             
             # 获取总数
@@ -242,7 +251,7 @@ class PaperService:
             offset = (page - 1) * per_page
             data_query = f"""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
-                       created_at, research_objectives, keywords
+                       created_at, research_objectives, keywords, task_name, task_id
                 FROM arxiv_papers 
                 {where_clause}
                 ORDER BY created_at DESC
@@ -427,3 +436,387 @@ class PaperService:
             # 缓存结果
             self.db_manager.set_cache(cache_key, insights, timeout=1800)
             return insights
+    
+    def get_available_tasks(self) -> Dict[str, Any]:
+        """获取可用的任务列表"""
+        cache_key = "available_tasks"
+        cached_data = self.db_manager.get_cache(cache_key)
+        if cached_data:
+            return cached_data
+        
+        with self.db_manager.get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 获取所有任务名称及其论文数量
+            cursor.execute("""
+                SELECT task_name, COUNT(*) as paper_count
+                FROM arxiv_papers 
+                WHERE task_name IS NOT NULL AND task_name != ''
+                GROUP BY task_name
+                ORDER BY paper_count DESC, task_name
+            """)
+            task_names = [dict(row) for row in cursor.fetchall()]
+            
+            # 获取所有任务ID及其论文数量
+            cursor.execute("""
+                SELECT task_id, task_name, COUNT(*) as paper_count,
+                       MIN(created_at) as first_created,
+                       MAX(created_at) as last_created
+                FROM arxiv_papers 
+                WHERE task_id IS NOT NULL AND task_id != ''
+                GROUP BY task_id, task_name
+                ORDER BY last_created DESC
+            """)
+            task_ids = [dict(row) for row in cursor.fetchall()]
+            
+            tasks = {
+                'task_names': task_names,
+                'task_ids': task_ids
+            }
+            
+            # 缓存结果
+            self.db_manager.set_cache(cache_key, tasks, timeout=600)
+            return tasks
+    
+    def update_task_name(self, arxiv_id: str, new_task_name: str) -> bool:
+        """更新单个论文的任务名称"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id = %s
+                """, (new_task_name, arxiv_id))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"更新任务名称失败: {e}")
+            return False
+    
+    def batch_update_task_name(self, old_task_name: str, new_task_name: str) -> int:
+        """批量更新任务名称"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE task_name = %s
+                """, (new_task_name, old_task_name))
+                
+                affected_rows = cursor.rowcount
+                conn.commit()
+                
+                if affected_rows > 0:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                
+                return affected_rows
+                
+        except Exception as e:
+            logger.error(f"批量更新任务名称失败: {e}")
+            return 0
+    
+    def delete_paper(self, arxiv_id: str) -> bool:
+        """删除单个论文"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    DELETE FROM arxiv_papers WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    # 清除相关缓存
+                    self._clear_all_cache()
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"删除论文失败: {e}")
+            return False
+    
+    def delete_papers_by_task(self, task_name: str = None, task_id: str = None) -> int:
+        """按任务删除论文"""
+        if not task_name and not task_id:
+            return 0
+            
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                if task_name:
+                    cursor.execute("""
+                        DELETE FROM arxiv_papers WHERE task_name = %s
+                    """, (task_name,))
+                elif task_id:
+                    cursor.execute("""
+                        DELETE FROM arxiv_papers WHERE task_id = %s
+                    """, (task_id,))
+                
+                affected_rows = cursor.rowcount
+                conn.commit()
+                
+                if affected_rows > 0:
+                    # 清除相关缓存
+                    self._clear_all_cache()
+                
+                return affected_rows
+                
+        except Exception as e:
+            logger.error(f"按任务删除论文失败: {e}")
+            return 0
+    
+    def get_papers_by_task_name(self, task_name: str) -> List[Dict]:
+        """获取指定任务名称的所有论文"""
+        with self.db_manager.get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            cursor.execute("""
+                SELECT arxiv_id, title, authors, categories, processing_status, 
+                       created_at, task_name, task_id
+                FROM arxiv_papers 
+                WHERE task_name = %s
+                ORDER BY created_at DESC
+            """, (task_name,))
+            
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_task_statistics(self) -> Dict[str, Any]:
+        """获取任务统计信息"""
+        cache_key = "task_statistics"
+        cached_data = self.db_manager.get_cache(cache_key)
+        if cached_data:
+            return cached_data
+        
+        with self.db_manager.get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 按任务名称统计
+            cursor.execute("""
+                SELECT 
+                    task_name,
+                    COUNT(*) as paper_count,
+                    COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_count,
+                    COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending_count,
+                    COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed_count,
+                    MIN(created_at) as first_paper,
+                    MAX(created_at) as last_paper
+                FROM arxiv_papers 
+                WHERE task_name IS NOT NULL AND task_name != ''
+                GROUP BY task_name
+                ORDER BY paper_count DESC, task_name
+            """)
+            task_name_stats = [dict(row) for row in cursor.fetchall()]
+            
+            # 总体统计
+            cursor.execute("""
+                SELECT 
+                    COUNT(CASE WHEN task_name IS NOT NULL THEN 1 END) as papers_with_task,
+                    COUNT(CASE WHEN task_name IS NULL THEN 1 END) as papers_without_task,
+                    COUNT(DISTINCT task_name) as unique_task_names,
+                    COUNT(DISTINCT task_id) as unique_task_ids
+                FROM arxiv_papers
+            """)
+            overall_stats = dict(cursor.fetchone())
+            
+            stats = {
+                'task_name_stats': task_name_stats,
+                'overall': overall_stats
+            }
+            
+            # 缓存结果
+            self.db_manager.set_cache(cache_key, stats, timeout=600)
+            return stats
+    
+    def _clear_task_related_cache(self):
+        """清除任务相关的缓存"""
+        redis_client = self.db_manager.get_redis_client()
+        if redis_client:
+            try:
+                keys_to_delete = [
+                    "available_tasks",
+                    "task_statistics", 
+                    "overview_stats",
+                    "unassigned_papers_stats"
+                ]
+                for key in keys_to_delete:
+                    redis_client.delete(key)
+            except Exception as e:
+                logger.warning(f"清除缓存失败: {e}")
+    
+    def _clear_all_cache(self):
+        """清除所有相关缓存"""
+        redis_client = self.db_manager.get_redis_client()
+        if redis_client:
+            try:
+                # 删除统计相关缓存
+                keys_to_delete = [
+                    "overview_stats",
+                    "detailed_statistics",
+                    "research_insights",
+                    "available_tasks",
+                    "task_statistics",
+                    "unassigned_papers_stats"
+                ]
+                for key in keys_to_delete:
+                    redis_client.delete(key)
+                
+                # 删除论文详情缓存 (使用模式匹配)
+                for key in redis_client.scan_iter(match="paper_detail_*"):
+                    redis_client.delete(key)
+                    
+            except Exception as e:
+                logger.warning(f"清除缓存失败: {e}")
+    
+    def get_papers_without_tasks(self, page: int = 1, per_page: int = 20) -> Tuple[List[Dict], int]:
+        """获取没有分配任务的论文"""
+        with self.db_manager.get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 获取总数
+            cursor.execute("""
+                SELECT COUNT(*) as total
+                FROM arxiv_papers 
+                WHERE task_name IS NULL OR task_name = ''
+            """)
+            total = cursor.fetchone()['total']
+            
+            # 获取分页数据
+            offset = (page - 1) * per_page
+            cursor.execute("""
+                SELECT arxiv_id, title, authors, categories, processing_status, 
+                       created_at, research_objectives, keywords, task_name, task_id
+                FROM arxiv_papers 
+                WHERE task_name IS NULL OR task_name = ''
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (per_page, offset))
+            
+            papers = [dict(row) for row in cursor.fetchall()]
+            return papers, total
+    
+    def assign_task_to_paper(self, arxiv_id: str, task_name: str, task_id: str = None) -> bool:
+        """为单个论文分配任务"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, task_id = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id = %s
+                """, (task_name, task_id, arxiv_id))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"分配任务失败: {e}")
+            return False
+    
+    def batch_assign_task_to_papers(self, arxiv_ids: List[str], task_name: str, task_id: str = None) -> int:
+        """批量为论文分配任务"""
+        if not arxiv_ids:
+            return 0
+            
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 使用IN子句批量更新
+                placeholders = ','.join(['%s'] * len(arxiv_ids))
+                cursor.execute(f"""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, task_id = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id IN ({placeholders})
+                """, [task_name, task_id] + arxiv_ids)
+                
+                affected_rows = cursor.rowcount
+                conn.commit()
+                
+                if affected_rows > 0:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                
+                return affected_rows
+                
+        except Exception as e:
+            logger.error(f"批量分配任务失败: {e}")
+            return 0
+    
+    def get_unassigned_papers_stats(self) -> Dict[str, Any]:
+        """获取无任务论文统计信息"""
+        cache_key = "unassigned_papers_stats"
+        cached_data = self.db_manager.get_cache(cache_key)
+        if cached_data:
+            return cached_data
+        
+        with self.db_manager.get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 基础统计
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_unassigned,
+                    COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_unassigned,
+                    COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending_unassigned,
+                    COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed_unassigned
+                FROM arxiv_papers
+                WHERE task_name IS NULL OR task_name = ''
+            """)
+            basic_stats = dict(cursor.fetchone())
+            
+            # 按分类统计无任务论文
+            cursor.execute("""
+                SELECT categories, COUNT(*) as count
+                FROM arxiv_papers 
+                WHERE (task_name IS NULL OR task_name = '') 
+                  AND categories IS NOT NULL AND categories != ''
+                GROUP BY categories 
+                ORDER BY count DESC 
+                LIMIT 10
+            """)
+            category_stats = [dict(row) for row in cursor.fetchall()]
+            
+            # 最近无任务论文趋势
+            cursor.execute("""
+                SELECT created_at::date as date, COUNT(*) as count
+                FROM arxiv_papers 
+                WHERE (task_name IS NULL OR task_name = '') 
+                  AND created_at >= NOW() - INTERVAL '7 days'
+                GROUP BY created_at::date 
+                ORDER BY date DESC
+            """)
+            recent_stats = [dict(row) for row in cursor.fetchall()]
+            
+            stats = {
+                'basic': basic_stats,
+                'categories': category_stats,
+                'recent': recent_stats
+            }
+            
+            # 缓存结果
+            self.db_manager.set_cache(cache_key, stats, timeout=600)
+            return stats

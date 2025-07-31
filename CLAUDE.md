@@ -39,8 +39,13 @@ HomeSystem is a Python-based intelligent home automation system that integrates 
   - Real-time task monitoring with progress tracking and result visualization
   - Thread-safe task execution using ThreadPoolExecutor to prevent UI blocking
 
-- **Web/ExplorePaperData/**: Flask web application for paper data visualization
-  - Provides dashboard, search, filtering, and detailed paper analysis views
+- **Web/ExplorePaperData/**: Flask web application for paper data visualization and exploration
+  - Modern dashboard with real-time statistics, trends, and data visualizations
+  - Advanced search and filtering capabilities with full-text search support
+  - Detailed paper views with structured analysis display
+  - Research insights including keyword analysis, method trends, and high-impact papers
+  - Responsive design with Chart.js visualizations and Bootstrap UI
+  - Redis caching for performance optimization
   - Replaces command-line debug tools with intuitive web interface
 
 ### Database Architecture
@@ -50,6 +55,44 @@ HomeSystem is a Python-based intelligent home automation system that integrates 
 - **Structured Analysis**: Support for research objectives, methods, key findings, and contributions
 
 ## Key Development Patterns
+
+### Forward Compatibility Guidelines
+
+**CRITICAL**: All major code changes must consider forward compatibility to ensure smooth system evolution and minimize breaking changes for existing users and integrations.
+
+#### Core Principles
+- **API Stability**: Maintain backward compatibility for public APIs, database schemas, and configuration formats
+- **Deprecation Strategy**: Mark old features as deprecated before removal, provide migration paths
+- **Version Management**: Use semantic versioning and clear upgrade documentation
+- **Data Migration**: Ensure database schema changes include migration scripts and rollback procedures
+
+#### Implementation Requirements
+- **Database Changes**: Always include migration scripts in `HomeSystem/integrations/database/migrations/`
+- **API Changes**: Maintain existing endpoints while introducing new versions (e.g., `/api/v1/` → `/api/v2/`)
+- **Configuration**: Support old configuration formats with warnings, provide conversion utilities
+- **Dependencies**: Pin major version dependencies, test compatibility before upgrades
+
+#### Testing for Compatibility
+- **Integration Tests**: Verify existing workflows continue to function after changes
+- **Migration Testing**: Test upgrade paths from previous versions
+- **Rollback Testing**: Ensure changes can be safely reverted if issues arise
+- **Documentation**: Update all relevant documentation and migration guides
+
+#### Examples of Forward-Compatible Changes
+```python
+# Good: Adding optional parameters with defaults
+def create_task(name: str, interval: int, config: dict = None):
+    if config is None:
+        config = {}  # Maintain backward compatibility
+
+# Good: Extending data models with optional fields
+class ArxivPaperModel:
+    def __init__(self):
+        self.new_field = None  # Optional, doesn't break existing code
+
+# Avoid: Breaking changes without migration path
+# def create_task(config: TaskConfig):  # Breaks existing code
+```
 
 ### Database Operations
 Use the centralized database operations for all data access:
@@ -150,6 +193,46 @@ print('Database connection successful')
 "
 ```
 
+### ExplorePaperData Web Application
+The ExplorePaperData web interface provides comprehensive paper data visualization and analysis.
+
+**Starting the application:**
+```bash
+cd Web/ExplorePaperData
+./start.sh
+```
+
+The start script automatically:
+- Validates Python environment and installs dependencies
+- Tests database connectivity and displays paper count
+- Starts the web application on http://localhost:5000
+
+**Manual startup:**
+```bash
+cd Web/ExplorePaperData
+pip install -r requirements.txt
+python app.py
+```
+
+**Database service startup:**
+```bash
+# Start required services
+cd /mnt/nfs_share/code/homesystem
+docker compose up -d
+
+# Start with admin tools (optional)
+docker compose --profile tools up -d
+```
+
+**Available endpoints:**
+- `/`: Dashboard with overview statistics and trends
+- `/papers`: Advanced search and filtering interface
+- `/paper/<arxiv_id>`: Detailed paper view with structured analysis
+- `/stats`: Comprehensive statistics and visualizations
+- `/insights`: Research insights, keyword analysis, and trends
+- `/api/search`: REST API for programmatic access
+- `/api/stats`: API endpoint for statistics data
+
 ### HomeSystem Workflow Tasks
 **Running paper collection tasks programmatically:**
 ```python
@@ -167,6 +250,41 @@ task = PaperGatherTask(config=config)
 result = await task.run()
 ```
 
+### Database Management Commands
+**Docker service management:**
+```bash
+# Start all services
+docker compose up -d
+
+# Check service status
+docker compose ps
+
+# View logs
+docker compose logs postgres
+docker compose logs redis
+
+# Stop services
+docker compose down
+
+# Start with admin interfaces
+docker compose --profile tools up -d
+```
+
+**Database debugging commands:**
+```bash
+# Connect to PostgreSQL
+psql -h localhost -p 15432 -U homesystem -d homesystem
+
+# Connect to Redis
+redis-cli -p 16379
+
+# Quick paper count check
+python debug_show_arxiv_data.py
+
+# Clear all paper data (use with caution)
+python debug_clear_arxiv_data.py
+```
+
 ## Configuration
 
 ### LLM Configuration
@@ -176,8 +294,10 @@ LLM providers are configured via YAML in `HomeSystem/graph/config/llm_providers.
 - Both cloud APIs and local Ollama models (14B+ parameters)
 - Embedding models for semantic search capabilities
 
-### PaperGather Web Configuration
-The web application uses environment variables configured in `Web/PaperGather/.env`:
+### Web Application Configuration
+Both PaperGather and ExplorePaperData web applications use environment variables for configuration.
+
+**PaperGather Configuration (Web/PaperGather/.env):**
 ```env
 # Database Configuration
 DB_HOST=localhost
@@ -198,6 +318,21 @@ FLASK_DEBUG=True
 SECRET_KEY=papergather-dev-key-change-in-production
 ```
 
+**ExplorePaperData Configuration:**
+The ExplorePaperData application loads configuration from the root project `.env` file or uses defaults:
+- PostgreSQL: localhost:15432 (database: homesystem)
+- Redis: localhost:16379 (db: 0)
+- Flask: 0.0.0.0:5000 (debug mode enabled)
+- Caching: 5-minute cache for searches, 15-minute cache for statistics
+- Pagination: 20 papers per page by default
+
+**Docker Service Configuration:**
+Services are accessible at these ports:
+- PostgreSQL: localhost:15432
+- Redis: localhost:16379
+- pgAdmin (optional): localhost:8080 (admin@homesystem.local / admin123)
+- Redis Commander (optional): localhost:8081
+
 
 ## Architecture and Development Notes
 
@@ -211,12 +346,16 @@ SECRET_KEY=papergather-dev-key-change-in-production
   - Real-time status updates via AJAX polling
   - RESTful API endpoints for programmatic access
 
-### Task Execution Patterns
-- **Dual Mode System**: Immediate execution (web-blocking prevented) vs scheduled tasks (background daemon)
-- **Thread Safety**: All shared data structures protected with threading.Lock()
-- **Async Integration**: Web app bridges sync Flask with async HomeSystem workflows
-- **Progress Tracking**: Real-time progress updates through task status monitoring
-- **Data Persistence**: Task history and configuration presets stored in database
+- **ExplorePaperData Web**: Single-file Flask application optimized for data visualization
+  - `app.py`: Main application with route handlers and template filters
+  - `database.py`: Data access layer with `PaperService` and `DatabaseManager` classes
+  - `config.py`: Configuration management with environment variable support
+  - Redis caching with intelligent cache key management and serialization
+  - Advanced search with full-text capabilities across multiple fields
+  - Chart.js integration for interactive data visualizations
+  - Custom template filters for date formatting, text truncation, and status badges
+  - Comprehensive error handling with user-friendly error pages
+
 
 ### Key Integration Points
 - **LLMFactory**: Unified interface for multiple LLM providers (cloud + local)

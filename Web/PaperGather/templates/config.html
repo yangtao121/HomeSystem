@@ -295,6 +295,20 @@
                             <i class="fas fa-check-circle me-1"></i>转换成功
                             <span id="confidence_badge" class="badge bg-success ms-2"></span>
                         </h6>
+                        <div class="row mb-2">
+                            <div class="col-md-4">
+                                <strong>搜索关键词:</strong>
+                                <div id="result_keywords" class="text-muted small"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <strong>建议任务名称:</strong>
+                                <div id="result_task_name" class="text-muted small"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <strong>转换质量:</strong>
+                                <div id="result_confidence" class="text-muted small"></div>
+                            </div>
+                        </div>
                         <div id="translation_notes" class="small mb-0"></div>
                     </div>
                 </div>
@@ -361,6 +375,27 @@
                 <input type="number" class="form-control" id="after_year" name="after_year" 
                        min="1991" max="2024" value="2024">
                 <div class="form-help">搜索此年份之后的论文</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务信息 -->
+    <div class="config-section">
+        <h4><i class="fas fa-tag me-2"></i>任务信息</h4>
+        <div class="row">
+            <div class="col-md-8 mb-3">
+                <label for="task_name" class="form-label">任务名称 <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="task_name" name="task_name" 
+                       required maxlength="100" placeholder="例如：AI医疗论文收集任务">
+                <div class="form-help">为此任务设置一个有意义的名称，便于后续管理和追踪</div>
+                <div class="invalid-feedback">
+                    请输入任务名称（1-100个字符）
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">任务ID</label>
+                <input type="text" class="form-control" readonly placeholder="系统自动生成">
+                <div class="form-help">任务执行后系统自动生成唯一标识</div>
             </div>
         </div>
     </div>
@@ -598,6 +633,11 @@
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
+                                <label for="edit_task_name" class="form-label">任务名称</label>
+                                <input type="text" class="form-control" id="edit_task_name" maxlength="100" placeholder="例如：AI医疗论文收集任务">
+                                <div class="form-text">为此任务设置一个有意义的名称</div>
+                            </div>
+                            <div class="mb-3">
                                 <label for="edit_search_query" class="form-label">搜索查询</label>
                                 <input type="text" class="form-control" id="edit_search_query" required>
                             </div>
@@ -823,10 +863,19 @@ $(document).ready(function() {
     // 初始化搜索模式选项
     updateSearchModeOptions($('#search_mode').val());
 
+    // 任务名称实时验证
+    $('#task_name').on('input blur', function() {
+        validateTaskName();
+    });
+
     // 表单提交
     $('#taskConfigForm').submit(function(e) {
         e.preventDefault();
-        executeTask();
+        
+        // 执行表单验证
+        if (validateForm()) {
+            executeTask();
+        }
     });
 });
 
@@ -876,6 +925,51 @@ function resetForm() {
     }
 }
 
+// 验证任务名称
+function validateTaskName() {
+    const taskNameInput = $('#task_name');
+    const taskName = taskNameInput.val().trim();
+    
+    // 清除之前的验证状态
+    taskNameInput.removeClass('is-valid is-invalid');
+    
+    if (!taskName) {
+        taskNameInput.addClass('is-invalid');
+        return false;
+    }
+    
+    if (taskName.length < 1 || taskName.length > 100) {
+        taskNameInput.addClass('is-invalid');
+        return false;
+    }
+    
+    taskNameInput.addClass('is-valid');
+    return true;
+}
+
+// 验证整个表单
+function validateForm() {
+    let isValid = true;
+    
+    // 验证任务名称
+    if (!validateTaskName()) {
+        isValid = false;
+        
+        // 显示错误提示
+        PaperGather.Utils.showAlert('error', '请输入有效的任务名称（1-100个字符）');
+        
+        // 滚动到任务名称字段
+        $('html, body').animate({
+            scrollTop: $('#task_name').offset().top - 100
+        }, 500);
+        
+        // 聚焦到任务名称字段
+        $('#task_name').focus();
+    }
+    
+    return isValid;
+}
+
 function validateConfig() {
     const formData = getFormData();
     
@@ -898,8 +992,19 @@ function validateConfig() {
 }
 
 function executeTask() {
+    // 再次验证表单（防止直接调用此函数绕过验证）
+    if (!validateForm()) {
+        return;
+    }
+    
     const formData = getFormData();
     const mode = $('input[name="execution_mode"]:checked').val();
+    
+    // 确保任务名称存在
+    if (!formData.task_name || !formData.task_name.trim()) {
+        PaperGather.Utils.showAlert('error', '任务名称不能为空');
+        return;
+    }
     
     $('#executeBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>执行中...');
     
@@ -1063,10 +1168,17 @@ $('#translateSearchBtn').click(function() {
                 $('#search_query').val(response.data.search_keywords);
                 $('#user_requirements').val(response.data.user_requirements);
                 
+                // 填充建议的任务名称
+                if (response.data.suggested_task_name) {
+                    $('#task_name').val(response.data.suggested_task_name);
+                    // 触发验证
+                    validateTaskName();
+                }
+                
                 // 显示转换结果反馈
                 displayTranslationResult(response.data);
                 
-                showAlert('中文搜索需求转换成功！已自动填入搜索关键词和需求描述', 'success');
+                showAlert('中文搜索需求转换成功！已自动填入搜索关键词、需求描述和任务名称', 'success');
             } else {
                 showAlert('转换失败: ' + response.error, 'danger');
                 $('#translation_result').hide();
@@ -1100,10 +1212,18 @@ function displayTranslationResult(data) {
     
     confidenceBadge.removeClass('bg-success bg-warning bg-danger').addClass(badgeClass).text(confidenceText);
     
+    // 显示转换结果详情
+    $('#result_keywords').text(data.search_keywords || '未生成');
+    $('#result_task_name').text(data.suggested_task_name || '未生成');
+    $('#result_confidence').text(confidenceText);
+    
     // 设置说明文字
     let notesText = data.notes || '转换完成';
     if (data.model_used) {
         notesText += ` (使用模型: ${data.model_used})`;
+    }
+    if (data.suggested_task_name) {
+        notesText += ' - 建议的任务名称已自动填入，您可以根据需要修改。';
     }
     $('#translation_notes').text(notesText);
     

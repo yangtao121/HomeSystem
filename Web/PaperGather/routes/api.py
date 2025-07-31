@@ -520,6 +520,7 @@ def translate_chinese_search():
             'data': {
                 'search_keywords': result.search_keywords,
                 'user_requirements': result.user_requirements,
+                'suggested_task_name': result.suggested_task_name,
                 'confidence': result.confidence,
                 'notes': result.notes,
                 'model_used': model_name

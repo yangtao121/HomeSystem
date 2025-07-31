@@ -1,139 +1,110 @@
 {% extends "base.html" %}
 
-{% block title %}论文浏览 - ArXiv论文数据探索{% endblock %}
+{% block title %}无任务论文管理 - ArXiv论文数据探索{% endblock %}
 
 {% block content %}
 <!-- 页面标题 -->
 <div class="row mb-4">
     <div class="col">
         <h1 class="display-6 mb-2">
-            <i class="bi bi-journal-text"></i>
-            论文浏览
+            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+            无任务论文管理
         </h1>
-        <p class="text-muted">搜索和浏览ArXiv论文数据库</p>
+        <p class="text-muted">集中管理和分配尚未分配任务的论文</p>
     </div>
 </div>
 
-<!-- 搜索和过滤器 -->
-<div class="search-container">
-    <form method="GET" action="{{ url_for('papers') }}" id="searchForm">
-        <div class="row">
-            <!-- 主搜索框 -->
-            <div class="col-md-4 mb-3">
-                <label for="searchInput" class="form-label">搜索关键词</label>
-                <div class="input-group">
-                    <input type="text" class="form-control search-input" id="searchInput" 
-                           name="q" value="{{ query }}" 
-                           placeholder="搜索标题、摘要、作者、研究目标或关键词..."
-                           data-bs-toggle="tooltip" 
-                           data-bs-placement="top" 
-                           title="支持模糊搜索，可搜索标题、摘要、作者、研究目标和关键词">
-                    <button class="btn btn-primary" type="submit">
-                        <i class="bi bi-search"></i> 搜索
-                    </button>
+<!-- 统计概览 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <div class="display-6 text-warning">
+                    <i class="bi bi-file-earmark-text"></i>
                 </div>
-            </div>
-            
-            <!-- 分类过滤 -->
-            <div class="col-md-2 mb-3">
-                <label for="categoryFilter" class="form-label">分类</label>
-                <input type="text" class="form-control" id="categoryFilter" 
-                       name="category" value="{{ category }}" 
-                       placeholder="如: cs.LG">
-            </div>
-            
-            <!-- 状态过滤 -->
-            <div class="col-md-2 mb-3">
-                <label for="statusFilter" class="form-label">处理状态</label>
-                <select class="form-select" id="statusFilter" name="status">
-                    <option value="">全部状态</option>
-                    <option value="pending" {% if status == 'pending' %}selected{% endif %}>待处理</option>
-                    <option value="completed" {% if status == 'completed' %}selected{% endif %}>已完成</option>
-                    <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
-                </select>
-            </div>
-            
-            <!-- 任务名称过滤 -->
-            <div class="col-md-2 mb-3">
-                <label for="taskNameFilter" class="form-label">任务名称</label>
-                <input type="text" class="form-control" id="taskNameFilter" 
-                       name="task_name" value="{{ task_name }}" 
-                       placeholder="任务名称"
-                       data-bs-toggle="tooltip" 
-                       data-bs-placement="top" 
-                       title="按任务名称过滤论文">
-            </div>
-            
-            <!-- 任务ID过滤 -->
-            <div class="col-md-2 mb-3">
-                <label for="taskIdFilter" class="form-label">任务ID</label>
-                <input type="text" class="form-control" id="taskIdFilter" 
-                       name="task_id" value="{{ task_id }}" 
-                       placeholder="任务ID"
-                       data-bs-toggle="tooltip" 
-                       data-bs-placement="top" 
-                       title="按任务ID精确过滤论文">
+                <h5 class="card-title mt-2">无任务论文</h5>
+                <h3 class="text-warning">{{ stats.basic.total_unassigned }}</h3>
             </div>
         </div>
-        
-        <!-- 操作按钮 -->
-        <div class="row">
-            <div class="col">
-                <button type="submit" class="btn btn-primary me-2">
-                    <i class="bi bi-search"></i> 搜索
-                </button>
-                <a href="{{ url_for('papers') }}" class="btn btn-outline-secondary me-2">
-                    <i class="bi bi-arrow-counterclockwise"></i> 清除过滤
-                </a>
-                <button type="button" class="btn btn-outline-info" onclick="exportData('json')">
-                    <i class="bi bi-download"></i> 导出结果
-                </button>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <div class="display-6 text-success">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <h5 class="card-title mt-2">已完成处理</h5>
+                <h3 class="text-success">{{ stats.basic.completed_unassigned }}</h3>
             </div>
         </div>
-    </form>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <div class="display-6 text-info">
+                    <i class="bi bi-clock"></i>
+                </div>
+                <h5 class="card-title mt-2">待处理</h5>
+                <h3 class="text-info">{{ stats.basic.pending_unassigned }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-danger">
+            <div class="card-body text-center">
+                <div class="display-6 text-danger">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+                <h5 class="card-title mt-2">处理失败</h5>
+                <h3 class="text-danger">{{ stats.basic.failed_unassigned }}</h3>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- 搜索结果信息 -->
-<div class="row mb-3">
+<!-- 快速操作工具栏 -->
+<div class="row mb-4">
     <div class="col">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <small class="text-muted">
-                    共找到 <strong>{{ pagination.total }}</strong> 篇论文
-                    {% if query or category or status or task_name or task_id %}
-                    {% if query %}，关键词: <strong>"{{ query }}"</strong>{% endif %}
-                    {% if category %}，分类: <strong>{{ category }}</strong>{% endif %}
-                    {% if status %}，状态: <strong>{{ status }}</strong>{% endif %}
-                    {% if task_name %}，任务名: <strong>{{ task_name }}</strong>{% endif %}
-                    {% if task_id %}，任务ID: <strong>{{ task_id }}</strong>{% endif %}
-                    {% endif %}
-                </small>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning"></i> 快速操作
+                </h5>
             </div>
-            <div>
-                <small class="text-muted">
-                    显示第 {{ (pagination.page - 1) * pagination.per_page + 1 }} - 
-                    {{ [(pagination.page * pagination.per_page), pagination.total]|min }} 条
-                </small>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="selectAllVisible()">
+                            <i class="bi bi-check-all"></i> 全选当前页
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearSelection()">
+                            <i class="bi bi-x-square"></i> 清除选择
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('papers', task_name='') }}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-eye"></i> 查看所有论文
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <!-- 批量操作工具栏 -->
-{% if papers %}
 <div class="batch-operations-toolbar mb-3" style="display: none;" id="batchToolbar">
     <div class="card border-primary">
         <div class="card-body py-2">
             <div class="row align-items-center">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <small class="text-muted">
                         已选择 <span id="selectedCount">0</span> 篇论文
-                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="clearSelection()">
-                            清除选择
-                        </button>
                     </small>
                 </div>
-                <div class="col-md-8">
+                <div class="col-md-9">
                     <div class="row g-2">
                         <div class="col-md-4">
                             <input type="text" class="form-control form-control-sm" id="batchTaskName" 
@@ -157,13 +128,12 @@
         </div>
     </div>
 </div>
-{% endif %}
 
 <!-- 论文列表 -->
 {% if papers %}
 <div class="papers-list">
     {% for paper in papers %}
-    <div class="paper-item {% if not paper.task_name %}unassigned-paper{% endif %}">
+    <div class="paper-item unassigned-paper">
         <div class="row">
             <!-- 批量选择复选框 -->
             <div class="col-md-1 d-flex align-items-start pt-2">
@@ -198,44 +168,20 @@
                     </span>
                 </div>
                 
-                <!-- 任务信息 -->
-                {% if paper.task_name or paper.task_id %}
-                <div class="paper-task-info mt-2">
-                    {% if paper.task_name %}
-                    <span class="me-3">
-                        <i class="bi bi-briefcase"></i>
-                        <strong>任务:</strong> 
-                        <span class="task-name-display" data-arxiv-id="{{ paper.arxiv_id }}">{{ paper.task_name }}</span>
-                        <button class="btn btn-sm btn-outline-secondary ms-1 edit-task-btn" 
-                                onclick="editTaskName('{{ paper.arxiv_id }}', '{{ paper.task_name }}')"
-                                title="编辑任务名称">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                    </span>
-                    {% endif %}
-                    {% if paper.task_id %}
-                    <span class="me-3">
-                        <i class="bi bi-hash"></i>
-                        <strong>任务ID:</strong> <small class="text-muted">{{ paper.task_id }}</small>
-                    </span>
-                    {% endif %}
-                </div>
-                {% else %}
-                <!-- 无任务信息，显示分配按钮 -->
+                <!-- 无任务警告 -->
                 <div class="paper-task-info mt-2">
                     <div class="alert alert-warning alert-sm py-1">
                         <i class="bi bi-exclamation-triangle"></i>
                         <small>
-                            <strong>未分配任务</strong>
+                            <strong>尚未分配任务</strong>
                             <button class="btn btn-sm btn-outline-primary ms-2" 
                                     onclick="showAssignTaskModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')"
                                     title="分配任务">
-                                <i class="bi bi-plus-square"></i> 分配任务
+                                <i class="bi bi-plus-square"></i> 立即分配
                             </button>
                         </small>
                     </div>
                 </div>
-                {% endif %}
                 
                 <!-- 研究目标（如果有） -->
                 {% if paper.research_objectives %}
@@ -269,8 +215,12 @@
                 
                 <!-- 操作按钮 -->
                 <div class="d-grid gap-2">
+                    <button class="btn btn-sm btn-primary" 
+                            onclick="showAssignTaskModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')">
+                        <i class="bi bi-plus-square"></i> 分配任务
+                    </button>
                     <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
-                       class="btn btn-sm btn-primary">
+                       class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-eye"></i> 查看详情
                     </a>
                     <button class="btn btn-sm btn-outline-secondary" 
@@ -290,13 +240,13 @@
 </div>
 
 <!-- 分页导航 -->
-{% if pagination.total_pages > 1 %}
-<nav aria-label="论文分页导航">
-    <ul class="pagination">
+{% if pagination.pages > 1 %}
+<nav aria-label="无任务论文分页导航">
+    <ul class="pagination justify-content-center">
         <!-- 上一页 -->
-        {% if pagination.has_prev %}
+        {% if pagination.page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=pagination.prev_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">
+            <a class="page-link" href="{{ url_for('unassigned_papers', page=pagination.page-1) }}">
                 <i class="bi bi-chevron-left"></i> 上一页
             </a>
         </li>
@@ -309,47 +259,26 @@
         {% endif %}
         
         <!-- 页码 -->
-        {% set start_page = [pagination.page - 2, 1]|max %}
-        {% set end_page = [pagination.page + 2, pagination.total_pages]|min %}
-        
-        {% if start_page > 1 %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=1, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">1</a>
-        </li>
-        {% if start_page > 2 %}
-        <li class="page-item disabled">
-            <span class="page-link">...</span>
-        </li>
-        {% endif %}
-        {% endif %}
-        
-        {% for page_num in range(start_page, end_page + 1) %}
-        {% if page_num == pagination.page %}
-        <li class="page-item active">
-            <span class="page-link">{{ page_num }}</span>
-        </li>
-        {% else %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=page_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">{{ page_num }}</a>
-        </li>
-        {% endif %}
+        {% for page_num in range(1, pagination.pages + 1) %}
+            {% if page_num == pagination.page %}
+            <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+            </li>
+            {% elif page_num == 1 or page_num == pagination.pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('unassigned_papers', page=page_num) }}">{{ page_num }}</a>
+            </li>
+            {% elif page_num == pagination.page - 3 or page_num == pagination.page + 3 %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% endif %}
         {% endfor %}
         
-        {% if end_page < pagination.total_pages %}
-        {% if end_page < pagination.total_pages - 1 %}
-        <li class="page-item disabled">
-            <span class="page-link">...</span>
-        </li>
-        {% endif %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=pagination.total_pages, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">{{ pagination.total_pages }}</a>
-        </li>
-        {% endif %}
-        
         <!-- 下一页 -->
-        {% if pagination.has_next %}
+        {% if pagination.page < pagination.pages %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=pagination.next_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">
+            <a class="page-link" href="{{ url_for('unassigned_papers', page=pagination.page+1) }}">
                 下一页 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
@@ -366,9 +295,9 @@
 <!-- 分页信息 -->
 <div class="text-center text-muted">
     <small>
-        第 {{ pagination.page }} 页，共 {{ pagination.total_pages }} 页 |
+        第 {{ pagination.page }} 页，共 {{ pagination.pages }} 页 |
         每页显示 {{ pagination.per_page }} 条 |
-        共 {{ pagination.total }} 篇论文
+        共 {{ pagination.total }} 篇无任务论文
     </small>
 </div>
 {% endif %}
@@ -376,11 +305,11 @@
 {% else %}
 <!-- 空状态 -->
 <div class="empty-state">
-    <i class="bi bi-search"></i>
-    <h4>未找到匹配的论文</h4>
-    <p>请尝试调整搜索条件或清除过滤器</p>
+    <i class="bi bi-check-circle-fill text-success"></i>
+    <h4>太好了！没有未分配任务的论文</h4>
+    <p>所有论文都已经分配了任务</p>
     <a href="{{ url_for('papers') }}" class="btn btn-primary">
-        <i class="bi bi-arrow-counterclockwise"></i> 查看所有论文
+        <i class="bi bi-eye"></i> 查看所有论文
     </a>
 </div>
 {% endif %}
@@ -479,6 +408,11 @@
         z-index: 100;
     }
     
+    .batch-operations-toolbar .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 2px solid #007bff;
+    }
+    
     /* 论文选择复选框样式 */
     .paper-checkbox {
         transform: scale(1.2);
@@ -490,145 +424,38 @@
         font-size: 0.875rem;
     }
     
-    /* 改进模态框列表样式 */
-    .modal-body ul li {
-        padding: 2px 0;
-        border-bottom: 1px solid #f0f0f0;
+    /* 统计卡片悬停效果 */
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transition: all 0.3s ease;
     }
     
-    .modal-body ul li:last-child {
-        border-bottom: none;
+    /* 空状态样式 */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
     }
     
-    /* 提升批量工具栏的可见性 */
-    .batch-operations-toolbar .card {
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        border: 2px solid #007bff;
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
     }
 </style>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    // 快捷键支持
-    document.addEventListener('keydown', function(e) {
-        // Ctrl+Enter 提交搜索
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            document.getElementById('searchForm').submit();
-        }
-    });
-    
-    // 搜索建议功能（可扩展）
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('focus', function() {
-            // 可以在这里添加搜索建议下拉框
-            console.log('搜索框获得焦点');
-        });
-    }
-    
-    // 复制到剪贴板
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(function() {
-            // 可选：显示成功提示
-            showToast('已复制 ' + text + ' 到剪贴板');
-        }, function(err) {
-            console.error('复制失败: ', err);
-            showToast('复制失败', 'error');
-        });
-    }
-    
-    // 编辑任务名称
-    function editTaskName(arxivId, currentTaskName) {
-        const newTaskName = prompt('请输入新的任务名称:', currentTaskName || '');
-        if (newTaskName !== null && newTaskName.trim() !== currentTaskName) {
-            updateTaskName(arxivId, newTaskName.trim());
-        }
-    }
-    
-    // 更新任务名称
-    function updateTaskName(arxivId, newTaskName) {
-        fetch('/api/update_task_name', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                arxiv_id: arxivId,
-                new_task_name: newTaskName
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // 更新页面显示
-                const taskNameElement = document.querySelector(`.task-name-display[data-arxiv-id="${arxivId}"]`);
-                if (taskNameElement) {
-                    taskNameElement.textContent = newTaskName;
-                }
-                showToast('任务名称更新成功');
-            } else {
-                showToast('更新失败: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('更新失败，请稍后重试', 'error');
-        });
-    }
-    
-    // 删除论文
-    function deletePaper(arxivId, paperTitle) {
-        if (confirm(`确定要删除论文 "${paperTitle}" 吗？\n此操作不可恢复！`)) {
-            fetch(`/api/delete_paper/${arxivId}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('论文删除成功');
-                    // 重新加载页面或移除论文卡片
-                    location.reload();
-                } else {
-                    showToast('删除失败: ' + data.error, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('删除失败，请稍后重试', 'error');
-            });
-        }
-    }
-    
-    // 简单的提示函数
-    function showToast(message, type = 'success') {
-        // 创建提示元素
-        const toast = document.createElement('div');
-        toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
-        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
-        toast.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(toast);
-        
-        // 3秒后自动删除
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        }, 3000);
-    }
-    
-    // 导出数据功能（占位符）
-    function exportData(format) {
-        showToast('导出功能开发中...', 'info');
-    }
-    
     // 全局变量
     let currentAssignArxivId = null;
     let batchOperationType = null;
+    
+    // 全选当前页面的论文
+    function selectAllVisible() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox');
+        checkboxes.forEach(checkbox => checkbox.checked = true);
+        updateBatchToolbar();
+    }
     
     // 更新批量操作工具栏
     function updateBatchToolbar() {
@@ -675,7 +502,7 @@
         
         const confirmBtn = document.getElementById('confirmAssignBtn');
         confirmBtn.disabled = true;
-        confirmBtn.innerHTML = '<i class="bi bi-spinner-border spinner-border-sm"></i> 分配中...';
+        confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 分配中...';
         
         fetch('/api/assign_task_to_paper', {
             method: 'POST',
@@ -829,7 +656,7 @@
             
             const { arxivIds } = window.batchDeleteData;
             
-            // 逐个删除论文（因为没有批量删除API）
+            // 逐个删除论文
             let deletedCount = 0;
             let errors = 0;
             
@@ -859,6 +686,58 @@
                 confirmBtn.innerHTML = '确认';
             });
         }
+    }
+    
+    // 复制到剪贴板
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('已复制 ' + text + ' 到剪贴板');
+        }, function(err) {
+            console.error('复制失败: ', err);
+            showToast('复制失败', 'error');
+        });
+    }
+    
+    // 删除论文
+    function deletePaper(arxivId, paperTitle) {
+        if (confirm(`确定要删除论文 "${paperTitle}" 吗？\n此操作不可恢复！`)) {
+            fetch(`/api/delete_paper/${arxivId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('论文删除成功');
+                    location.reload();
+                } else {
+                    showToast('删除失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('删除失败，请稍后重试', 'error');
+            });
+        }
+    }
+    
+    // 简单的提示函数
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 3秒后自动删除
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 3000);
     }
 </script>
 {% endblock %}

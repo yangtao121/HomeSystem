@@ -57,6 +57,10 @@ class ArxivPaperModel(BaseModel):
         self.tags = kwargs.get('tags', [])
         self.metadata = kwargs.get('metadata', {})
         
+        # 任务追踪字段
+        self.task_name = kwargs.get('task_name', None)
+        self.task_id = kwargs.get('task_id', None)
+        
         # 结构化摘要字段
         self.research_background = kwargs.get('research_background', None)
         self.research_objectives = kwargs.get('research_objectives', None)
@@ -84,6 +88,8 @@ class ArxivPaperModel(BaseModel):
             'processing_status': self.processing_status,
             'tags': json.dumps(self.tags) if isinstance(self.tags, list) else self.tags,
             'metadata': json.dumps(self.metadata) if isinstance(self.metadata, dict) else self.metadata,
+            'task_name': self.task_name,
+            'task_id': self.task_id,
             'research_background': self.research_background,
             'research_objectives': self.research_objectives,
             'methods': self.methods,
@@ -139,6 +145,10 @@ class ArxivPaperModel(BaseModel):
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
+        -- 为已存在的表添加新字段（兼容现有数据库）
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS task_name VARCHAR(255) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS task_id VARCHAR(100) DEFAULT NULL;
+        
         -- 创建索引
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_arxiv_id ON arxiv_papers(arxiv_id);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status ON arxiv_papers(processing_status);
@@ -148,6 +158,11 @@ class ArxivPaperModel(BaseModel):
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status_created ON arxiv_papers(processing_status, created_at);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_keywords ON arxiv_papers(keywords);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_research_objectives ON arxiv_papers(research_objectives);
+        
+        -- 为新字段创建索引
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_name ON arxiv_papers(task_name);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_id ON arxiv_papers(task_id);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_name_id ON arxiv_papers(task_name, task_id);
         
         -- 创建更新时间戳触发器
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -206,6 +221,8 @@ class ArxivPaperModel(BaseModel):
 发布时间: {self.published_date}
 处理状态: {self.processing_status}
 标签: {', '.join(self.tags) if self.tags else '无'}
+任务名称: {self.task_name if self.task_name else '未知'}
+任务ID: {self.task_id if self.task_id else '未知'}
 创建时间: {self.created_at}
 更新时间: {self.updated_at}
         """.strip()

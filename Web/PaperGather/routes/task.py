@@ -21,7 +21,21 @@ def execute_task():
         mode = data.get('mode', TaskMode.IMMEDIATE.value)
         config_data = data.get('config', {})
         
-        # 验证配置
+        # 首先验证任务名称（强制要求）
+        task_name = config_data.get('task_name', '').strip()
+        if not task_name:
+            return jsonify({
+                'success': False,
+                'error': '任务名称不能为空，请输入有意义的任务名称'
+            }), 400
+        
+        if len(task_name) < 1 or len(task_name) > 100:
+            return jsonify({
+                'success': False,
+                'error': '任务名称长度必须在1-100个字符之间'
+            }), 400
+        
+        # 验证其他配置
         is_valid, error_msg = paper_gather_service.validate_config(config_data)
         if not is_valid:
             return jsonify({

@@ -357,11 +357,18 @@ class PaperGatherService:
                 return False, "配置必须是字典格式"
             
             # 检查必需参数
-            required_fields = ['search_query', 'user_requirements', 'llm_model_name']
+            required_fields = ['search_query', 'user_requirements', 'llm_model_name', 'task_name']
             for field in required_fields:
                 value = config_dict.get(field)
                 if not value or (isinstance(value, str) and not value.strip()):
+                    if field == 'task_name':
+                        return False, "任务名称不能为空，请输入有意义的任务名称"
                     return False, f"缺少必需参数或参数为空: {field}"
+            
+            # 特殊验证任务名称长度
+            task_name = config_dict.get('task_name', '').strip()
+            if len(task_name) < 1 or len(task_name) > 100:
+                return False, "任务名称长度必须在1-100个字符之间"
             
             # 数值范围验证 - 支持字符串转换
             validation_rules = [
@@ -564,9 +571,16 @@ class PaperGatherService:
                 'enable_paper_summarization', 'summarization_threshold', 
                 'enable_translation', 'custom_settings',
                 # 新增搜索模式相关参数
-                'search_mode', 'start_year', 'end_year', 'after_year'
+                'search_mode', 'start_year', 'end_year', 'after_year',
+                # 任务追踪相关参数
+                'task_name', 'task_id'
             }
             filtered_config = {k: v for k, v in config_dict_copy.items() if k in valid_params}
+            
+            # 添加任务追踪信息
+            filtered_config['task_id'] = task_id  # 使用生成的任务ID
+            if 'task_name' not in filtered_config:
+                filtered_config['task_name'] = 'paper_gather'  # 默认任务名称
             
             # 转换搜索模式字符串为枚举
             if 'search_mode' in filtered_config and isinstance(filtered_config['search_mode'], str):
@@ -677,9 +691,16 @@ class PaperGatherService:
                 'enable_paper_summarization', 'summarization_threshold', 
                 'enable_translation', 'custom_settings',
                 # 新增搜索模式相关参数
-                'search_mode', 'start_year', 'end_year', 'after_year'
+                'search_mode', 'start_year', 'end_year', 'after_year',
+                # 任务追踪相关参数
+                'task_name', 'task_id'
             }
             filtered_config = {k: v for k, v in config_dict.items() if k in valid_params}
+            
+            # 添加任务追踪信息
+            filtered_config['task_id'] = task_id  # 使用生成的任务ID
+            if 'task_name' not in filtered_config:
+                filtered_config['task_name'] = 'paper_gather_scheduled'  # 定时任务名称
             
             # 转换搜索模式字符串为枚举
             if 'search_mode' in filtered_config and isinstance(filtered_config['search_mode'], str):

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}任务管理 - ArXiv论文数据探索{% endblock %}
+
+{% block content %}
+<!-- 页面标题 -->
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="display-6 mb-2">
+            <i class="bi bi-briefcase"></i>
+            任务管理
+        </h1>
+        <p class="text-muted">管理论文收集任务和批量操作</p>
+    </div>
+</div>
+
+<!-- 任务统计概览 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-briefcase text-primary"></i>
+                    总任务数
+                </h5>
+                <h2 class="text-primary">{{ stats.overall.unique_task_names or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-journal-check text-success"></i>
+                    有任务论文
+                </h5>
+                <h2 class="text-success">{{ stats.overall.papers_with_task or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-journal text-warning"></i>
+                    无任务论文
+                </h5>
+                <h2 class="text-warning">{{ stats.overall.papers_without_task or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-hash text-info"></i>
+                    任务ID数
+                </h5>
+                <h2 class="text-info">{{ stats.overall.unique_task_ids or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务列表 -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-task"></i>
+                    任务列表
+                </h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshTaskList()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+            <div class="card-body">
+                {% if stats.task_name_stats %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>任务名称</th>
+                                <th>论文数量</th>
+                                <th>已完成</th>
+                                <th>待处理</th>
+                                <th>失败</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in stats.task_name_stats %}
+                            <tr>
+                                <td>
+                                    <strong>{{ task.task_name }}</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ task.first_paper|format_date }} - {{ task.last_paper|format_date }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ task.paper_count }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">{{ task.completed_count }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning">{{ task.pending_count }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger">{{ task.failed_count }}</span>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('papers', task_name=task.task_name) }}" 
+                                           class="btn btn-sm btn-outline-primary" 
+                                           title="查看论文">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-secondary" 
+                                                onclick="editTaskNameBatch('{{ task.task_name }}')"
+                                                title="重命名任务">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="deleteTaskPapers('{{ task.task_name }}', {{ task.paper_count }})"
+                                                title="删除此任务的所有论文">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-briefcase text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3">暂无任务数据</h5>
+                    <p class="text-muted">还没有创建任何任务，去收集一些论文吧！</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 任务ID列表 -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-hash"></i>
+                    最近任务ID
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if tasks.task_ids %}
+                <div class="list-group list-group-flush">
+                    {% for task_id_info in tasks.task_ids[:10] %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ task_id_info.task_name or '未命名' }}</strong>
+                            <br>
+                            <small class="text-muted font-monospace">{{ task_id_info.task_id[:16] }}...</small>
+                            <br>
+                            <small class="text-muted">{{ task_id_info.last_created|format_date }}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-info">{{ task_id_info.paper_count }}</span>
+                            <div class="btn-group-vertical btn-group-sm mt-1">
+                                <a href="{{ url_for('papers', task_id=task_id_info.task_id) }}" 
+                                   class="btn btn-outline-primary btn-sm" 
+                                   title="查看论文">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="bi bi-hash text-muted" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2">暂无任务ID</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 刷新任务列表
+    function refreshTaskList() {
+        location.reload();
+    }
+    
+    // 批量编辑任务名称
+    function editTaskNameBatch(oldTaskName) {
+        const newTaskName = prompt('请输入新的任务名称:', oldTaskName);
+        if (newTaskName !== null && newTaskName.trim() !== oldTaskName) {
+            fetch('/api/batch_update_task_name', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    old_task_name: oldTaskName,
+                    new_task_name: newTaskName.trim()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`成功更新 ${data.affected_rows} 篇论文的任务名称`);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast('更新失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('更新失败，请稍后重试', 'error');
+            });
+        }
+    }
+    
+    // 删除任务的所有论文
+    function deleteTaskPapers(taskName, paperCount) {
+        if (confirm(`确定要删除任务 "${taskName}" 的所有 ${paperCount} 篇论文吗？\n此操作不可恢复！`)) {
+            fetch('/api/delete_task', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    task_name: taskName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`成功删除 ${data.affected_rows} 篇论文`);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast('删除失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('删除失败，请稍后重试', 'error');
+            });
+        }
+    }
+    
+    // 简单的提示函数
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 3000);
+    }
+</script>
+{% endblock %}

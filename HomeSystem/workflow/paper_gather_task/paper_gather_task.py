@@ -1,5 +1,6 @@
 
 import asyncio
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 from HomeSystem.workflow.task import Task
 from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData, ArxivSearchMode
@@ -33,6 +34,9 @@ class PaperGatherTaskConfig:
                  start_year: Optional[int] = None,
                  end_year: Optional[int] = None,
                  after_year: Optional[int] = None,
+                 # 任务追踪相关参数
+                 task_name: Optional[str] = None,
+                 task_id: Optional[str] = None,
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.interval_seconds = interval_seconds
@@ -65,6 +69,10 @@ class PaperGatherTaskConfig:
         self.end_year = end_year
         self.after_year = after_year
         self.custom_settings = custom_settings or {}
+        
+        # 任务追踪参数
+        self.task_name = task_name or "paper_gather"  # 默认任务名称
+        self.task_id = task_id  # 如果未提供将在实际执行时生成
         
         # 验证搜索模式参数
         self._validate_search_mode_params()
@@ -125,6 +133,9 @@ class PaperGatherTaskConfig:
             'start_year': self.start_year,
             'end_year': self.end_year,
             'after_year': self.after_year,
+            # 任务追踪相关配置
+            'task_name': self.task_name,
+            'task_id': self.task_id,
             'custom_settings': self.custom_settings
         }
 
@@ -361,6 +372,9 @@ class PaperGatherTask(Task):
                     'full_paper_relevance_score': getattr(paper, 'full_paper_relevance_score', 0.0),
                     'paper_summarized': getattr(paper, 'paper_summarized', False)
                 },
+                # 任务追踪字段
+                task_name=self.config.task_name,
+                task_id=self.config.task_id,
                 # 结构化论文分析字段
                 research_background=getattr(paper, 'research_background', None),
                 research_objectives=getattr(paper, 'research_objectives', None),

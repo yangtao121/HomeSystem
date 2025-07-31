@@ -55,6 +55,21 @@
                             <i class="bi bi-lightbulb"></i> 研究洞察
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" 
+                           href="{{ url_for('tasks') }}">
+                            <i class="bi bi-briefcase"></i> 任务管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'unassigned_papers' %}active{% endif %}" 
+                           href="{{ url_for('unassigned_papers') }}">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> 无任务论文
+                            {% if unassigned_papers_count > 0 %}
+                            <span class="badge bg-warning text-dark ms-1">{{ unassigned_papers_count }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
                 </ul>
                 
                 <!-- 快速搜索 -->

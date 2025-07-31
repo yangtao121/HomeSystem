@@ -25,9 +25,21 @@ paper_service = PaperService()
 # 添加模板上下文处理器
 @app.context_processor
 def inject_now():
-    """注入当前时间到模板上下文"""
+    """注入当前时间和无任务论文数量到模板上下文"""
     from datetime import datetime
-    return {'now': datetime.now()}
+    try:
+        # 获取无任务论文数量
+        _, unassigned_count = paper_service.get_papers_without_tasks(page=1, per_page=1)
+        return {
+            'now': datetime.now(),
+            'unassigned_papers_count': unassigned_count
+        }
+    except Exception as e:
+        logger.warning(f"获取无任务论文数量失败: {e}")
+        return {
+            'now': datetime.now(),
+            'unassigned_papers_count': 0
+        }
 
 @app.route('/')
 def index():
@@ -47,6 +59,8 @@ def papers():
         query = request.args.get('q', '').strip()
         category = request.args.get('category', '').strip()
         status = request.args.get('status', '').strip()
+        task_name = request.args.get('task_name', '').strip()
+        task_id = request.args.get('task_id', '').strip()
         page = int(request.args.get('page', 1))
         per_page = app.config['PAPERS_PER_PAGE']
         
@@ -54,7 +68,9 @@ def papers():
         papers, total = paper_service.search_papers(
             query=query, 
             category=category, 
-            status=status, 
+            status=status,
+            task_name=task_name,
+            task_id=task_id,
             page=page, 
             per_page=per_page
         )
@@ -80,7 +96,9 @@ def papers():
                              pagination=pagination,
                              query=query,
                              category=category,
-                             status=status)
+                             status=status,
+                             task_name=task_name,
+                             task_id=task_id)
     
     except Exception as e:
         logger.error(f"论文搜索失败: {e}")
@@ -127,11 +145,15 @@ def api_search():
     """API接口 - 搜索论文"""
     try:
         query = request.args.get('q', '').strip()
+        task_name = request.args.get('task_name', '').strip()
+        task_id = request.args.get('task_id', '').strip()
         page = int(request.args.get('page', 1))
         per_page = min(int(request.args.get('per_page', 10)), 50)  # 限制每页最多50条
         
         papers, total = paper_service.search_papers(
-            query=query, 
+            query=query,
+            task_name=task_name,
+            task_id=task_id,
             page=page, 
             per_page=per_page
         )
@@ -159,6 +181,238 @@ def api_stats():
     except Exception as e:
         logger.error(f"API统计数据获取失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tasks')
+def api_tasks():
+    """API接口 - 获取可用任务列表"""
+    try:
+        tasks = paper_service.get_available_tasks()
+        return jsonify({'success': True, 'data': tasks})
+    
+    except Exception as e:
+        logger.error(f"获取任务列表失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/update_task_name', methods=['POST'])
+def api_update_task_name():
+    """API接口 - 更新任务名称"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = data.get('arxiv_id')
+        new_task_name = data.get('new_task_name', '').strip()
+        
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+            
+        success = paper_service.update_task_name(arxiv_id, new_task_name)
+        
+        if success:
+            return jsonify({'success': True, 'message': '任务名称更新成功'})
+        else:
+            return jsonify({'success': False, 'error': '更新失败，论文不存在'}), 404
+    
+    except Exception as e:
+        logger.error(f"更新任务名称失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/batch_update_task_name', methods=['POST'])
+def api_batch_update_task_name():
+    """API接口 - 批量更新任务名称"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        old_task_name = data.get('old_task_name', '').strip()
+        new_task_name = data.get('new_task_name', '').strip()
+        
+        if not old_task_name or not new_task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+            
+        affected_rows = paper_service.batch_update_task_name(old_task_name, new_task_name)
+        
+        return jsonify({
+            'success': True, 
+            'message': f'成功更新 {affected_rows} 篇论文的任务名称',
+            'affected_rows': affected_rows
+        })
+    
+    except Exception as e:
+        logger.error(f"批量更新任务名称失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/delete_paper/<arxiv_id>', methods=['DELETE'])
+def api_delete_paper(arxiv_id):
+    """API接口 - 删除单个论文"""
+    try:
+        success = paper_service.delete_paper(arxiv_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': '论文删除成功'})
+        else:
+            return jsonify({'success': False, 'error': '删除失败，论文不存在'}), 404
+    
+    except Exception as e:
+        logger.error(f"删除论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/delete_task', methods=['DELETE'])
+def api_delete_task():
+    """API接口 - 按任务删除论文"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        task_name = data.get('task_name', '').strip()
+        task_id = data.get('task_id', '').strip()
+        
+        if not task_name and not task_id:
+            return jsonify({'success': False, 'error': '必须提供任务名称或任务ID'}), 400
+            
+        affected_rows = paper_service.delete_papers_by_task(task_name=task_name, task_id=task_id)
+        
+        return jsonify({
+            'success': True, 
+            'message': f'成功删除 {affected_rows} 篇论文',
+            'affected_rows': affected_rows
+        })
+    
+    except Exception as e:
+        logger.error(f"按任务删除论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/papers_without_tasks')
+def api_papers_without_tasks():
+    """API接口 - 获取没有分配任务的论文"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        papers, total = paper_service.get_papers_without_tasks(page=page, per_page=per_page)
+        
+        return jsonify({
+            'success': True,
+            'papers': papers,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': (total + per_page - 1) // per_page
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"获取无任务论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/assign_task_to_paper', methods=['POST'])
+def api_assign_task_to_paper():
+    """API接口 - 为单个论文分配任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = data.get('arxiv_id', '').strip()
+        task_name = data.get('task_name', '').strip()
+        task_id = data.get('task_id', '').strip() or None
+        
+        if not arxiv_id or not task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+            
+        success = paper_service.assign_task_to_paper(arxiv_id, task_name, task_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': '任务分配成功'})
+        else:
+            return jsonify({'success': False, 'error': '分配失败，论文不存在'}), 404
+    
+    except Exception as e:
+        logger.error(f"分配任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/batch_assign_task', methods=['POST'])
+def api_batch_assign_task():
+    """API接口 - 批量为论文分配任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        task_name = data.get('task_name', '').strip()
+        task_id = data.get('task_id', '').strip() or None
+        
+        if not arxiv_ids or not task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+            
+        if not isinstance(arxiv_ids, list):
+            return jsonify({'success': False, 'error': 'arxiv_ids必须是数组'}), 400
+            
+        affected_rows = paper_service.batch_assign_task_to_papers(arxiv_ids, task_name, task_id)
+        
+        return jsonify({
+            'success': True, 
+            'message': f'成功为 {affected_rows} 篇论文分配任务',
+            'affected_rows': affected_rows
+        })
+    
+    except Exception as e:
+        logger.error(f"批量分配任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/unassigned_stats')
+def api_unassigned_stats():
+    """API接口 - 获取无任务论文统计信息"""
+    try:
+        stats = paper_service.get_unassigned_papers_stats()
+        return jsonify({'success': True, 'stats': stats})
+    
+    except Exception as e:
+        logger.error(f"获取无任务论文统计失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/tasks')
+def tasks():
+    """任务管理页面"""
+    try:
+        tasks = paper_service.get_available_tasks()
+        task_stats = paper_service.get_task_statistics()
+        return render_template('tasks.html', tasks=tasks, stats=task_stats)
+    
+    except Exception as e:
+        logger.error(f"任务页面加载失败: {e}")
+        return render_template('error.html', error="加载任务页面失败"), 500
+
+@app.route('/unassigned')
+def unassigned_papers():
+    """无任务论文管理页面"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        
+        papers, total = paper_service.get_papers_without_tasks(page=page, per_page=per_page)
+        stats = paper_service.get_unassigned_papers_stats()
+        
+        pagination = {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'pages': (total + per_page - 1) // per_page
+        }
+        
+        return render_template('unassigned.html', 
+                             papers=papers, 
+                             pagination=pagination,
+                             stats=stats)
+    
+    except Exception as e:
+        logger.error(f"无任务论文页面加载失败: {e}")
+        return render_template('error.html', error="加载无任务论文页面失败"), 500
 
 @app.errorhandler(404)
 def not_found(error):

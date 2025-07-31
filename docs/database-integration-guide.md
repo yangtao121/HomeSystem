@@ -157,6 +157,8 @@ python examples/database_usage_example.py
 | **limitations** | TEXT | 局限性 | - |
 | **future_work** | TEXT | 未来工作 | - |
 | **keywords** | TEXT | 关键词 | INDEX |
+| **task_name** | VARCHAR(255) | 任务名称 | INDEX |
+| **task_id** | VARCHAR(100) | 任务执行ID | INDEX |
 | created_at | TIMESTAMP | 创建时间 | INDEX |
 | updated_at | TIMESTAMP | 更新时间 | - |
 
@@ -165,6 +167,26 @@ python examples/database_usage_example.py
 - `pending`: 待处理
 - `completed`: 已完成
 - `failed`: 处理失败
+
+### 任务追踪字段说明
+
+系统新增了任务追踪功能，用于记录每篇论文的收集来源：
+
+- **task_name**: 任务类型标识
+  - `paper_gather`: Web界面即时任务
+  - `paper_gather_scheduled`: Web界面定时任务
+  - `manual_collection`: 手动收集任务
+  - 用户可以自定义任务名称
+
+- **task_id**: 任务执行的唯一标识符
+  - 格式：UUID (由Web界面生成)
+  - 每次任务执行都有唯一的ID
+  - 可用于查询特定任务收集的所有论文
+
+**向后兼容性**：
+- 现有论文的 `task_name` 和 `task_id` 字段为 `NULL`
+- 新收集的论文会自动填入这些字段
+- 系统完全兼容历史数据
 
 ### 新增：结构化论文分析功能
 
