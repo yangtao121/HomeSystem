@@ -158,6 +158,32 @@ class MyAgent(BaseGraph):
         # Initialize your agent with tools and nodes
 ```
 
+### SiYuan Notes Integration
+Use the SiYuan client for note management:
+```python
+from HomeSystem.integrations.siyuan import SiYuanClient
+
+# Create client from environment variables
+client = SiYuanClient.from_environment()
+
+# Test connection
+is_connected = await client.test_connection()
+
+# Create a note
+note = await client.create_note(
+    notebook_id="20240101-notebook-id",
+    title="My Note Title",
+    content="Note content in Markdown format",
+    tags=["tag1", "tag2"]
+)
+
+# Search notes
+search_result = await client.search_notes("keyword", limit=10)
+
+# Execute SQL queries
+results = await client.execute_sql("SELECT COUNT(*) FROM blocks WHERE type = 'd'")
+```
+
 ## Common Development Commands
 
 ### PaperGather Web Application
@@ -365,6 +391,7 @@ Services are accessible at these ports:
 - **DatabaseOperations**: Centralized database access with auto-detection of Docker containers
 - **WorkflowEngine**: Background task scheduling and execution
 - **ArXiv Integration**: Paper search with multiple modes (latest, relevant, date ranges)
+- **SiYuan Integration**: Complete note management with CRUD operations, full-text search, SQL queries, and data sync
 
 ### Development Patterns
 - Examples in `examples/` demonstrate usage patterns for each major component

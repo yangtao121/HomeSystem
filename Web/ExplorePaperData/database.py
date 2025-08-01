@@ -48,10 +48,13 @@ def parse_keywords_string(keywords_string: str) -> List[str]:
     Returns:
         List[str]: 解析后的关键词列表
     """
-    if not keywords_string or not keywords_string.strip():
+    if not keywords_string:
         return []
     
-    keywords_string = keywords_string.strip()
+    # 确保可以安全调用 strip()
+    keywords_string = str(keywords_string).strip()
+    if not keywords_string:
+        return []
     
     # 处理JSON数组格式: {"keyword1","keyword2","keyword3"}
     if keywords_string.startswith('{') and keywords_string.endswith('}'):

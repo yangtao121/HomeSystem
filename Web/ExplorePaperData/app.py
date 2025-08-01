@@ -202,7 +202,7 @@ def api_update_task_name():
             return jsonify({'success': False, 'error': '无效的请求数据'}), 400
         
         arxiv_id = data.get('arxiv_id')
-        new_task_name = data.get('new_task_name', '').strip()
+        new_task_name = (data.get('new_task_name') or '').strip()
         
         if not arxiv_id:
             return jsonify({'success': False, 'error': '缺少论文ID'}), 400
@@ -226,8 +226,8 @@ def api_batch_update_task_name():
         if not data:
             return jsonify({'success': False, 'error': '无效的请求数据'}), 400
         
-        old_task_name = data.get('old_task_name', '').strip()
-        new_task_name = data.get('new_task_name', '').strip()
+        old_task_name = (data.get('old_task_name') or '').strip()
+        new_task_name = (data.get('new_task_name') or '').strip()
         
         if not old_task_name or not new_task_name:
             return jsonify({'success': False, 'error': '缺少必要参数'}), 400
@@ -267,8 +267,8 @@ def api_delete_task():
         if not data:
             return jsonify({'success': False, 'error': '无效的请求数据'}), 400
         
-        task_name = data.get('task_name', '').strip()
-        task_id = data.get('task_id', '').strip()
+        task_name = (data.get('task_name') or '').strip()
+        task_id = (data.get('task_id') or '').strip()
         
         if not task_name and not task_id:
             return jsonify({'success': False, 'error': '必须提供任务名称或任务ID'}), 400
@@ -317,9 +317,9 @@ def api_assign_task_to_paper():
         if not data:
             return jsonify({'success': False, 'error': '无效的请求数据'}), 400
         
-        arxiv_id = data.get('arxiv_id', '').strip()
-        task_name = data.get('task_name', '').strip()
-        task_id = data.get('task_id', '').strip() or None
+        arxiv_id = (data.get('arxiv_id') or '').strip()
+        task_name = (data.get('task_name') or '').strip()
+        task_id = (data.get('task_id') or '').strip() or None
         
         if not arxiv_id or not task_name:
             return jsonify({'success': False, 'error': '缺少必要参数'}), 400
@@ -344,8 +344,8 @@ def api_batch_assign_task():
             return jsonify({'success': False, 'error': '无效的请求数据'}), 400
         
         arxiv_ids = data.get('arxiv_ids', [])
-        task_name = data.get('task_name', '').strip()
-        task_id = data.get('task_id', '').strip() or None
+        task_name = (data.get('task_name') or '').strip()
+        task_id = (data.get('task_id') or '').strip() or None
         
         if not arxiv_ids or not task_name:
             return jsonify({'success': False, 'error': '缺少必要参数'}), 400
@@ -460,6 +460,13 @@ def format_date(date_obj):
     except AttributeError:
         # 如果对象没有strftime方法，返回字符串表示
         return str(date_obj)
+
+@app.template_filter('safe_strip')
+def safe_strip(text):
+    """安全strip过滤器"""
+    if not text:
+        return ""
+    return str(text).strip()
 
 @app.template_filter('status_badge')
 def status_badge(status):

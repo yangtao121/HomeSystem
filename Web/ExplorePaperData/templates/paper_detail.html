@@ -36,7 +36,7 @@
                         <div class="detail-label">分类</div>
                         <div class="detail-content">
                             {% for category in paper.categories.split(',') %}
-                            <span class="tag">{{ category.strip() }}</span>
+                            <span class="tag">{{ category | safe_strip }}</span>
                             {% endfor %}
                         </div>
                     </div>
@@ -172,7 +172,7 @@
         <div class="detail-label">关键词</div>
         <div class="detail-content">
             {% for keyword in paper.keywords.split(',') %}
-            <span class="tag">{{ keyword.strip() }}</span>
+            <span class="tag">{{ keyword | safe_strip }}</span>
             {% endfor %}
         </div>
     </div>
@@ -246,14 +246,14 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-4 mb-2">
-                        <a href="{{ url_for('papers', category=paper.categories.split(',')[0].strip()) }}" 
+                        <a href="{{ url_for('papers', category=(paper.categories.split(',')[0] | safe_strip)) }}" 
                            class="btn btn-outline-primary btn-sm w-100">
                             <i class="bi bi-tag"></i>
                             查看同类论文
                         </a>
                     </div>
                     <div class="col-md-4 mb-2">
-                        <a href="{{ url_for('papers', q=paper.authors.split(',')[0].strip()) }}" 
+                        <a href="{{ url_for('papers', q=(paper.authors.split(',')[0] | safe_strip)) }}" 
                            class="btn btn-outline-info btn-sm w-100">
                             <i class="bi bi-person"></i>
                             查看同作者论文
@@ -261,7 +261,7 @@
                     </div>
                     <div class="col-md-4 mb-2">
                         {% if paper.keywords %}
-                        <a href="{{ url_for('papers', q=paper.keywords.split(',')[0].strip()) }}" 
+                        <a href="{{ url_for('papers', q=(paper.keywords.split(',')[0] | safe_strip)) }}" 
                            class="btn btn-outline-success btn-sm w-100">
                             <i class="bi bi-key"></i>
                             查看相关关键词
