@@ -57,6 +57,17 @@ HomeSystem is a Python-based intelligent home automation system that integrates 
 - **Auto-detection**: System automatically detects Docker container ports
 - **Structured Analysis**: Support for research objectives, methods, key findings, and contributions
 
+## Development Guidelines
+
+### Core Principles
+- Follow existing patterns and coding standards
+- Use environment variables for configuration
+- Handle errors appropriately with logging
+
+### Documentation Updates
+- Update documentation only after completing tasks when there are discrepancies with actual implementation
+- Keep documentation changes minimal and focused on essential information
+
 ## Key Development Patterns
 
 ### Forward Compatibility Guidelines

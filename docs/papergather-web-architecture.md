@@ -108,7 +108,8 @@ PaperGather Web应用主入口
 - 蓝图注册
 - 模板过滤器
 - 错误处理
-- 应用启动逻辑
+- 超时保护的应用启动逻辑
+- 自定义JSON序列化处理
 """
 
 # 核心功能
@@ -117,7 +118,10 @@ PaperGather Web应用主入口
 - 模板上下文处理器
 - 自定义模板过滤器 (truncate_text, format_date, status_badge 等)
 - 全局错误处理 (404, 500, Exception)
-- 应用初始化和健康检查
+- 带超时保护的启动流程 (startup_with_timeout)
+- 后台服务初始化 (initialize_background_services)
+- 渐进式启动日志和错误诊断
+- 自定义JSON Provider处理ArxivSearchMode枚举序列化
 ```
 
 ### 2. 路由模块 (routes/)
@@ -161,6 +165,7 @@ RESTful API 接口
 - 任务管理接口
 - 数据查询接口
 - 配置管理接口
+- JSON序列化支持ArxivSearchMode枚举
 """
 
 API 分类:
@@ -168,6 +173,11 @@ API 分类:
 - 任务 API: /api/task/*, /api/scheduled_tasks/*
 - 数据 API: /api/papers/*, /api/data/statistics
 - 工具 API: /api/search/translate
+
+JSON序列化特性:
+- 使用自定义JSON Provider处理枚举类型
+- ArxivSearchMode自动转换为字符串值
+- 兼容Flask 3.0的DefaultJSONProvider架构
 ```
 
 ### 3. 服务层 (services/)
@@ -180,6 +190,7 @@ API 分类:
 - 线程安全的任务管理
 - 配置验证和兼容性处理
 - LLM 模型管理和诊断
+- 超时保护的初始化和服务管理
 """
 
 核心特性:
@@ -207,6 +218,19 @@ API 分类:
    - 任务历史记录
    - 定时任务状态
    - 配置预设存储
+
+6. 超时保护机制 (新增)
+   - LLM工厂初始化超时保护 (30秒)
+   - 任务重启超时保护 (15秒)  
+   - 延迟初始化避免启动阻塞
+   - 后台服务初始化 (initialize_background_services)
+   - 非阻塞任务加载 (_load_persistent_scheduled_tasks_non_blocking)
+
+7. 启动流程优化 (新增)
+   - 快速启动：先启动Web服务，后初始化重型服务
+   - 渐进式初始化：数据加载 → LLM初始化 → 任务重启
+   - 优雅降级：服务不可用时继续运行并记录警告
+   - 错误恢复：单个服务失败不影响整体启动
 ```
 
 #### PaperDataService - 数据服务
@@ -727,24 +751,6 @@ SECRET_KEY=papergather-dev-key-change-in-production
 # 5. 错误处理和日志记录
 ```
 
-### 4. Docker 部署支持
-
-```yaml
-# docker-compose.yml 集成
-services:
-  postgres:
-    image: postgres:13
-    ports: ["15432:5432"]
-    
-  redis:
-    image: redis:6
-    ports: ["16379:6379"]
-    
-  papergather:
-    build: .
-    ports: ["5001:5001"]
-    depends_on: [postgres, redis]
-```
 
 ## 开发指南
 

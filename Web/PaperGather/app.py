@@ -3,11 +3,13 @@ PaperGather Web应用
 论文收集任务的Web界面
 """
 from flask import Flask, render_template, request, jsonify
+from flask.json.provider import DefaultJSONProvider
 from flask_moment import Moment
 from dotenv import load_dotenv
 import logging
 import sys
 import os
+import json
 
 # 加载环境变量
 load_dotenv()
@@ -24,6 +26,18 @@ from services.paper_service import paper_data_service
 import signal
 import time
 
+# 导入ArxivSearchMode用于JSON序列化
+from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode
+
+
+class CustomJSONProvider(DefaultJSONProvider):
+    """自定义JSON提供器，处理ArxivSearchMode枚举"""
+    
+    def default(self, obj):
+        if isinstance(obj, ArxivSearchMode):
+            return obj.value
+        return super().default(obj)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +48,9 @@ logger = logging.getLogger(__name__)
 # 创建Flask应用
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# 配置自定义JSON提供器（Flask 3.0+方式）
+app.json = CustomJSONProvider(app)
 
 # 初始化Flask-Moment
 moment = Moment(app)
