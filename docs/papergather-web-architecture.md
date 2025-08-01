@@ -499,6 +499,25 @@ Response: {
   ]
 }
 
+# 获取定时任务详情
+GET /api/scheduled_tasks/{task_id}
+Response: {
+  "success": true,
+  "data": {
+    "task_id": "uuid",
+    "name": "定时论文收集",
+    "config": {
+      "search_mode": "latest",
+      "search_query": "machine learning",
+      "llm_model_name": "deepseek.DeepSeek_V3",
+      ...
+    },
+    "status": "running",
+    "execution_count": 10
+  }
+}
+# 注意：search_mode等枚举字段自动序列化为字符串值
+
 # 暂停定时任务
 POST /api/scheduled_tasks/{task_id}/pause
 Response: {
@@ -1038,6 +1057,46 @@ def health_check():
         }), 500
 ```
 
+## 最新更新 - JSON 序列化优化
+
+### ArxivSearchMode 枚举序列化问题解决
+
+在 Flask 3.0 中，默认的 JSON 序列化器无法直接处理 Python 枚举类型，导致定时任务详情 API 出现序列化错误。
+
+#### 解决方案
+
+1. **自定义 JSON Provider**
+```python
+from flask.json.provider import DefaultJSONProvider
+from HomeSystem.utility.arxiv.arxiv import ArxivSearchMode
+
+class CustomJSONProvider(DefaultJSONProvider):
+    """自定义JSON提供器，处理ArxivSearchMode枚举"""
+    def default(self, obj):
+        if isinstance(obj, ArxivSearchMode):
+            return obj.value
+        return super().default(obj)
+
+# 配置Flask应用
+app.json = CustomJSONProvider(app)
+```
+
+2. **枚举序列化处理**
+- **问题**: `ArxivSearchMode` 枚举对象无法被 Flask 的 `jsonify()` 序列化
+- **原因**: Flask 3.0 使用 `DefaultJSONProvider`，不支持枚举类型
+- **解决**: 继承 `DefaultJSONProvider` 并重写 `default()` 方法
+- **效果**: 枚举值自动转换为字符串 (`ArxivSearchMode.LATEST` → `"latest"`)
+
+3. **影响范围**
+- 定时任务详情 API (`/api/scheduled_tasks/{task_id}`)
+- 任务配置 API (`/api/task/config/{task_id}`)
+- 所有返回 `ArxivSearchMode` 的接口
+
+4. **版本兼容性**
+- 兼容 Flask 3.0+ 的 `DefaultJSONProvider` 架构
+- 替代了已弃用的 `JSONEncoder` 方式
+- 向前兼容，不影响现有数据结构
+
 ## 总结
 
 PaperGather Web 应用采用了现代化的架构设计，具有以下核心优势：
@@ -1050,5 +1109,6 @@ PaperGather Web 应用采用了现代化的架构设计，具有以下核心优�
 6. **配置驱动**: 灵活的配置管理，支持多环境部署
 7. **错误恢复**: 完善的错误处理和恢复机制
 8. **性能优化**: 多层缓存和异步处理，保证系统性能
+9. **JSON 序列化**: 自定义 JSON Provider 处理复杂数据类型，确保 API 兼容性
 
 该架构为 HomeSystem 集成的论文收集系统提供了一个稳定、高效、易用的 Web 界面，支持从简单的论文搜索到复杂的定时任务管理等各种使用场景。
