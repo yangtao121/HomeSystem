@@ -100,6 +100,64 @@
     </div>
     {% endif %}
     
+    <!-- 相关度评分 -->
+    <div class="detail-section">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-star"></i>
+                    相关度评分
+                    <button class="btn btn-sm btn-outline-primary float-end" onclick="editRelevance('{{ paper.arxiv_id }}')">
+                        <i class="bi bi-pencil"></i> 编辑
+                    </button>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="detail-label">评分</div>
+                        <div class="detail-content" id="relevance-score-display">
+                            {% if paper.full_paper_relevance_score is not none %}
+                                {{ paper.full_paper_relevance_score|relevance_score_stars|safe }} 
+                                <strong>({{ paper.full_paper_relevance_score|relevance_score_display }})</strong>
+                            {% else %}
+                                <span class="text-muted">
+                                    <i class="bi bi-question-circle"></i> 未评分
+                                    <button class="btn btn-sm btn-outline-info ms-2" onclick="editRelevance('{{ paper.arxiv_id }}')">
+                                        点击评分
+                                    </button>
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="detail-label">状态</div>
+                        <div class="detail-content">
+                            {{ paper|relevance_status_badge|safe }}
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="detail-label">评分理由</div>
+                        <div class="detail-content" id="relevance-justification-display">
+                            {% if paper.full_paper_relevance_justification %}
+                                {{ paper.full_paper_relevance_justification|relevance_justification_display }}
+                            {% else %}
+                                <span class="text-muted">
+                                    <i class="bi bi-chat-text"></i> 暂无评分理由
+                                    <button class="btn btn-sm btn-outline-info ms-2" onclick="editRelevance('{{ paper.arxiv_id }}')">
+                                        添加理由
+                                    </button>
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- 结构化分析 -->
     {% if paper.research_background or paper.research_objectives or paper.methods or paper.key_findings or paper.conclusions or paper.limitations or paper.future_work %}
     <div class="detail-section">
@@ -279,10 +337,291 @@
     </div>
 </div>
 
+<!-- 相关度编辑模态框 -->
+<div class="modal fade" id="relevanceEditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-star"></i>
+                    编辑相关度评分
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="relevanceEditForm">
+                    <input type="hidden" id="edit-arxiv-id" value="{{ paper.arxiv_id }}">
+                    
+                    <!-- 评分输入 -->
+                    <div class="mb-4">
+                        <label for="relevance-score-input" class="form-label">
+                            相关度评分 (0.00-1.00)
+                        </label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <input type="number" class="form-control" id="relevance-score-input"
+                                       min="0" max="1" step="0.01" 
+                                       placeholder="请输入0.00-1.00之间的数值"
+                                       value="{{ paper.full_paper_relevance_score or '' }}">
+                                <div class="form-text">输入相关度评分，1.00表示高度相关，0.00表示不相关</div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mt-2">
+                                    <span id="score-preview" class="fs-5"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 快捷评分按钮 -->
+                        <div class="mt-3">
+                            <label class="form-label">快捷评分</label>
+                            <div class="btn-group d-block" role="group">
+                                <button type="button" class="btn btn-success btn-sm me-2" data-score="0.9">
+                                    高相关 (0.9)
+                                </button>
+                                <button type="button" class="btn btn-warning btn-sm me-2" data-score="0.7">
+                                    中相关 (0.7)
+                                </button>
+                                <button type="button" class="btn btn-info btn-sm me-2" data-score="0.5">
+                                    一般 (0.5)
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm me-2" data-score="0.3">
+                                    低相关 (0.3)
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" data-score="0.1">
+                                    不相关 (0.1)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 理由编辑 -->
+                    <div class="mb-4">
+                        <label for="relevance-justification-input" class="form-label">
+                            相关度理由
+                        </label>
+                        <textarea class="form-control" id="relevance-justification-input" 
+                                  rows="6" maxlength="5000"
+                                  placeholder="请描述该论文与研究需求的相关性，包括相关的研究方向、方法、应用场景等...">{{ paper.full_paper_relevance_justification or '' }}</textarea>
+                        <div class="form-text">
+                            <span id="char-count">0</span>/5000 字符
+                            <span class="ms-3">建议包含：相关的研究方向、方法、应用场景等</span>
+                        </div>
+                        
+                        <!-- 理由模板 -->
+                        <div class="mt-3">
+                            <label class="form-label">常用理由模板</label>
+                            <div class="btn-group d-block" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" data-template="method">
+                                    方法相关
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" data-template="domain">
+                                    领域相关
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" data-template="application">
+                                    应用相关
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-template="irrelevant">
+                                    不相关
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 保存状态 -->
+                    <div class="alert alert-info d-none" id="save-status">
+                        <i class="bi bi-info-circle"></i>
+                        <span id="save-message"></span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> 取消
+                </button>
+                <button type="button" class="btn btn-primary" id="save-relevance-btn">
+                    <i class="bi bi-check-circle"></i> 保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    // 相关度编辑功能
+    function editRelevance(arxivId) {
+        $('#edit-arxiv-id').val(arxivId);
+        updateCharCount();
+        updateScorePreview();
+        $('#relevanceEditModal').modal('show');
+    }
+    
+    // 更新评分预览
+    function updateScorePreview() {
+        const score = parseFloat($('#relevance-score-input').val());
+        const preview = $('#score-preview');
+        
+        if (isNaN(score) || score < 0 || score > 1) {
+            preview.html('<span class="text-muted">☆☆☆☆☆</span>');
+            return;
+        }
+        
+        const starsCount = Math.round(score * 5);
+        const filledStars = '★'.repeat(starsCount);
+        const emptyStars = '☆'.repeat(5 - starsCount);
+        
+        let colorClass;
+        if (score >= 0.8) colorClass = 'text-success';
+        else if (score >= 0.5) colorClass = 'text-warning';
+        else colorClass = 'text-danger';
+        
+        preview.html(`<span class="${colorClass}">${filledStars}${emptyStars}</span> (${score.toFixed(2)})`);
+    }
+    
+    // 更新字符计数
+    function updateCharCount() {
+        const text = $('#relevance-justification-input').val();
+        $('#char-count').text(text.length);
+    }
+    
+    // 理由模板
+    const templates = {
+        method: "该论文提出的方法与我们的研究方向高度相关，可以作为重要参考。",
+        domain: "论文涉及的研究领域与当前项目需求匹配，具有较好的参考价值。",
+        application: "论文中的应用场景与我们的目标应用相似，可提供有用的实践经验。",
+        irrelevant: "经过分析，该论文与当前研究需求相关性较低，不符合项目要求。"
+    };
+    
+    // 保存相关度
+    function saveRelevance() {
+        const arxivId = $('#edit-arxiv-id').val();
+        const score = $('#relevance-score-input').val();
+        const justification = $('#relevance-justification-input').val().trim();
+        
+        // 验证输入
+        if (!score && !justification) {
+            showSaveStatus('error', '请至少填写评分或理由');
+            return;
+        }
+        
+        if (score && (parseFloat(score) < 0 || parseFloat(score) > 1)) {
+            showSaveStatus('error', '评分必须在0-1之间');
+            return;
+        }
+        
+        const saveBtn = $('#save-relevance-btn');
+        const originalText = saveBtn.html();
+        saveBtn.html('<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 保存中...').prop('disabled', true);
+        
+        // 准备数据
+        const data = {
+            arxiv_id: arxivId
+        };
+        
+        if (score) {
+            data.relevance_score = parseFloat(score);
+        }
+        
+        if (justification) {
+            data.relevance_justification = justification;
+        }
+        
+        // 发送请求
+        $.ajax({
+            url: '/api/update_relevance',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    showSaveStatus('success', '保存成功！页面将刷新...');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showSaveStatus('error', response.error || '保存失败');
+                }
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON?.error || '网络错误，请稍后重试';
+                showSaveStatus('error', error);
+            },
+            complete: function() {
+                saveBtn.html(originalText).prop('disabled', false);
+            }
+        });
+    }
+    
+    // 显示保存状态
+    function showSaveStatus(type, message) {
+        const statusDiv = $('#save-status');
+        const messageSpan = $('#save-message');
+        
+        statusDiv.removeClass('alert-info alert-success alert-danger d-none');
+        
+        if (type === 'success') {
+            statusDiv.addClass('alert-success');
+            messageSpan.html(`<i class="bi bi-check-circle"></i> ${message}`);
+        } else if (type === 'error') {
+            statusDiv.addClass('alert-danger');
+            messageSpan.html(`<i class="bi bi-exclamation-triangle"></i> ${message}`);
+        } else {
+            statusDiv.addClass('alert-info');
+            messageSpan.html(`<i class="bi bi-info-circle"></i> ${message}`);
+        }
+    }
+    
+    // 页面加载完成后的事件绑定
+    $(document).ready(function() {
+        // 快捷评分按钮点击事件
+        $('[data-score]').click(function() {
+            const score = $(this).data('score');
+            $('#relevance-score-input').val(score);
+            updateScorePreview();
+        });
+        
+        // 理由模板按钮点击事件
+        $('[data-template]').click(function() {
+            const template = $(this).data('template');
+            const textarea = $('#relevance-justification-input');
+            const currentText = textarea.val().trim();
+            const templateText = templates[template];
+            
+            if (currentText && !confirm('这将替换当前的理由内容，确定继续吗？')) {
+                return;
+            }
+            
+            textarea.val(templateText);
+            updateCharCount();
+        });
+        
+        // 评分输入变化事件
+        $('#relevance-score-input').on('input', function() {
+            updateScorePreview();
+        });
+        
+        // 理由文本变化事件
+        $('#relevance-justification-input').on('input', function() {
+            updateCharCount();
+        });
+        
+        // 保存按钮点击事件
+        $('#save-relevance-btn').click(function() {
+            saveRelevance();
+        });
+        
+        // 键盘快捷键
+        $('#relevanceEditModal').on('keydown', function(e) {
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                saveRelevance();
+            }
+        });
+    });
+
     // 导出论文数据
     function exportPaperData() {
         const paperData = {

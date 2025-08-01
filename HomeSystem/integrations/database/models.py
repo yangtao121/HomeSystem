@@ -70,6 +70,10 @@ class ArxivPaperModel(BaseModel):
         self.limitations = kwargs.get('limitations', None)
         self.future_work = kwargs.get('future_work', None)
         self.keywords = kwargs.get('keywords', None)
+        
+        # 完整论文相关性评分字段
+        self.full_paper_relevance_score = kwargs.get('full_paper_relevance_score', None)
+        self.full_paper_relevance_justification = kwargs.get('full_paper_relevance_justification', None)
     
     @property
     def table_name(self) -> str:
@@ -98,6 +102,8 @@ class ArxivPaperModel(BaseModel):
             'limitations': self.limitations,
             'future_work': self.future_work,
             'keywords': self.keywords,
+            'full_paper_relevance_score': self.full_paper_relevance_score,
+            'full_paper_relevance_justification': self.full_paper_relevance_justification,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
@@ -141,6 +147,8 @@ class ArxivPaperModel(BaseModel):
             limitations TEXT DEFAULT NULL,
             future_work TEXT DEFAULT NULL,
             keywords TEXT DEFAULT NULL,
+            full_paper_relevance_score DECIMAL(5,3) DEFAULT NULL,
+            full_paper_relevance_justification TEXT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -148,6 +156,8 @@ class ArxivPaperModel(BaseModel):
         -- 为已存在的表添加新字段（兼容现有数据库）
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS task_name VARCHAR(255) DEFAULT NULL;
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS task_id VARCHAR(100) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS full_paper_relevance_score DECIMAL(5,3) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS full_paper_relevance_justification TEXT DEFAULT NULL;
         
         -- 创建索引
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_arxiv_id ON arxiv_papers(arxiv_id);
@@ -163,6 +173,8 @@ class ArxivPaperModel(BaseModel):
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_name ON arxiv_papers(task_name);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_id ON arxiv_papers(task_id);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_name_id ON arxiv_papers(task_name, task_id);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_full_paper_relevance_score ON arxiv_papers(full_paper_relevance_score);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_full_paper_relevance_score_desc ON arxiv_papers(full_paper_relevance_score DESC);
         
         -- 创建更新时间戳触发器
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -245,6 +257,10 @@ class ArxivPaperModel(BaseModel):
             structured_fields.append(f"未来工作: {self.future_work}")
         if self.keywords:
             structured_fields.append(f"关键词: {self.keywords}")
+        if self.full_paper_relevance_score is not None:
+            structured_fields.append(f"完整论文相关性评分: {self.full_paper_relevance_score}")
+        if self.full_paper_relevance_justification:
+            structured_fields.append(f"完整论文相关性理由: {self.full_paper_relevance_justification}")
         
         if structured_fields:
             info += "\n\n结构化信息:\n" + "\n".join(structured_fields)
@@ -255,7 +271,8 @@ class ArxivPaperModel(BaseModel):
         """设置结构化摘要字段"""
         valid_fields = [
             'research_background', 'research_objectives', 'methods', 
-            'key_findings', 'conclusions', 'limitations', 'future_work', 'keywords'
+            'key_findings', 'conclusions', 'limitations', 'future_work', 'keywords',
+            'full_paper_relevance_score', 'full_paper_relevance_justification'
         ]
         if field_name not in valid_fields:
             raise ValueError(f"无效的字段名: {field_name}, 有效值: {valid_fields}")
@@ -272,7 +289,8 @@ class ArxivPaperModel(BaseModel):
         structured_fields = [
             self.research_background, self.research_objectives, self.methods,
             self.key_findings, self.conclusions, self.limitations, 
-            self.future_work, self.keywords
+            self.future_work, self.keywords, self.full_paper_relevance_score,
+            self.full_paper_relevance_justification
         ]
         return any(field for field in structured_fields)
     
@@ -286,7 +304,9 @@ class ArxivPaperModel(BaseModel):
             'conclusions': self.conclusions,
             'limitations': self.limitations,
             'future_work': self.future_work,
-            'keywords': self.keywords
+            'keywords': self.keywords,
+            'full_paper_relevance_score': self.full_paper_relevance_score,
+            'full_paper_relevance_justification': self.full_paper_relevance_justification
         }
 
 

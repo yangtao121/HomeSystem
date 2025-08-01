@@ -343,6 +343,28 @@ class PaperGatherTask(Task):
             logger.error(f"检查论文数据库状态失败: {arxiv_id}, 错误: {e}")
             return None
     
+    def _get_required_field(self, paper: ArxivData, source_field: str, target_field: str):
+        """
+        获取必需字段，如果不存在或为空则抛出异常
+        
+        Args:
+            paper: ArxivData对象
+            source_field: 源字段名
+            target_field: 目标字段名（用于错误消息）
+            
+        Returns:
+            字段值
+            
+        Raises:
+            ValueError: 如果字段不存在、为None或为空字符串
+        """
+        value = getattr(paper, source_field, None)
+        if value is None:
+            raise ValueError(f"Required field '{target_field}' is missing (source: '{source_field}') in paper {paper.arxiv_id}")
+        if isinstance(value, str) and not value.strip():
+            raise ValueError(f"Required field '{target_field}' is empty (source: '{source_field}') in paper {paper.arxiv_id}")
+        return value
+    
     async def save_paper_to_database(self, paper: ArxivData) -> bool:
         """
         保存论文到数据库
@@ -383,7 +405,10 @@ class PaperGatherTask(Task):
                 conclusions=getattr(paper, 'conclusions', None),
                 limitations=getattr(paper, 'limitations', None),
                 future_work=getattr(paper, 'future_work', None),
-                keywords=getattr(paper, 'keywords', None)
+                keywords=getattr(paper, 'keywords', None),
+                # 完整论文相关性评分字段
+                full_paper_relevance_score=getattr(paper, 'full_paper_relevance_score', None),
+                full_paper_relevance_justification=self._get_required_field(paper, 'full_paper_analysis_justification', 'full_paper_relevance_justification')
             )
             
             # 保存到数据库

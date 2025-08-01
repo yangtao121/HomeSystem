@@ -144,8 +144,11 @@
                                    placeholder="任务ID (可选)" maxlength="100">
                         </div>
                         <div class="col-md-5">
-                            <button type="button" class="btn btn-primary btn-sm" onclick="batchAssignTasks()">
+                            <button type="button" class="btn btn-primary btn-sm me-2" onclick="batchAssignTasks()">
                                 <i class="bi bi-check-square"></i> 批量分配任务
+                            </button>
+                            <button type="button" class="btn btn-info btn-sm" onclick="batchEditRelevance()">
+                                <i class="bi bi-star"></i> 批量评分
                             </button>
                             <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="batchDeletePapers()">
                                 <i class="bi bi-trash"></i> 批量删除
@@ -243,6 +246,40 @@
                     <strong>研究目标:</strong> {{ paper.research_objectives|truncate_text(200) }}
                 </div>
                 {% endif %}
+                
+                <!-- 相关度评分 -->
+                <div class="paper-relevance mt-2">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <small>
+                                <i class="bi bi-star"></i>
+                                <strong>相关度:</strong>
+                                {% if paper.full_paper_relevance_score is not none %}
+                                    {{ paper.full_paper_relevance_score|relevance_score_stars|safe }}
+                                    <span class="text-muted">({{ paper.full_paper_relevance_score|relevance_score_display }})</span>
+                                    {% if paper.full_paper_relevance_justification %}
+                                        - {{ paper.full_paper_relevance_justification|relevance_justification_preview(80) }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">未评分</span>
+                                    {% if paper.full_paper_relevance_justification %}
+                                        - {{ paper.full_paper_relevance_justification|relevance_justification_preview(80) }}
+                                    {% endif %}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="editRelevanceQuick('{{ paper.arxiv_id }}')"
+                                    title="编辑相关度">
+                                <i class="bi bi-pencil"></i> 编辑相关度
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-1">
+                        {{ paper|relevance_status_badge|safe }}
+                    </div>
+                </div>
                 
                 <!-- 关键词（如果有） -->
                 {% if paper.keywords %}

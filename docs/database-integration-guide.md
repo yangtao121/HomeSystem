@@ -159,6 +159,8 @@ python examples/database_usage_example.py
 | **keywords** | TEXT | 关键词 | INDEX |
 | **task_name** | VARCHAR(255) | 任务名称 | INDEX |
 | **task_id** | VARCHAR(100) | 任务执行ID | INDEX |
+| **full_paper_relevance_score** | DECIMAL(5,3) | 完整论文相关性评分 | INDEX |
+| **full_paper_relevance_justification** | TEXT | 完整论文相关性评分理由 | - |
 | created_at | TIMESTAMP | 创建时间 | INDEX |
 | updated_at | TIMESTAMP | 更新时间 | - |
 
@@ -188,6 +190,28 @@ python examples/database_usage_example.py
 - 新收集的论文会自动填入这些字段
 - 系统完全兼容历史数据
 
+### 完整论文相关性评分字段说明
+
+系统新增了完整论文相关性评分功能，用于精确评估论文与特定任务的相关性：
+
+- **full_paper_relevance_score**: 完整论文相关性评分
+  - 类型：DECIMAL(5,3)，存储 0.000-1.000 范围的评分
+  - 用途：基于完整论文内容分析得出的相关性评分
+  - 优势：比仅基于摘要的评分更加准确和全面
+  - 索引：已优化，支持快速排序和范围查询
+
+- **full_paper_relevance_justification**: 完整论文相关性评分理由
+  - 类型：TEXT，存储详细的评分理由说明
+  - 用途：记录为什么给出该相关性评分的具体原因
+  - 内容：包含论文相关性的详细分析和判断依据
+  - 应用：帮助用户理解评分结果，提高系统透明度
+
+**数据完整性**：
+- 现有数据的相关性字段为 `NULL`（历史原因）
+- 新处理的论文会自动填入评分和理由
+- 评分数据已从原有 `metadata` 字段迁移到专门字段
+- 提供更好的查询性能和数据结构化
+
 ### 新增：结构化论文分析功能
 
 系统现在支持论文的智能结构化分析，自动提取以下关键信息：
@@ -202,7 +226,9 @@ structured_fields = {
     'conclusions': '结论',                   # 得出的结论和见解
     'limitations': '局限性',                 # 研究的限制和不足
     'future_work': '未来工作',               # 后续研究方向
-    'keywords': '关键词'                     # 核心关键词
+    'keywords': '关键词',                    # 核心关键词
+    'full_paper_relevance_score': '完整论文相关性评分',        # 0.000-1.000 评分
+    'full_paper_relevance_justification': '完整论文相关性理由'  # 评分详细说明
 }
 
 # 使用示例
@@ -210,7 +236,11 @@ arxiv_data = ArxivData(result)
 arxiv_data.research_background = "深度学习技术在NLP领域的应用背景"
 arxiv_data.research_objectives = "探索和评估深度学习在NLP任务中的效果"
 arxiv_data.methods = "使用Transformer架构和预训练模型"
-# ... 其他字段
+arxiv_data.key_findings = "在多个NLP任务上实现了显著的性能提升"
+arxiv_data.conclusions = "Transformer架构在NLP领域具有广泛的应用前景"
+# 新增：完整论文相关性评分
+arxiv_data.full_paper_relevance_score = 0.85
+arxiv_data.full_paper_relevance_justification = "该论文与NLP任务高度相关，因为它详细探讨了Transformer架构在多个NLP任务中的应用效果，提供了全面的实验验证和深入的分析，对相关研究具有重要参考价值。"
 ```
 
 ## 💻 基础使用
@@ -242,7 +272,9 @@ paper_data = {
     'abstract': 'Paper abstract...',
     'categories': 'cs.LG, cs.AI',
     'tags': json.dumps(['machine learning', 'AI']),
-    'metadata': json.dumps({'citation_count': 0})
+    'metadata': json.dumps({'citation_count': 0}),
+    'full_paper_relevance_score': 0.78,
+    'full_paper_relevance_justification': '该论文在机器学习领域具有较高相关性，提出的方法具有创新性和实用性。'
 }
 
 cursor.execute("""
@@ -366,8 +398,37 @@ cursor.execute("""
         COUNT(methods) as has_methods,
         COUNT(key_findings) as has_findings,
         COUNT(conclusions) as has_conclusions,
-        COUNT(keywords) as has_keywords
+        COUNT(keywords) as has_keywords,
+        COUNT(full_paper_relevance_score) as has_relevance_score,
+        AVG(full_paper_relevance_score) as avg_relevance_score
     FROM arxiv_papers
+""")
+
+# 基于完整论文相关性评分的查询
+cursor.execute("""
+    SELECT arxiv_id, title, full_paper_relevance_score,
+           LEFT(full_paper_relevance_justification, 100) as justification_preview
+    FROM arxiv_papers 
+    WHERE full_paper_relevance_score >= 0.8
+    ORDER BY full_paper_relevance_score DESC
+    LIMIT 10
+""")
+
+# 相关性评分分布统计
+cursor.execute("""
+    SELECT 
+        CASE 
+            WHEN full_paper_relevance_score >= 0.9 THEN '0.9-1.0 (极高)'
+            WHEN full_paper_relevance_score >= 0.8 THEN '0.8-0.9 (高)'
+            WHEN full_paper_relevance_score >= 0.7 THEN '0.7-0.8 (中等)'
+            WHEN full_paper_relevance_score >= 0.6 THEN '0.6-0.7 (低)'
+            ELSE '0.0-0.6 (很低)'
+        END as relevance_range,
+        COUNT(*) as count
+    FROM arxiv_papers 
+    WHERE full_paper_relevance_score IS NOT NULL
+    GROUP BY relevance_range
+    ORDER BY MIN(full_paper_relevance_score) DESC
 """)
 
 # 时间范围查询

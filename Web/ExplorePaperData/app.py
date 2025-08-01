@@ -376,6 +376,64 @@ def api_unassigned_stats():
         logger.error(f"获取无任务论文统计失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/update_relevance', methods=['POST'])
+def api_update_relevance():
+    """API接口 - 更新论文相关度评分和理由"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = (data.get('arxiv_id') or '').strip()
+        relevance_score = data.get('relevance_score')
+        relevance_justification = data.get('relevance_justification')
+        
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        # 验证和转换评分
+        if relevance_score is not None:
+            try:
+                relevance_score = float(relevance_score)
+                if not (0 <= relevance_score <= 1):
+                    return jsonify({'success': False, 'error': '评分必须在0-1之间'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': '评分必须是有效的数字'}), 400
+        
+        # 验证理由长度
+        if relevance_justification is not None:
+            relevance_justification = str(relevance_justification).strip()
+            if len(relevance_justification) > 5000:
+                return jsonify({'success': False, 'error': '理由长度不能超过5000字符'}), 400
+        
+        # 检查是否至少提供了一个字段
+        if relevance_score is None and not relevance_justification:
+            return jsonify({'success': False, 'error': '必须提供评分或理由'}), 400
+        
+        # 更新相关度
+        success = paper_service.update_paper_relevance(
+            arxiv_id=arxiv_id,
+            relevance_score=relevance_score,
+            relevance_justification=relevance_justification
+        )
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': '相关度更新成功',
+                'data': {
+                    'arxiv_id': arxiv_id,
+                    'relevance_score': relevance_score,
+                    'relevance_justification': relevance_justification
+                }
+            })
+        else:
+            return jsonify({'success': False, 'error': '更新失败，论文不存在'}), 404
+    
+    except Exception as e:
+        logger.error(f"更新相关度失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/tasks')
 def tasks():
     """任务管理页面"""
@@ -477,6 +535,89 @@ def status_badge(status):
         'failed': 'danger'
     }
     return status_map.get(status, 'secondary')
+
+@app.template_filter('relevance_score_display')
+def relevance_score_display(score):
+    """相关度评分显示过滤器"""
+    if score is None:
+        return "未评分"
+    try:
+        score_float = float(score)
+        return f"{score_float:.2f}"
+    except (ValueError, TypeError):
+        return "未评分"
+
+@app.template_filter('relevance_score_stars')
+def relevance_score_stars(score):
+    """相关度评分星级显示过滤器"""
+    if score is None:
+        return '<span class="text-muted">☆☆☆☆☆</span>'
+    
+    try:
+        score_float = float(score)
+        # 将0-1的评分转换为5星显示
+        stars_count = round(score_float * 5)
+        filled_stars = '★' * stars_count
+        empty_stars = '☆' * (5 - stars_count)
+        
+        # 根据评分设置颜色
+        if score_float >= 0.8:
+            color_class = 'text-success'
+        elif score_float >= 0.5:
+            color_class = 'text-warning'
+        else:
+            color_class = 'text-danger'
+        
+        return f'<span class="{color_class}">{filled_stars}{empty_stars}</span>'
+    except (ValueError, TypeError):
+        return '<span class="text-muted">☆☆☆☆☆</span>'
+
+@app.template_filter('relevance_justification_display')
+def relevance_justification_display(justification):
+    """相关度理由显示过滤器"""
+    if not justification or str(justification).strip() == '':
+        return "暂无评分理由"
+    return str(justification).strip()
+
+@app.template_filter('relevance_justification_preview')
+def relevance_justification_preview(justification, length=100):
+    """相关度理由预览过滤器（截断显示）"""
+    if not justification or str(justification).strip() == '':
+        return "暂无理由"
+    
+    text = str(justification).strip()
+    if len(text) <= length:
+        return text
+    return text[:length] + "..."
+
+@app.template_filter('has_relevance_data')
+def has_relevance_data(paper):
+    """检查论文是否有相关度数据"""
+    if not isinstance(paper, dict):
+        return False
+    
+    has_score = paper.get('full_paper_relevance_score') is not None
+    has_justification = bool(str(paper.get('full_paper_relevance_justification', '')).strip())
+    
+    return has_score or has_justification
+
+@app.template_filter('relevance_status_badge')
+def relevance_status_badge(paper):
+    """相关度状态徽章过滤器"""
+    if not isinstance(paper, dict):
+        return '<span class="badge bg-secondary">未知</span>'
+    
+    has_score = paper.get('full_paper_relevance_score') is not None
+    has_justification = bool(str(paper.get('full_paper_relevance_justification', '')).strip())
+    
+    if has_score and has_justification:
+        return '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 已完整评分</span>'
+    elif has_score:
+        return '<span class="badge bg-info"><i class="bi bi-star"></i> 仅有评分</span>'
+    elif has_justification:
+        return '<span class="badge bg-warning"><i class="bi bi-chat-text"></i> 仅有理由</span>'
+    else:
+        return '<span class="badge bg-secondary"><i class="bi bi-question-circle"></i> 未评分</span>'
 
 if __name__ == '__main__':
     try:

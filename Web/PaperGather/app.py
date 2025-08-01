@@ -21,6 +21,8 @@ from routes.task import task_bp
 from routes.api import api_bp
 from services.task_service import paper_gather_service
 from services.paper_service import paper_data_service
+import signal
+import time
 
 # 配置日志
 logging.basicConfig(
@@ -179,21 +181,54 @@ def initialize():
     except Exception as e:
         logger.error(f"应用初始化失败: {e}")
 
-if __name__ == '__main__':
+def startup_with_timeout(timeout_seconds=60):
+    """带超时保护的启动函数"""
+    def timeout_handler(signum, frame):
+        raise TimeoutError(f"应用启动超时 ({timeout_seconds} 秒)")
+    
+    # 设置超时处理
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_seconds)
+    
     try:
+        logger.info("🚀 开始启动PaperGather Web应用...")
+        start_time = time.time()
+        
         # 初始化应用
+        logger.info("📋 初始化应用基础设施中...")
         initialize()
+        logger.info("✅ 应用基础设施初始化完成")
         
-        # 测试服务连接
-        models = paper_gather_service.get_available_models()
-        logger.info(f"发现 {len(models)} 个可用的LLM模型")
+        # 测试服务连接 - 使用超时保护
+        logger.info("🔍 检查服务连接状态...")
+        try:
+            models = paper_gather_service.get_available_models()
+            logger.info(f"📦 发现 {len(models)} 个可用的LLM模型")
+        except Exception as e:
+            logger.warning(f"⚠️  LLM模型检查失败: {e}，应用将继续启动")
         
-        stats = paper_data_service.get_paper_statistics()
-        logger.info(f"数据库中有 {stats['total_papers']} 篇论文")
+        try:
+            stats = paper_data_service.get_paper_statistics()
+            logger.info(f"📊 数据库中有 {stats['total_papers']} 篇论文")
+        except Exception as e:
+            logger.warning(f"⚠️  数据库统计检查失败: {e}，应用将继续启动")
+        
+        # 启动后台服务初始化
+        logger.info("🔧 启动后台服务初始化...")
+        paper_gather_service.initialize_background_services()
+        
+        # 计算启动时间
+        elapsed_time = time.time() - start_time
+        logger.info(f"⏱️  启动准备耗时: {elapsed_time:.2f} 秒")
+        
+        # 取消超时警报
+        signal.alarm(0)
         
         # 启动应用
-        logger.info(f"PaperGather Web应用启动中...")
-        logger.info(f"访问地址: http://{app.config['HOST']}:{app.config['PORT']}")
+        logger.info("🌐 启动Web服务器...")
+        logger.info(f"🚀 PaperGather Web应用启动完成！")
+        logger.info(f"📍 访问地址: http://{app.config['HOST']}:{app.config['PORT']}")
+        logger.info("=" * 60)
         
         app.run(
             host=app.config['HOST'], 
@@ -202,10 +237,31 @@ if __name__ == '__main__':
             threaded=True  # 启用多线程支持
         )
         
+    except TimeoutError as e:
+        logger.error(f"❌ {e}")
+        print("❌ 应用启动超时！可能的原因:")
+        print("1. LLM服务响应过慢或不可用")
+        print("2. 数据库连接异常")  
+        print("3. 网络连接问题")
+        print("4. 系统资源不足")
+        print("建议检查服务状态并重试")
+        return False
+    finally:
+        # 确保取消超时警报
+        signal.alarm(0)
+
+if __name__ == '__main__':
+    try:
+        success = startup_with_timeout(60)  # 60秒超时
+        if not success:
+            exit(1)
+        
     except Exception as e:
-        logger.error(f"应用启动失败: {e}")
+        logger.error(f"❌ 应用启动失败: {e}", exc_info=True)
         print("❌ 应用启动失败，请检查:")
         print("1. 数据库服务是否正常运行 (docker compose up -d)")
         print("2. HomeSystem模块是否可以正常导入")
         print("3. 环境变量配置是否正确")
         print("4. 依赖包是否完整安装")
+        print("5. 端口是否被其他应用占用")
+        exit(1)

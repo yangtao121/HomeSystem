@@ -23,6 +23,8 @@ from HomeSystem.workflow.engine import WorkflowEngine
 from HomeSystem.workflow.scheduler import TaskScheduler
 from HomeSystem.graph.llm_factory import LLMFactory
 from loguru import logger
+import signal
+import time
 
 
 class TaskMode(Enum):
@@ -73,10 +75,8 @@ class PaperGatherService:
     """论文收集服务 - 线程安全的任务管理"""
     
     def __init__(self):
-        self.llm_factory = LLMFactory()
-        self.task_scheduler: Optional[TaskScheduler] = None
-        self.scheduled_tasks: Dict[str, PaperGatherTask] = {}
-        self.task_results: Dict[str, TaskResult] = {}
+        # 初始化超时设置 (30秒)
+        self.initialization_timeout = 30
         
         # 数据管理器
         self.data_manager = PaperGatherDataManager()
@@ -95,9 +95,117 @@ class PaperGatherService:
         # 持久化的定时任务数据 (task_id -> persistent_task_data)
         self.persistent_scheduled_tasks: Dict[str, Dict[str, Any]] = {}
         
-        # 启动时加载历史数据和定时任务
+        # 任务状态存储
+        self.task_scheduler: Optional[TaskScheduler] = None
+        self.scheduled_tasks: Dict[str, PaperGatherTask] = {}
+        self.task_results: Dict[str, TaskResult] = {}
+        
+        # 延迟初始化LLM工厂以避免启动阻塞
+        self.llm_factory = None
+        
+        # 启动时快速加载数据，延迟初始化服务
         self._load_historical_data()
-        self._load_persistent_scheduled_tasks()
+        self._load_persistent_scheduled_tasks_non_blocking()
+    
+    def _initialize_llm_factory_with_timeout(self) -> bool:
+        """带超时保护的LLM工厂初始化"""
+        if self.llm_factory is not None:
+            return True
+            
+        def timeout_handler(signum, frame):
+            raise TimeoutError("LLM工厂初始化超时")
+        
+        try:
+            # 设置超时信号
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(self.initialization_timeout)
+            
+            logger.info("正在初始化LLM工厂...")
+            self.llm_factory = LLMFactory()
+            logger.info("✅ LLM工厂初始化成功")
+            
+            # 取消超时
+            signal.alarm(0)
+            return True
+            
+        except TimeoutError:
+            logger.error(f"❌ LLM工厂初始化超时 ({self.initialization_timeout}秒)")
+            return False
+        except Exception as e:
+            logger.error(f"❌ LLM工厂初始化失败: {e}")
+            return False
+        finally:
+            # 确保取消超时信号
+            signal.alarm(0)
+    
+    def _load_persistent_scheduled_tasks_non_blocking(self):
+        """非阻塞加载持久化定时任务"""
+        try:
+            persistent_tasks = self.data_manager.load_scheduled_tasks()
+            logger.info(f"从持久化存储获取到 {len(persistent_tasks)} 个定时任务")
+            
+            with self.lock:
+                loaded_count = 0
+                for task_data in persistent_tasks:
+                    try:
+                        task_id = task_data.get("task_id")
+                        status = task_data.get("status", "running")
+                        
+                        if not task_id:
+                            continue
+                        
+                        # 只加载状态信息，不立即重启任务
+                        if status in ["running", "paused"]:
+                            self.persistent_scheduled_tasks[task_id] = task_data
+                            loaded_count += 1
+                            logger.info(f"记录定时任务 {task_id}，状态: {status} (稍后重启)")
+                    
+                    except Exception as e:
+                        logger.warning(f"加载单个定时任务失败: {e}")
+                        continue
+                
+                if loaded_count > 0:
+                    logger.info(f"✅ 记录了 {loaded_count} 个定时任务，将在后台启动")
+                    
+        except Exception as e:
+            logger.error(f"❌ 加载定时任务列表失败: {e}")
+    
+    def initialize_background_services(self):
+        """在应用启动后初始化后台服务"""
+        def init_in_background():
+            try:
+                # 初始化LLM工厂
+                if not self._initialize_llm_factory_with_timeout():
+                    logger.warning("LLM工厂初始化失败，部分功能可能不可用")
+                
+                # 重启持久化的定时任务
+                self._restart_persistent_scheduled_tasks()
+                
+                logger.info("✅ 后台服务初始化完成")
+                
+            except Exception as e:
+                logger.error(f"❌ 后台服务初始化失败: {e}")
+        
+        # 在后台线程中执行
+        background_thread = threading.Thread(target=init_in_background)
+        background_thread.daemon = True
+        background_thread.start()
+    
+    def _restart_persistent_scheduled_tasks(self):
+        """重启持久化的定时任务"""
+        with self.lock:
+            tasks_to_restart = list(self.persistent_scheduled_tasks.items())
+        
+        for task_id, task_data in tasks_to_restart:
+            try:
+                if task_data.get("status") == "running":
+                    success = self._restart_scheduled_task_from_persistence_timeout(task_id, task_data)
+                    if success:
+                        logger.info(f"✅ 成功重启定时任务: {task_id}")
+                    else:
+                        logger.warning(f"⚠️  定时任务重启失败: {task_id}")
+            except Exception as e:
+                logger.error(f"❌ 重启定时任务 {task_id} 时出错: {e}")
     
     def _load_historical_data(self):
         """加载历史数据到内存 - 增强版本，支持错误恢复和数据兼容性"""
@@ -183,66 +291,33 @@ class PaperGatherService:
             logger.info("🔄 应用将在没有历史数据的情况下继续启动")
             # 不抛出异常，让应用继续启动
     
-    def _load_persistent_scheduled_tasks(self):
-        """加载持久化的定时任务到内存"""
-        try:
-            persistent_tasks = self.data_manager.load_scheduled_tasks()
-            logger.info(f"从持久化存储获取到 {len(persistent_tasks)} 个定时任务")
-            
-            with self.lock:
-                loaded_count = 0
-                error_count = 0
-                
-                for task_data in persistent_tasks:
-                    try:
-                        task_id = task_data.get("task_id")
-                        status = task_data.get("status", "running")
-                        
-                        if not task_id:
-                            logger.warning(f"跳过无效定时任务记录: 缺少task_id")
-                            error_count += 1
-                            continue
-                        
-                        # 只加载运行中或暂停的任务
-                        if status in ["running", "paused"]:
-                            self.persistent_scheduled_tasks[task_id] = task_data
-                            loaded_count += 1
-                            
-                            # 如果是运行中的任务，尝试重启
-                            if status == "running":
-                                self._restart_scheduled_task_from_persistence(task_id, task_data)
-                        else:
-                            logger.info(f"跳过已停止的定时任务: {task_id} (状态: {status})")
-                    
-                    except Exception as e:
-                        error_count += 1
-                        logger.warning(f"加载单个定时任务失败: {e}")
-                        continue
-                
-                if loaded_count > 0:
-                    logger.info(f"✅ 成功加载了 {loaded_count} 个持久化定时任务到内存")
-                if error_count > 0:
-                    logger.warning(f"⚠️  跳过了 {error_count} 个无效的定时任务记录")
-        
-        except Exception as e:
-            logger.error(f"❌ 加载持久化定时任务失败: {e}")
-            logger.info("🔄 应用将在没有定时任务的情况下继续启动")
     
     def _restart_scheduled_task_from_persistence(self, task_id: str, task_data: Dict[str, Any]):
-        """从持久化数据重启定时任务"""
+        """从持久化数据重启定时任务（用于初始化时调用）"""
+        return self._restart_scheduled_task_from_persistence_timeout(task_id, task_data)
+    
+    def _restart_scheduled_task_from_persistence_timeout(self, task_id: str, task_data: Dict[str, Any]) -> bool:
+        """带超时保护的任务重启"""
         try:
+            # 注意：在后台线程中不能使用signal，所以这里使用简单的超时逻辑
+            start_time = time.time()
+            timeout_seconds = 15
+            
             config_dict = task_data.get("config", {})
             
             # 验证配置有效性
             is_valid, error_msg = self.validate_config(config_dict)
             if not is_valid:
                 logger.error(f"定时任务 {task_id} 配置无效，无法重启: {error_msg}")
-                # 更新任务状态为错误
                 self.data_manager.update_scheduled_task(task_id, {
                     "status": "error",
                     "error_message": f"配置验证失败: {error_msg}"
                 })
                 return False
+            
+            # 检查是否超时
+            if time.time() - start_time > timeout_seconds:
+                raise TimeoutError("任务重启超时")
             
             # 重新创建任务
             success, _, error_msg = self._create_scheduled_task_internal(task_id, config_dict)
@@ -251,13 +326,19 @@ class PaperGatherService:
                 return True
             else:
                 logger.error(f"❌ 重启定时任务 {task_id} 失败: {error_msg}")
-                # 更新任务状态为错误
                 self.data_manager.update_scheduled_task(task_id, {
                     "status": "error", 
                     "error_message": f"重启失败: {error_msg}"
                 })
                 return False
                 
+        except TimeoutError:
+            logger.error(f"❌ 重启定时任务 {task_id} 超时")
+            self.data_manager.update_scheduled_task(task_id, {
+                "status": "error",
+                "error_message": "重启超时"
+            })
+            return False
         except Exception as e:
             logger.error(f"❌ 重启定时任务 {task_id} 时发生异常: {e}")
             self.data_manager.update_scheduled_task(task_id, {
@@ -311,10 +392,12 @@ class PaperGatherService:
     def get_available_models(self) -> List[str]:
         """获取可用的LLM模型列表 - 增强版本，支持错误恢复和详细诊断"""
         try:
-            # 检查LLMFactory是否正确初始化
+            # 如果LLMFactory未初始化，尝试初始化
             if not self.llm_factory:
-                logger.error("❌ LLMFactory 未正确初始化")
-                return self._get_fallback_models("LLMFactory未初始化")
+                logger.info("LLMFactory未初始化，尝试初始化...")
+                if not self._initialize_llm_factory_with_timeout():
+                    logger.error("❌ LLMFactory 初始化失败")
+                    return self._get_fallback_models("LLMFactory初始化失败")
             
             # 尝试获取模型列表
             chat_models = self.llm_factory.get_available_llm_models()

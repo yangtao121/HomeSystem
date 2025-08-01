@@ -254,7 +254,8 @@ class PaperService:
             offset = (page - 1) * per_page
             data_query = f"""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
-                       created_at, research_objectives, keywords, task_name, task_id
+                       created_at, research_objectives, keywords, task_name, task_id,
+                       full_paper_relevance_score, full_paper_relevance_justification
                 FROM arxiv_papers 
                 {where_clause}
                 ORDER BY created_at DESC
@@ -592,7 +593,8 @@ class PaperService:
             
             cursor.execute("""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
-                       created_at, task_name, task_id
+                       created_at, task_name, task_id,
+                       full_paper_relevance_score, full_paper_relevance_justification
                 FROM arxiv_papers 
                 WHERE task_name = %s
                 ORDER BY created_at DESC
@@ -704,7 +706,8 @@ class PaperService:
             offset = (page - 1) * per_page
             cursor.execute("""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
-                       created_at, research_objectives, keywords, task_name, task_id
+                       created_at, research_objectives, keywords, task_name, task_id,
+                       full_paper_relevance_score, full_paper_relevance_justification
                 FROM arxiv_papers 
                 WHERE task_name IS NULL OR task_name = ''
                 ORDER BY created_at DESC
@@ -823,3 +826,75 @@ class PaperService:
             # 缓存结果
             self.db_manager.set_cache(cache_key, stats, timeout=600)
             return stats
+    
+    def update_paper_relevance(self, arxiv_id: str, relevance_score: float = None, 
+                              relevance_justification: str = None) -> bool:
+        """更新论文相关度评分和理由"""
+        try:
+            # 验证评分范围
+            if relevance_score is not None:
+                if not (0 <= relevance_score <= 1):
+                    logger.error(f"相关度评分超出范围: {relevance_score}，应在0-1之间")
+                    return False
+            
+            # 验证理由长度
+            if relevance_justification is not None:
+                if len(relevance_justification.strip()) > 5000:
+                    logger.error(f"相关度理由过长: {len(relevance_justification)} 字符，最大5000字符")
+                    return False
+            
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建动态更新语句
+                update_fields = []
+                params = []
+                
+                if relevance_score is not None:
+                    update_fields.append("full_paper_relevance_score = %s")
+                    params.append(relevance_score)
+                
+                if relevance_justification is not None:
+                    update_fields.append("full_paper_relevance_justification = %s") 
+                    params.append(relevance_justification.strip())
+                
+                if not update_fields:
+                    logger.warning("没有提供要更新的相关度字段")
+                    return False
+                
+                # 添加更新时间
+                update_fields.append("updated_at = CURRENT_TIMESTAMP")
+                params.append(arxiv_id)
+                
+                sql = f"""
+                    UPDATE arxiv_papers 
+                    SET {', '.join(update_fields)}
+                    WHERE arxiv_id = %s
+                """
+                
+                cursor.execute(sql, params)
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    # 清除相关缓存
+                    self._clear_paper_detail_cache(arxiv_id)
+                    logger.info(f"成功更新论文相关度: {arxiv_id}")
+                else:
+                    logger.warning(f"论文不存在，无法更新相关度: {arxiv_id}")
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"更新论文相关度失败: {e}")
+            return False
+    
+    def _clear_paper_detail_cache(self, arxiv_id: str):
+        """清除特定论文的详情缓存"""
+        redis_client = self.db_manager.get_redis_client()
+        if redis_client:
+            try:
+                cache_key = f"paper_detail_{arxiv_id}"
+                redis_client.delete(cache_key)
+            except Exception as e:
+                logger.warning(f"清除论文详情缓存失败: {e}")

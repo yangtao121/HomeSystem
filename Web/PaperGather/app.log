@@ -1,93 +1,30 @@
-2025-07-30 23:22:30.853 | INFO     | HomeSystem.graph.llm_factory:__init__:33 - 检测到 9 个LLM模型, 4 个Embedding模型
-2025-07-30 23:22:30.894 | INFO     | HomeSystem.graph.llm_factory:__init__:33 - 检测到 9 个LLM模型, 4 个Embedding模型
-2025-07-30 23:22:30.895 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:148 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code/homesystem/Web/PaperGather/../../data/paper_gather
-2025-07-30 23:22:30.896 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:279 - 加载了 7 个历史任务
-2025-07-30 23:22:30.896 | INFO     | services.task_service:_load_historical_data:124 - 加载了 7 个历史任务到内存
-2025-07-30 23:22:30.904 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:49 - 创建新的 PostgreSQL 同步连接
-2025-07-30 23:22:30.905 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:30.905 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:30.905 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:30.905 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:30.906 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:30.906 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
- * Serving Flask app 'app'
- * Debug mode: on
-[INFO 2025-07-30 23:22:30,909 _log:97] [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
- * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5001
- * Running on http://192.168.5.118:5001 
-[INFO 2025-07-30 23:22:30,909 _log:97] [33mPress CTRL+C to quit[0m 
-[INFO 2025-07-30 23:22:30,909 _log:97]  * Restarting with stat 
-2025-07-30 23:22:33.421 | INFO     | HomeSystem.graph.llm_factory:__init__:33 - 检测到 9 个LLM模型, 4 个Embedding模型
-2025-07-30 23:22:33.458 | INFO     | HomeSystem.graph.llm_factory:__init__:33 - 检测到 9 个LLM模型, 4 个Embedding模型
-2025-07-30 23:22:33.459 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:148 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code/homesystem/Web/PaperGather/../../data/paper_gather
-2025-07-30 23:22:33.460 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:279 - 加载了 7 个历史任务
-2025-07-30 23:22:33.460 | INFO     | services.task_service:_load_historical_data:124 - 加载了 7 个历史任务到内存
-2025-07-30 23:22:33.467 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:49 - 创建新的 PostgreSQL 同步连接
-2025-07-30 23:22:33.468 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:33.468 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:33.468 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:33.469 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:33.469 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:33.469 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-[WARNING 2025-07-30 23:22:33,472 _log:97]  * Debugger is active! 
-[INFO 2025-07-30 23:22:33,472 _log:97]  * Debugger PIN: 687-195-776 
-2025-07-30 23:22:44.097 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:44.098 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:44.099 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:44.099 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:44.099 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:44.099 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:44.100 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:58 - PostgreSQL 事务已提交
-[INFO 2025-07-30 23:22:44,112 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:44] "GET / HTTP/1.1" 200 - 
-[INFO 2025-07-30 23:22:44,126 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:44] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:22:44,126 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:44] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:22:44,161 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:44] "GET /api/running_tasks HTTP/1.1" 200 - 
-2025-07-30 23:22:44.161 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:44.161 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:44.162 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:44.162 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-2025-07-30 23:22:44.162 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
-2025-07-30 23:22:44.162 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
-[INFO 2025-07-30 23:22:44,163 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:44] "GET /api/papers/statistics HTTP/1.1" 200 - 
-[INFO 2025-07-30 23:22:47,633 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:47] "GET /task/history HTTP/1.1" 200 - 
-[INFO 2025-07-30 23:22:47,649 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:47] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:22:47,649 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:47] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:22:48,263 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:48] "GET /config HTTP/1.1" 200 - 
-[INFO 2025-07-30 23:22:48,278 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:48] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:22:48,282 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:48] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:22:48,283 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:48] "[36mGET /static/js/config.js HTTP/1.1[0m" 304 - 
-2025-07-30 23:22:50.133 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:279 - 加载了 7 个历史任务
-[INFO 2025-07-30 23:22:50,134 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:50] "GET /api/task/history?page=1&per_page=50 HTTP/1.1" 200 - 
-2025-07-30 23:22:52.130 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:84 - 检测到配置版本: 1.0.0
-2025-07-30 23:22:52.130 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 after_year = None
-2025-07-30 23:22:52.131 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 abstract_analysis_model = None
-2025-07-30 23:22:52.131 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 full_paper_analysis_model = None
-2025-07-30 23:22:52.131 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 translation_model = None
-2025-07-30 23:22:52.132 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 paper_analysis_model = None
-2025-07-30 23:22:52.132 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:109 - 配置已升级到版本: 1.2.0
-2025-07-30 23:22:52.133 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:get_task_config_compatible:313 - 找到任务 342a74f9-6a93-4f3a-94bd-ef40f0f0419d 的配置
-[INFO 2025-07-30 23:22:52,133 _log:97] 192.168.5.148 - - [30/Jul/2025 23:22:52] "GET /api/task/config/342a74f9-6a93-4f3a-94bd-ef40f0f0419d HTTP/1.1" 200 - 
-2025-07-30 23:23:20.499 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:279 - 加载了 7 个历史任务
-[INFO 2025-07-30 23:23:20,500 _log:97] 127.0.0.1 - - [30/Jul/2025 23:23:20] "GET /api/task/history HTTP/1.1" 200 - 
-2025-07-30 23:23:31.956 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:279 - 加载了 7 个历史任务
-[INFO 2025-07-30 23:23:31,957 _log:97] 127.0.0.1 - - [30/Jul/2025 23:23:31] "GET /api/task/history HTTP/1.1" 200 - 
-2025-07-30 23:23:42.246 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:84 - 检测到配置版本: 1.0.0
-2025-07-30 23:23:42.246 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 after_year = None
-2025-07-30 23:23:42.246 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 abstract_analysis_model = None
-2025-07-30 23:23:42.246 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 full_paper_analysis_model = None
-2025-07-30 23:23:42.246 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 translation_model = None
-2025-07-30 23:23:42.246 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:96 - 配置升级: 添加字段 paper_analysis_model = None
-2025-07-30 23:23:42.246 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:109 - 配置已升级到版本: 1.2.0
-2025-07-30 23:23:42.247 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:get_task_config_compatible:313 - 找到任务 342a74f9-6a93-4f3a-94bd-ef40f0f0419d 的配置
-[INFO 2025-07-30 23:23:42,247 _log:97] 127.0.0.1 - - [30/Jul/2025 23:23:42] "GET /api/task/config/342a74f9-6a93-4f3a-94bd-ef40f0f0419d HTTP/1.1" 200 - 
-2025-07-30 23:23:54.786 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:84 - 检测到配置版本: 1.2.0
-2025-07-30 23:23:54.786 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:109 - 配置已升级到版本: 1.2.0
-2025-07-30 23:23:54.786 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_config_presets:412 - 加载了 1 个配置预设
-[INFO 2025-07-30 23:23:54,787 _log:97] 127.0.0.1 - - [30/Jul/2025 23:23:54] "GET /api/config/presets HTTP/1.1" 200 - 
-2025-07-30 23:24:19.176 | WARNING  | HomeSystem.workflow.paper_gather_task.data_manager:delete_task_history:548 - 未找到历史任务 test-id
-[INFO 2025-07-30 23:24:19,176 _log:97] 127.0.0.1 - - [30/Jul/2025 23:24:19] "[31m[1mDELETE /api/task/history/test-id HTTP/1.1[0m" 400 - 
-[INFO 2025-07-30 23:24:55,946 _log:97] 192.168.5.148 - - [30/Jul/2025 23:24:55] "GET /config HTTP/1.1" 200 - 
-[INFO 2025-07-30 23:24:55,956 _log:97] 192.168.5.148 - - [30/Jul/2025 23:24:55] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:24:55,956 _log:97] 192.168.5.148 - - [30/Jul/2025 23:24:55] "[36mGET /static/js/config.js HTTP/1.1[0m" 304 - 
-[INFO 2025-07-30 23:24:55,956 _log:97] 192.168.5.148 - - [30/Jul/2025 23:24:55] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 - 
+2025-08-01 22:08:32.603 | INFO     | HomeSystem.graph.llm_factory:__init__:33 - 检测到 9 个LLM模型, 4 个Embedding模型
+2025-08-01 22:08:32.644 | INFO     | HomeSystem.graph.llm_factory:__init__:33 - 检测到 9 个LLM模型, 4 个Embedding模型
+2025-08-01 22:08:32.645 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:202 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code/homesystem/Web/PaperGather/../../data/paper_gather
+2025-08-01 22:08:32.649 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 3 个历史任务
+2025-08-01 22:08:32.649 | INFO     | services.task_service:_load_historical_data:110 - 从数据库获取到 3 个历史任务记录
+2025-08-01 22:08:32.649 | INFO     | services.task_service:_load_historical_data:173 - ✅ 成功加载了 3 个历史任务到内存
+2025-08-01 22:08:32.650 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.0.0
+2025-08-01 22:08:32.650 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 start_year = None
+2025-08-01 22:08:32.650 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 end_year = None
+2025-08-01 22:08:32.650 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 after_year = None
+2025-08-01 22:08:32.651 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 abstract_analysis_model = None
+2025-08-01 22:08:32.651 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 translation_model = None
+2025-08-01 22:08:32.651 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-01 22:08:32.651 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-01 22:08:32.652 | INFO     | services.task_service:_load_persistent_scheduled_tasks:190 - 从持久化存储获取到 1 个定时任务
+2025-08-01 22:08:32.652 | INFO     | services.task_service:get_available_models:328 - ✅ 成功获取 9 个可用LLM模型
+2025-08-01 22:08:32.652 | INFO     | services.task_service:validate_config:606 - ✅ 配置验证通过
+2025-08-01 22:08:32.652 | INFO     | HomeSystem.workflow.paper_gather_task.paper_gather_task:__init__:80 - 论文收集任务配置初始化完成: 间隔=3600秒, 查询='end-to-end navigation', 搜索模式=latest, 最大论文数=40, 启用论文总结=True, 启用翻译=True
+2025-08-01 22:08:32.653 | INFO     | HomeSystem.graph.llm_factory:create_llm:132 - 创建LLM: ollama.Qwen3_30B (通义千问3 30B)
+2025-08-01 22:08:32.674 | INFO     | HomeSystem.workflow.paper_gather_task.llm_config:__init__:57 - Initialized abstract analysis LLM: ollama.Qwen3_30B
+2025-08-01 22:08:32.674 | INFO     | HomeSystem.graph.llm_factory:create_llm:132 - 创建LLM: deepseek.DeepSeek_V3 (DeepSeek V3)
+2025-08-01 22:08:32.746 | INFO     | HomeSystem.workflow.paper_gather_task.llm_config:__init__:121 - Initialized full paper analysis LLM: deepseek.DeepSeek_V3
+2025-08-01 22:08:32.747 | INFO     | HomeSystem.graph.llm_factory:create_llm:132 - 创建LLM: ollama.Qwen3_30B (通义千问3 30B)
+2025-08-01 22:08:32.954 | INFO     | HomeSystem.workflow.paper_gather_task.llm_config:__init__:181 - 初始化翻译LLM: ollama.Qwen3_30B
+2025-08-01 22:08:32.954 | INFO     | HomeSystem.graph.paper_analysis_agent:__init__:112 - 初始化论文分析智能体，使用模型: deepseek.DeepSeek_V3
+2025-08-01 22:08:32.954 | INFO     | HomeSystem.graph.llm_factory:create_llm:132 - 创建LLM: deepseek.DeepSeek_V3 (DeepSeek V3)
+2025-08-01 22:08:32.978 | INFO     | HomeSystem.graph.paper_analysis_agent:_build_graph:163 - 并行论文分析工作流图构建完成
+2025-08-01 22:08:32.978 | INFO     | HomeSystem.graph.paper_analysis_agent:__init__:130 - 论文分析智能体初始化完成
+2025-08-01 22:08:32.979 | INFO     | HomeSystem.workflow.paper_gather_task.paper_gather_task:__init__:182 - 论文分析智能体初始化完成
+2025-08-01 22:08:32.979 | INFO     | HomeSystem.workflow.paper_gather_task.paper_gather_task:__init__:186 - 初始化论文收集任务，配置: {'interval_seconds': 3600, 'search_query': 'end-to-end navigation', 'max_papers_per_search': 40, 'user_requirements': 'The user is looking for research papers on end-to-end navigation systems where the input is visual data (e.g., depth images) and the output is either a trajectory or velocity commands. The focus is on learning-based approaches that directly map sensory input to navigation outputs.', 'llm_model_name': 'ollama.Qwen3_30B', 'abstract_analysis_model': 'ollama.Qwen3_30B', 'full_paper_analysis_model': 'deepseek.DeepSeek_V3', 'translation_model': 'ollama.Qwen3_30B', 'paper_analysis_model': 'deepseek.DeepSeek_V3', 'relevance_threshold': 0.5, 'max_papers_in_response': 100, 'max_relevant_papers_in_response': 50, 'enable_paper_summarization': True, 'summarization_threshold': 0.5, 'enable_translation': True, 'search_mode': 'latest', 'start_year': None, 'end_year': None, 'after_year': None, 'task_name': 'end2end navigation', 'task_id': '722f18e7-63ea-44ce-8f52-80ca0d56f109', 'custom_settings': {}}

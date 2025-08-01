@@ -402,6 +402,8 @@ Services are accessible at these ports:
   - `workflow-framework-guide.md`: Task scheduling system, background job management, workflow engine
   - `project-structure.md`: Detailed module organization and architectural overview
   - `siyuan-api-integration-guide.md`: Complete SiYuan Notes API integration guide with CRUD operations, search, SQL queries, and best practices
+  - `papergather-web-architecture.md`: PaperGather web application architecture, components, and development patterns
+  - `explore-paper-data-architecture.md`: ExplorePaperData web application architecture, data visualization, and UI components
   - **`local-services-api.md`**: **IMPORTANT** - Contains API credentials, tokens, and endpoint information for local services (SiYuan Notes, etc.). Always refer to this file when you need to integrate with external local applications or services. This is the central repository for all local service connection details.
 - The system uses async/await patterns extensively for concurrency
 - Database integration supports both PostgreSQL (persistent) and Redis (caching) with automatic Docker detection
@@ -414,3 +416,4 @@ Services are accessible at these ports:
 - Check `Web/PaperGather/app.log` for application logs
 - Database connectivity can be tested using the provided Python snippet
 - Task execution can be monitored in real-time through the web interface
+- **IMPORTANT**: Test files created during development must be deleted after testing is complete to maintain clean codebase

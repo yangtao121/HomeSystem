@@ -452,12 +452,488 @@ window.addEventListener('load', function() {
     }
 });
 
-// 导出给全局使用
+/**
+ * 相关度编辑功能
+ */
+
+// 在列表页面快速编辑相关度
+function editRelevanceQuick(arxivId) {
+    // 复用详情页的编辑功能，但使用简化的模态框
+    if (typeof editRelevance === 'function') {
+        editRelevance(arxivId);
+    } else {
+        // 如果没有详情页的函数，创建简化版本
+        createQuickRelevanceModal(arxivId);
+    }
+}
+
+// 创建快速相关度编辑模态框
+function createQuickRelevanceModal(arxivId) {
+    // 检查是否已存在模态框
+    let modal = document.getElementById('quickRelevanceModal');
+    if (!modal) {
+        // 创建模态框HTML
+        const modalHTML = `
+        <div class="modal fade" id="quickRelevanceModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-star"></i> 快速编辑相关度
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="quick-edit-arxiv-id">
+                        
+                        <!-- 评分输入 -->
+                        <div class="mb-3">
+                            <label for="quick-relevance-score" class="form-label">相关度评分 (0.00-1.00)</label>
+                            <input type="number" class="form-control" id="quick-relevance-score"
+                                   min="0" max="1" step="0.01" placeholder="请输入0.00-1.00之间的数值">
+                            <div class="mt-2">
+                                <span id="quick-score-preview" class="fs-6"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- 快捷评分按钮 -->
+                        <div class="mb-3">
+                            <label class="form-label">快捷评分</label>
+                            <div class="btn-group d-block" role="group">
+                                <button type="button" class="btn btn-success btn-sm me-1" data-quick-score="0.9">
+                                    高相关 (0.9)
+                                </button>
+                                <button type="button" class="btn btn-warning btn-sm me-1" data-quick-score="0.7">
+                                    中相关 (0.7)
+                                </button>
+                                <button type="button" class="btn btn-info btn-sm me-1" data-quick-score="0.5">
+                                    一般 (0.5)
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm me-1" data-quick-score="0.3">
+                                    低相关 (0.3)
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" data-quick-score="0.1">
+                                    不相关 (0.1)
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 理由输入 -->
+                        <div class="mb-3">
+                            <label for="quick-relevance-justification" class="form-label">相关度理由</label>
+                            <textarea class="form-control" id="quick-relevance-justification" 
+                                      rows="4" maxlength="5000"
+                                      placeholder="请简要描述该论文与研究需求的相关性..."></textarea>
+                            <div class="form-text">
+                                <span id="quick-char-count">0</span>/5000 字符
+                            </div>
+                        </div>
+                        
+                        <!-- 保存状态 -->
+                        <div class="alert alert-info d-none" id="quick-save-status">
+                            <span id="quick-save-message"></span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> 取消
+                        </button>
+                        <button type="button" class="btn btn-primary" id="quick-save-relevance-btn">
+                            <i class="bi bi-check-circle"></i> 保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        
+        // 添加到页面
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        modal = document.getElementById('quickRelevanceModal');
+        
+        // 绑定事件
+        bindQuickRelevanceEvents();
+    }
+    
+    // 设置当前编辑的论文ID
+    document.getElementById('quick-edit-arxiv-id').value = arxivId;
+    
+    // 清空表单
+    document.getElementById('quick-relevance-score').value = '';
+    document.getElementById('quick-relevance-justification').value = '';
+    updateQuickScorePreview();
+    updateQuickCharCount();
+    
+    // 显示模态框
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+// 绑定快速编辑相关度的事件
+function bindQuickRelevanceEvents() {
+    // 快捷评分按钮
+    document.querySelectorAll('[data-quick-score]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const score = this.dataset.quickScore;
+            document.getElementById('quick-relevance-score').value = score;
+            updateQuickScorePreview();
+        });
+    });
+    
+    // 评分输入变化
+    document.getElementById('quick-relevance-score').addEventListener('input', updateQuickScorePreview);
+    
+    // 理由输入变化
+    document.getElementById('quick-relevance-justification').addEventListener('input', updateQuickCharCount);
+    
+    // 保存按钮
+    document.getElementById('quick-save-relevance-btn').addEventListener('click', saveQuickRelevance);
+}
+
+// 更新快速编辑的评分预览
+function updateQuickScorePreview() {
+    const score = parseFloat(document.getElementById('quick-relevance-score').value);
+    const preview = document.getElementById('quick-score-preview');
+    
+    if (isNaN(score) || score < 0 || score > 1) {
+        preview.innerHTML = '<span class="text-muted">☆☆☆☆☆</span>';
+        return;
+    }
+    
+    const starsCount = Math.round(score * 5);
+    const filledStars = '★'.repeat(starsCount);
+    const emptyStars = '☆'.repeat(5 - starsCount);
+    
+    let colorClass;
+    if (score >= 0.8) colorClass = 'text-success';
+    else if (score >= 0.5) colorClass = 'text-warning';
+    else colorClass = 'text-danger';
+    
+    preview.innerHTML = `<span class="${colorClass}">${filledStars}${emptyStars}</span> (${score.toFixed(2)})`;
+}
+
+// 更新快速编辑的字符计数
+function updateQuickCharCount() {
+    const text = document.getElementById('quick-relevance-justification').value;
+    document.getElementById('quick-char-count').textContent = text.length;
+}
+
+// 保存快速编辑的相关度
+function saveQuickRelevance() {
+    const arxivId = document.getElementById('quick-edit-arxiv-id').value;
+    const score = document.getElementById('quick-relevance-score').value;
+    const justification = document.getElementById('quick-relevance-justification').value.trim();
+    
+    // 验证输入
+    if (!score && !justification) {
+        showQuickSaveStatus('error', '请至少填写评分或理由');
+        return;
+    }
+    
+    if (score && (parseFloat(score) < 0 || parseFloat(score) > 1)) {
+        showQuickSaveStatus('error', '评分必须在0-1之间');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('quick-save-relevance-btn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 保存中...';
+    saveBtn.disabled = true;
+    
+    // 准备数据
+    const data = { arxiv_id: arxivId };
+    if (score) data.relevance_score = parseFloat(score);
+    if (justification) data.relevance_justification = justification;
+    
+    // 发送请求
+    fetch('/api/update_relevance', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showQuickSaveStatus('success', '保存成功！页面将刷新...');
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showQuickSaveStatus('error', data.error || '保存失败');
+        }
+    })
+    .catch(error => {
+        console.error('保存失败:', error);
+        showQuickSaveStatus('error', '网络错误，请稍后重试');
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+// 显示快速编辑的保存状态
+function showQuickSaveStatus(type, message) {
+    const statusDiv = document.getElementById('quick-save-status');
+    const messageSpan = document.getElementById('quick-save-message');
+    
+    statusDiv.classList.remove('alert-info', 'alert-success', 'alert-danger', 'd-none');
+    
+    if (type === 'success') {
+        statusDiv.classList.add('alert-success');
+        messageSpan.innerHTML = `<i class="bi bi-check-circle"></i> ${message}`;
+    } else if (type === 'error') {
+        statusDiv.classList.add('alert-danger');
+        messageSpan.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}`;
+    } else {
+        statusDiv.classList.add('alert-info');
+        messageSpan.innerHTML = `<i class="bi bi-info-circle"></i> ${message}`;
+    }
+}
+
+// 批量编辑相关度
+function batchEditRelevance() {
+    const selectedPapers = getSelectedPapers();
+    if (selectedPapers.length === 0) {
+        showAlert('请先选择要编辑的论文', 'warning');
+        return;
+    }
+    
+    // 创建批量编辑模态框
+    createBatchRelevanceModal(selectedPapers);
+}
+
+// 创建批量相关度编辑模态框
+function createBatchRelevanceModal(selectedPapers) {
+    // 检查是否已存在模态框
+    let modal = document.getElementById('batchRelevanceModal');
+    if (!modal) {
+        const modalHTML = `
+        <div class="modal fade" id="batchRelevanceModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-star"></i> 批量编辑相关度
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            已选择 <strong id="batch-paper-count">0</strong> 篇论文进行批量编辑
+                        </div>
+                        
+                        <!-- 评分设置 -->
+                        <div class="mb-3">
+                            <label class="form-label">批量设置评分</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <input type="number" class="form-control" id="batch-relevance-score"
+                                           min="0" max="1" step="0.01" placeholder="请输入0.00-1.00之间的数值">
+                                </div>
+                                <div class="col-md-6">
+                                    <span id="batch-score-preview" class="fs-6"></span>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-success btn-sm me-1" data-batch-score="0.9">高相关</button>
+                                <button type="button" class="btn btn-warning btn-sm me-1" data-batch-score="0.7">中相关</button>
+                                <button type="button" class="btn btn-info btn-sm me-1" data-batch-score="0.5">一般</button>
+                                <button type="button" class="btn btn-secondary btn-sm me-1" data-batch-score="0.3">低相关</button>
+                                <button type="button" class="btn btn-danger btn-sm" data-batch-score="0.1">不相关</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 理由设置 -->
+                        <div class="mb-3">
+                            <label class="form-label">批量设置理由</label>
+                            <textarea class="form-control" id="batch-relevance-justification" 
+                                      rows="4" maxlength="5000"
+                                      placeholder="批量设置的理由将应用于所有选中的论文..."></textarea>
+                            <div class="form-text">
+                                <span id="batch-char-count">0</span>/5000 字符
+                            </div>
+                        </div>
+                        
+                        <!-- 保存状态 -->
+                        <div class="alert alert-info d-none" id="batch-save-status">
+                            <span id="batch-save-message"></span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> 取消
+                        </button>
+                        <button type="button" class="btn btn-primary" id="batch-save-relevance-btn">
+                            <i class="bi bi-check-circle"></i> 批量保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        modal = document.getElementById('batchRelevanceModal');
+        bindBatchRelevanceEvents();
+    }
+    
+    // 更新选中论文数量
+    document.getElementById('batch-paper-count').textContent = selectedPapers.length;
+    
+    // 显示模态框
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+// 绑定批量编辑相关度的事件
+function bindBatchRelevanceEvents() {
+    // 快捷评分按钮
+    document.querySelectorAll('[data-batch-score]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const score = this.dataset.batchScore;
+            document.getElementById('batch-relevance-score').value = score;
+            updateBatchScorePreview();
+        });
+    });
+    
+    // 评分输入变化
+    document.getElementById('batch-relevance-score').addEventListener('input', updateBatchScorePreview);
+    
+    // 理由输入变化
+    document.getElementById('batch-relevance-justification').addEventListener('input', updateBatchCharCount);
+    
+    // 批量保存按钮
+    document.getElementById('batch-save-relevance-btn').addEventListener('click', saveBatchRelevance);
+}
+
+// 更新批量编辑的评分预览
+function updateBatchScorePreview() {
+    const score = parseFloat(document.getElementById('batch-relevance-score').value);
+    const preview = document.getElementById('batch-score-preview');
+    
+    if (isNaN(score) || score < 0 || score > 1) {
+        preview.innerHTML = '<span class="text-muted">☆☆☆☆☆</span>';
+        return;
+    }
+    
+    const starsCount = Math.round(score * 5);
+    const filledStars = '★'.repeat(starsCount);
+    const emptyStars = '☆'.repeat(5 - starsCount);
+    
+    let colorClass;
+    if (score >= 0.8) colorClass = 'text-success';
+    else if (score >= 0.5) colorClass = 'text-warning';
+    else colorClass = 'text-danger';
+    
+    preview.innerHTML = `<span class="${colorClass}">${filledStars}${emptyStars}</span> (${score.toFixed(2)})`;
+}
+
+// 更新批量编辑的字符计数
+function updateBatchCharCount() {
+    const text = document.getElementById('batch-relevance-justification').value;
+    document.getElementById('batch-char-count').textContent = text.length;
+}
+
+// 保存批量相关度编辑
+function saveBatchRelevance() {
+    const selectedPapers = getSelectedPapers();
+    const score = document.getElementById('batch-relevance-score').value;
+    const justification = document.getElementById('batch-relevance-justification').value.trim();
+    
+    if (!score && !justification) {
+        showBatchSaveStatus('error', '请至少填写评分或理由');
+        return;
+    }
+    
+    if (score && (parseFloat(score) < 0 || parseFloat(score) > 1)) {
+        showBatchSaveStatus('error', '评分必须在0-1之间');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('batch-save-relevance-btn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 保存中...';
+    saveBtn.disabled = true;
+    
+    // 准备批量保存的Promise数组
+    const promises = selectedPapers.map(arxivId => {
+        const data = { arxiv_id: arxivId };
+        if (score) data.relevance_score = parseFloat(score);
+        if (justification) data.relevance_justification = justification;
+        
+        return fetch('/api/update_relevance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(response => response.json());
+    });
+    
+    // 执行批量保存
+    Promise.all(promises)
+        .then(results => {
+            const successful = results.filter(result => result.success).length;
+            const failed = results.length - successful;
+            
+            if (failed === 0) {
+                showBatchSaveStatus('success', `批量保存成功！已更新 ${successful} 篇论文，页面将刷新...`);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showBatchSaveStatus('warning', `部分保存成功：${successful} 成功，${failed} 失败`);
+            }
+        })
+        .catch(error => {
+            console.error('批量保存失败:', error);
+            showBatchSaveStatus('error', '批量保存失败，请稍后重试');
+        })
+        .finally(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        });
+}
+
+// 显示批量保存状态
+function showBatchSaveStatus(type, message) {
+    const statusDiv = document.getElementById('batch-save-status');
+    const messageSpan = document.getElementById('batch-save-message');
+    
+    statusDiv.classList.remove('alert-info', 'alert-success', 'alert-warning', 'alert-danger', 'd-none');
+    
+    if (type === 'success') {
+        statusDiv.classList.add('alert-success');
+        messageSpan.innerHTML = `<i class="bi bi-check-circle"></i> ${message}`;
+    } else if (type === 'warning') {
+        statusDiv.classList.add('alert-warning');
+        messageSpan.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}`;
+    } else if (type === 'error') {
+        statusDiv.classList.add('alert-danger');
+        messageSpan.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}`;
+    } else {
+        statusDiv.classList.add('alert-info');
+        messageSpan.innerHTML = `<i class="bi bi-info-circle"></i> ${message}`;
+    }
+}
+
+// 获取选中的论文ID列表
+function getSelectedPapers() {
+    const checkboxes = document.querySelectorAll('.paper-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.dataset.arxivId);
+}
+
+// 导出给全局使用，添加相关度编辑功能
 window.ExplorePaperData = {
     applyFilter,
     clearFilters,
     showAlert,
     copyToClipboard,
     exportData,
-    refreshData
+    refreshData,
+    // 相关度编辑功能
+    editRelevanceQuick,
+    batchEditRelevance
 };
+
+// 将相关度编辑函数导出到全局作用域以便模板调用
+window.editRelevanceQuick = editRelevanceQuick;
+window.batchEditRelevance = batchEditRelevance;
