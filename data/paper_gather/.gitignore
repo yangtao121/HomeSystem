@@ -6,6 +6,7 @@ task_history/*.json
 
 # 用户配置预设文件
 config_presets/*.json
+scheduled_tasks/*.json
 
 # 定时任务状态文件
 scheduled_tasks.json

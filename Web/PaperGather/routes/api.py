@@ -630,6 +630,147 @@ def get_config_status():
         }), 500
 
 
+# === 新增定时任务管理API ===
+
+@api_bp.route('/scheduled_tasks/<task_id>', methods=['GET'])
+def get_scheduled_task_detail(task_id):
+    """获取定时任务详情"""
+    try:
+        task_detail = paper_gather_service.get_scheduled_task_detail(task_id)
+        
+        if not task_detail:
+            return jsonify({
+                'success': False,
+                'error': '定时任务不存在'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': task_detail
+        })
+    
+    except Exception as e:
+        logger.error(f"获取定时任务详情失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/scheduled_tasks/<task_id>/pause', methods=['POST'])
+def pause_scheduled_task(task_id):
+    """暂停定时任务"""
+    try:
+        success, error_msg = paper_gather_service.pause_scheduled_task(task_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '定时任务已暂停'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"暂停定时任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/scheduled_tasks/<task_id>/resume', methods=['POST'])
+def resume_scheduled_task(task_id):
+    """恢复定时任务"""
+    try:
+        success, error_msg = paper_gather_service.resume_scheduled_task(task_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '定时任务已恢复'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"恢复定时任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/scheduled_tasks/<task_id>/config', methods=['PUT'])
+def update_scheduled_task_config(task_id):
+    """更新定时任务配置"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供JSON数据'
+            }), 400
+        
+        new_config = data.get('config', {})
+        if not new_config:
+            return jsonify({
+                'success': False,
+                'error': '缺少配置参数'
+            }), 400
+        
+        success, error_msg = paper_gather_service.update_scheduled_task_config(task_id, new_config)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '定时任务配置已更新'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"更新定时任务配置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/scheduled_tasks/<task_id>', methods=['DELETE'])
+def delete_scheduled_task_permanently(task_id):
+    """永久删除定时任务"""
+    try:
+        success, error_msg = paper_gather_service.delete_scheduled_task_permanently(task_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '定时任务已永久删除'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"删除定时任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @api_bp.route('/health')
 def health_check():
     """健康检查"""

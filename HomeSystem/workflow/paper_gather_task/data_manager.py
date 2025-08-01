@@ -707,3 +707,291 @@ class PaperGatherDataManager:
         except Exception as e:
             logger.error(f"获取统计信息失败: {e}")
             return {}
+    
+    # === 定时任务持久化管理功能 ===
+    
+    def save_scheduled_task(self, task_id: str, config_dict: Dict[str, Any], 
+                           status: str = "running") -> bool:
+        """
+        保存定时任务配置到持久化存储
+        
+        Args:
+            task_id: 任务ID
+            config_dict: 任务配置字典
+            status: 任务状态 (running, paused, stopped, error)
+            
+        Returns:
+            保存是否成功
+        """
+        try:
+            # 确保定时任务目录存在
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            scheduled_tasks_dir.mkdir(exist_ok=True)
+            
+            # 准备任务数据
+            task_data = {
+                "task_id": task_id,
+                "config": config_dict,
+                "status": status,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "execution_count": 0,
+                "last_executed_at": None,
+                "next_execution_at": None,
+                "error_message": None,
+                "_version": ConfigVersionManager.CURRENT_VERSION
+            }
+            
+            # 计算下次执行时间
+            if "interval_seconds" in config_dict:
+                next_time = datetime.now() + timedelta(seconds=config_dict["interval_seconds"])
+                task_data["next_execution_at"] = next_time.isoformat()
+            
+            # 保存到单独的文件
+            task_file = scheduled_tasks_dir / f"{task_id}.json"
+            with open(task_file, 'w', encoding='utf-8') as f:
+                json.dump(task_data, f, ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+            
+            logger.info(f"定时任务 {task_id} 已保存到持久化存储")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存定时任务失败: {e}")
+            return False
+    
+    def load_scheduled_tasks(self) -> List[Dict[str, Any]]:
+        """
+        加载所有定时任务配置
+        
+        Returns:
+            定时任务配置列表
+        """
+        try:
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            if not scheduled_tasks_dir.exists():
+                return []
+            
+            tasks = []
+            task_files = list(scheduled_tasks_dir.glob("*.json"))
+            
+            for task_file in task_files:
+                try:
+                    with open(task_file, 'r', encoding='utf-8') as f:
+                        task_data = json.load(f)
+                    
+                    # 应用配置版本兼容性
+                    if "config" in task_data:
+                        task_data["config"] = ConfigVersionManager.ensure_config_compatibility(
+                            task_data["config"]
+                        )
+                    
+                    tasks.append(task_data)
+                    
+                except Exception as e:
+                    logger.error(f"读取定时任务文件 {task_file} 失败: {e}")
+                    continue
+            
+            # 按创建时间排序
+            tasks.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            
+            logger.info(f"加载了 {len(tasks)} 个定时任务")
+            return tasks
+            
+        except Exception as e:
+            logger.error(f"加载定时任务失败: {e}")
+            return []
+    
+    def get_scheduled_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取指定的定时任务配置
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            任务配置字典
+        """
+        try:
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            task_file = scheduled_tasks_dir / f"{task_id}.json"
+            
+            if not task_file.exists():
+                return None
+            
+            with open(task_file, 'r', encoding='utf-8') as f:
+                task_data = json.load(f)
+            
+            # 应用配置版本兼容性
+            if "config" in task_data:
+                task_data["config"] = ConfigVersionManager.ensure_config_compatibility(
+                    task_data["config"]
+                )
+            
+            return task_data
+            
+        except Exception as e:
+            logger.error(f"获取定时任务 {task_id} 失败: {e}")
+            return None
+    
+    def update_scheduled_task(self, task_id: str, updates: Dict[str, Any]) -> bool:
+        """
+        更新定时任务配置或状态
+        
+        Args:
+            task_id: 任务ID
+            updates: 更新的字段字典
+            
+        Returns:
+            更新是否成功
+        """
+        try:
+            # 获取现有任务数据
+            task_data = self.get_scheduled_task(task_id)
+            if not task_data:
+                logger.warning(f"定时任务 {task_id} 不存在，无法更新")
+                return False
+            
+            # 应用更新
+            task_data.update(updates)
+            task_data["updated_at"] = datetime.now().isoformat()
+            
+            # 如果更新了配置中的interval_seconds，重新计算下次执行时间
+            if "config" in updates and "interval_seconds" in updates["config"]:
+                if task_data.get("status") == "running":
+                    next_time = datetime.now() + timedelta(seconds=updates["config"]["interval_seconds"])
+                    task_data["next_execution_at"] = next_time.isoformat()
+            
+            # 保存更新后的数据
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            task_file = scheduled_tasks_dir / f"{task_id}.json"
+            
+            with open(task_file, 'w', encoding='utf-8') as f:
+                json.dump(task_data, f, ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+            
+            logger.info(f"定时任务 {task_id} 已更新")
+            return True
+            
+        except Exception as e:
+            logger.error(f"更新定时任务 {task_id} 失败: {e}")
+            return False
+    
+    def delete_scheduled_task(self, task_id: str) -> bool:
+        """
+        删除定时任务
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            删除是否成功
+        """
+        try:
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            task_file = scheduled_tasks_dir / f"{task_id}.json"
+            
+            if task_file.exists():
+                task_file.unlink()
+                logger.info(f"定时任务 {task_id} 已从持久化存储删除")
+                return True
+            else:
+                logger.warning(f"定时任务文件 {task_file} 不存在")
+                return False
+            
+        except Exception as e:
+            logger.error(f"删除定时任务 {task_id} 失败: {e}")
+            return False
+    
+    def update_task_execution_stats(self, task_id: str, success: bool = True, 
+                                   error_message: Optional[str] = None) -> bool:
+        """
+        更新任务执行统计信息
+        
+        Args:
+            task_id: 任务ID
+            success: 执行是否成功
+            error_message: 错误信息（如果执行失败）
+            
+        Returns:
+            更新是否成功
+        """
+        try:
+            task_data = self.get_scheduled_task(task_id)
+            if not task_data:
+                return False
+            
+            # 更新执行统计
+            task_data["execution_count"] = task_data.get("execution_count", 0) + 1
+            task_data["last_executed_at"] = datetime.now().isoformat()
+            task_data["updated_at"] = datetime.now().isoformat()
+            
+            if success:
+                task_data["status"] = "running"
+                task_data["error_message"] = None
+                # 计算下次执行时间
+                if "config" in task_data and "interval_seconds" in task_data["config"]:
+                    next_time = datetime.now() + timedelta(seconds=task_data["config"]["interval_seconds"])
+                    task_data["next_execution_at"] = next_time.isoformat()
+            else:
+                task_data["status"] = "error"
+                task_data["error_message"] = error_message
+                task_data["next_execution_at"] = None
+            
+            # 保存更新
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            task_file = scheduled_tasks_dir / f"{task_id}.json"
+            
+            with open(task_file, 'w', encoding='utf-8') as f:
+                json.dump(task_data, f, ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"更新任务执行统计失败: {e}")
+            return False
+    
+    def cleanup_old_scheduled_tasks(self, days: int = 30) -> int:
+        """
+        清理长时间未活动的定时任务
+        
+        Args:
+            days: 天数阈值
+            
+        Returns:
+            清理的任务数量
+        """
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days)
+            
+            scheduled_tasks_dir = self.data_dir / "scheduled_tasks"
+            if not scheduled_tasks_dir.exists():
+                return 0
+            
+            task_files = list(scheduled_tasks_dir.glob("*.json"))
+            cleaned_count = 0
+            
+            for task_file in task_files:
+                try:
+                    with open(task_file, 'r', encoding='utf-8') as f:
+                        task_data = json.load(f)
+                    
+                    # 检查任务状态和最后更新时间
+                    status = task_data.get("status")
+                    updated_at_str = task_data.get("updated_at")
+                    
+                    if status in ["stopped", "error"] and updated_at_str:
+                        updated_at = datetime.fromisoformat(updated_at_str)
+                        if updated_at < cutoff_date:
+                            task_file.unlink()
+                            cleaned_count += 1
+                            logger.info(f"清理过期定时任务: {task_data.get('task_id')}")
+                    
+                except Exception as e:
+                    logger.error(f"清理任务文件 {task_file} 失败: {e}")
+                    continue
+            
+            logger.info(f"清理了 {cleaned_count} 个过期定时任务")
+            return cleaned_count
+            
+        except Exception as e:
+            logger.error(f"清理过期定时任务失败: {e}")
+            return 0

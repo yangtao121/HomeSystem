@@ -92,8 +92,12 @@ class PaperGatherService:
         self.scheduler_running = False
         self.scheduler_shutdown_event = None
         
-        # 启动时加载历史数据
+        # 持久化的定时任务数据 (task_id -> persistent_task_data)
+        self.persistent_scheduled_tasks: Dict[str, Dict[str, Any]] = {}
+        
+        # 启动时加载历史数据和定时任务
         self._load_historical_data()
+        self._load_persistent_scheduled_tasks()
     
     def _load_historical_data(self):
         """加载历史数据到内存 - 增强版本，支持错误恢复和数据兼容性"""
@@ -178,6 +182,89 @@ class PaperGatherService:
             logger.error(f"❌ 加载历史数据失败: {e}")
             logger.info("🔄 应用将在没有历史数据的情况下继续启动")
             # 不抛出异常，让应用继续启动
+    
+    def _load_persistent_scheduled_tasks(self):
+        """加载持久化的定时任务到内存"""
+        try:
+            persistent_tasks = self.data_manager.load_scheduled_tasks()
+            logger.info(f"从持久化存储获取到 {len(persistent_tasks)} 个定时任务")
+            
+            with self.lock:
+                loaded_count = 0
+                error_count = 0
+                
+                for task_data in persistent_tasks:
+                    try:
+                        task_id = task_data.get("task_id")
+                        status = task_data.get("status", "running")
+                        
+                        if not task_id:
+                            logger.warning(f"跳过无效定时任务记录: 缺少task_id")
+                            error_count += 1
+                            continue
+                        
+                        # 只加载运行中或暂停的任务
+                        if status in ["running", "paused"]:
+                            self.persistent_scheduled_tasks[task_id] = task_data
+                            loaded_count += 1
+                            
+                            # 如果是运行中的任务，尝试重启
+                            if status == "running":
+                                self._restart_scheduled_task_from_persistence(task_id, task_data)
+                        else:
+                            logger.info(f"跳过已停止的定时任务: {task_id} (状态: {status})")
+                    
+                    except Exception as e:
+                        error_count += 1
+                        logger.warning(f"加载单个定时任务失败: {e}")
+                        continue
+                
+                if loaded_count > 0:
+                    logger.info(f"✅ 成功加载了 {loaded_count} 个持久化定时任务到内存")
+                if error_count > 0:
+                    logger.warning(f"⚠️  跳过了 {error_count} 个无效的定时任务记录")
+        
+        except Exception as e:
+            logger.error(f"❌ 加载持久化定时任务失败: {e}")
+            logger.info("🔄 应用将在没有定时任务的情况下继续启动")
+    
+    def _restart_scheduled_task_from_persistence(self, task_id: str, task_data: Dict[str, Any]):
+        """从持久化数据重启定时任务"""
+        try:
+            config_dict = task_data.get("config", {})
+            
+            # 验证配置有效性
+            is_valid, error_msg = self.validate_config(config_dict)
+            if not is_valid:
+                logger.error(f"定时任务 {task_id} 配置无效，无法重启: {error_msg}")
+                # 更新任务状态为错误
+                self.data_manager.update_scheduled_task(task_id, {
+                    "status": "error",
+                    "error_message": f"配置验证失败: {error_msg}"
+                })
+                return False
+            
+            # 重新创建任务
+            success, _, error_msg = self._create_scheduled_task_internal(task_id, config_dict)
+            if success:
+                logger.info(f"✅ 成功重启持久化定时任务: {task_id}")
+                return True
+            else:
+                logger.error(f"❌ 重启定时任务 {task_id} 失败: {error_msg}")
+                # 更新任务状态为错误
+                self.data_manager.update_scheduled_task(task_id, {
+                    "status": "error", 
+                    "error_message": f"重启失败: {error_msg}"
+                })
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ 重启定时任务 {task_id} 时发生异常: {e}")
+            self.data_manager.update_scheduled_task(task_id, {
+                "status": "error",
+                "error_message": f"重启异常: {str(e)}"
+            })
+            return False
     
     def _safe_parse_datetime(self, date_str, field_description):
         """安全解析日期时间字符串，支持多种格式"""
@@ -676,11 +763,50 @@ class PaperGatherService:
     
     def start_scheduled_task(self, config_dict: Dict[str, Any]) -> tuple[bool, str, Optional[str]]:
         """
-        启动后台定时任务 - 使用WorkflowEngine
+        启动后台定时任务 - 增强版本，支持持久化
         """
         try:
             task_id = str(uuid.uuid4())
             
+            # 先保存到持久化存储
+            success = self.data_manager.save_scheduled_task(task_id, config_dict, "running")
+            if not success:
+                return False, "", "保存定时任务到持久化存储失败"
+            
+            # 创建运行时任务
+            success, _, error_msg = self._create_scheduled_task_internal(task_id, config_dict)
+            if success:
+                # 更新持久化数据缓存
+                with self.lock:
+                    self.persistent_scheduled_tasks[task_id] = {
+                        "task_id": task_id,
+                        "config": config_dict,
+                        "status": "running",
+                        "created_at": datetime.now().isoformat(),
+                        "updated_at": datetime.now().isoformat(),
+                        "execution_count": 0,
+                        "last_executed_at": None,
+                        "next_execution_at": None,
+                        "error_message": None
+                    }
+                
+                logger.info(f"后台定时任务已启动并持久化: {task_id}")
+                return True, task_id, None
+            else:
+                # 创建失败，删除持久化数据
+                self.data_manager.delete_scheduled_task(task_id)
+                return False, "", error_msg
+            
+        except Exception as e:
+            error_msg = f"启动后台任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, "", error_msg
+    
+    def _create_scheduled_task_internal(self, task_id: str, config_dict: Dict[str, Any]) -> tuple[bool, str, Optional[str]]:
+        """
+        内部方法：创建定时任务的运行时实例
+        """
+        try:
             # 创建PaperGatherTaskConfig，包含定时间隔
             # 过滤掉非PaperGatherTaskConfig参数
             valid_params = {
@@ -698,7 +824,7 @@ class PaperGatherService:
             filtered_config = {k: v for k, v in config_dict.items() if k in valid_params}
             
             # 添加任务追踪信息
-            filtered_config['task_id'] = task_id  # 使用生成的任务ID
+            filtered_config['task_id'] = task_id  # 使用指定的任务ID
             if 'task_name' not in filtered_config:
                 filtered_config['task_name'] = 'paper_gather_scheduled'  # 定时任务名称
             
@@ -734,11 +860,11 @@ class PaperGatherService:
             else:
                 raise Exception("任务调度器初始化超时")
             
-            logger.info(f"后台定时任务已启动: {task_id}, 间隔: {config.interval_seconds}秒")
+            logger.info(f"运行时定时任务已创建: {task_id}, 间隔: {config.interval_seconds}秒")
             return True, task_id, None
             
         except Exception as e:
-            error_msg = f"启动后台任务失败: {str(e)}"
+            error_msg = f"创建运行时定时任务失败: {str(e)}"
             logger.error(error_msg)
             return False, "", error_msg
     
@@ -783,20 +909,33 @@ class PaperGatherService:
             logger.info("TaskScheduler已停止")
     
     def stop_scheduled_task(self, task_id: str) -> tuple[bool, Optional[str]]:
-        """停止后台定时任务"""
+        """停止后台定时任务 - 增强版本，支持持久化"""
         try:
             with self.lock:
-                if task_id not in self.scheduled_tasks:
-                    return False, "任务不存在"
+                # 检查运行时任务
+                if task_id in self.scheduled_tasks:
+                    task = self.scheduled_tasks[task_id]
+                    
+                    # 从调度器中移除任务
+                    if self.task_scheduler:
+                        self.task_scheduler.remove_task(task.name)
+                    
+                    # 清理运行时任务记录
+                    del self.scheduled_tasks[task_id]
                 
-                task = self.scheduled_tasks[task_id]
-                
-                # 从调度器中移除任务
-                if self.task_scheduler:
-                    self.task_scheduler.remove_task(task.name)
-                
-                # 清理任务记录
-                del self.scheduled_tasks[task_id]
+                # 检查持久化任务
+                if task_id in self.persistent_scheduled_tasks:
+                    # 清理持久化缓存
+                    del self.persistent_scheduled_tasks[task_id]
+            
+            # 更新持久化存储状态
+            success = self.data_manager.update_scheduled_task(task_id, {
+                "status": "stopped",
+                "error_message": None
+            })
+            
+            if not success:
+                logger.warning(f"更新持久化定时任务状态失败: {task_id}")
             
             logger.info(f"后台定时任务已停止: {task_id}")
             return True, None
@@ -807,16 +946,49 @@ class PaperGatherService:
             return False, error_msg
     
     def get_scheduled_tasks(self) -> List[Dict[str, Any]]:
-        """获取所有后台定时任务状态"""
+        """获取所有后台定时任务状态 - 增强版本，包含持久化信息"""
         tasks = []
         with self.lock:
-            for task_id, task in self.scheduled_tasks.items():
-                tasks.append({
+            # 遍历持久化任务数据（这是权威数据源）
+            for task_id, persistent_data in self.persistent_scheduled_tasks.items():
+                task_info = {
                     'task_id': task_id,
-                    'name': task.name,
-                    'interval_seconds': task.interval_seconds,
-                    'config': task.config.get_config_dict() if hasattr(task.config, 'get_config_dict') else {}
-                })
+                    'name': persistent_data.get('config', {}).get('task_name', 'paper_gather_scheduled'),
+                    'interval_seconds': persistent_data.get('config', {}).get('interval_seconds', 3600),
+                    'config': persistent_data.get('config', {}),
+                    'status': persistent_data.get('status', 'unknown'),
+                    'created_at': persistent_data.get('created_at'),
+                    'updated_at': persistent_data.get('updated_at'),
+                    'execution_count': persistent_data.get('execution_count', 0),
+                    'last_executed_at': persistent_data.get('last_executed_at'),
+                    'next_execution_at': persistent_data.get('next_execution_at'),
+                    'error_message': persistent_data.get('error_message'),
+                    'is_running': task_id in self.scheduled_tasks  # 运行时状态
+                }
+                tasks.append(task_info)
+            
+            # 检查是否有运行时任务但没有持久化数据的情况（异常情况）
+            for task_id, task in self.scheduled_tasks.items():
+                if task_id not in self.persistent_scheduled_tasks:
+                    logger.warning(f"发现未持久化的运行时任务: {task_id}")
+                    task_info = {
+                        'task_id': task_id,
+                        'name': task.name,
+                        'interval_seconds': task.interval_seconds,
+                        'config': task.config.get_config_dict() if hasattr(task.config, 'get_config_dict') else {},
+                        'status': 'running',
+                        'created_at': None,
+                        'updated_at': None,
+                        'execution_count': 0,
+                        'last_executed_at': None,
+                        'next_execution_at': None,
+                        'error_message': None,
+                        'is_running': True
+                    }
+                    tasks.append(task_info)
+        
+        # 按创建时间排序
+        tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
         return tasks
     
     def get_running_tasks_count(self) -> int:
@@ -1080,6 +1252,182 @@ class PaperGatherService:
             
         except Exception as e:
             error_msg = f"取消任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    # === 新增定时任务管理方法 ===
+    
+    def pause_scheduled_task(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """暂停定时任务"""
+        try:
+            with self.lock:
+                # 检查并停止运行时任务
+                if task_id in self.scheduled_tasks:
+                    task = self.scheduled_tasks[task_id]
+                    
+                    # 从调度器中移除任务
+                    if self.task_scheduler:
+                        self.task_scheduler.remove_task(task.name)
+                    
+                    # 清理运行时任务记录
+                    del self.scheduled_tasks[task_id]
+            
+            # 更新持久化存储状态为暂停
+            success = self.data_manager.update_scheduled_task(task_id, {
+                "status": "paused",
+                "error_message": None
+            })
+            
+            if success:
+                # 更新内存缓存
+                with self.lock:
+                    if task_id in self.persistent_scheduled_tasks:
+                        self.persistent_scheduled_tasks[task_id]["status"] = "paused"
+                        self.persistent_scheduled_tasks[task_id]["updated_at"] = datetime.now().isoformat()
+                
+                logger.info(f"定时任务已暂停: {task_id}")
+                return True, None
+            else:
+                return False, "更新任务状态失败"
+            
+        except Exception as e:
+            error_msg = f"暂停定时任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def resume_scheduled_task(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """恢复定时任务"""
+        try:
+            # 获取持久化任务数据
+            task_data = self.data_manager.get_scheduled_task(task_id)
+            if not task_data:
+                return False, "任务不存在"
+            
+            if task_data.get("status") != "paused":
+                return False, f"任务状态不是暂停状态，当前状态: {task_data.get('status')}"
+            
+            # 验证配置有效性
+            config_dict = task_data.get("config", {})
+            is_valid, error_msg = self.validate_config(config_dict)
+            if not is_valid:
+                return False, f"任务配置无效: {error_msg}"
+            
+            # 重新创建运行时任务
+            success, _, error_msg = self._create_scheduled_task_internal(task_id, config_dict)
+            if success:
+                # 更新持久化存储状态
+                self.data_manager.update_scheduled_task(task_id, {
+                    "status": "running",
+                    "error_message": None
+                })
+                
+                # 更新内存缓存
+                with self.lock:
+                    if task_id in self.persistent_scheduled_tasks:
+                        self.persistent_scheduled_tasks[task_id]["status"] = "running"
+                        self.persistent_scheduled_tasks[task_id]["updated_at"] = datetime.now().isoformat()
+                
+                logger.info(f"定时任务已恢复: {task_id}")
+                return True, None
+            else:
+                return False, f"重新创建任务失败: {error_msg}"
+            
+        except Exception as e:
+            error_msg = f"恢复定时任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def update_scheduled_task_config(self, task_id: str, new_config: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """更新定时任务配置"""
+        try:
+            # 验证新配置
+            is_valid, error_msg = self.validate_config(new_config)
+            if not is_valid:
+                return False, f"新配置验证失败: {error_msg}"
+            
+            # 获取现有任务数据
+            task_data = self.data_manager.get_scheduled_task(task_id)
+            if not task_data:
+                return False, "任务不存在"
+            
+            old_status = task_data.get("status")
+            was_running = old_status == "running" and task_id in self.scheduled_tasks
+            
+            # 如果任务正在运行，先停止它
+            if was_running:
+                self.pause_scheduled_task(task_id)
+            
+            # 更新持久化配置
+            success = self.data_manager.update_scheduled_task(task_id, {
+                "config": new_config,
+                "status": old_status,  # 保持原状态
+                "error_message": None
+            })
+            
+            if not success:
+                return False, "更新持久化配置失败"
+            
+            # 更新内存缓存
+            with self.lock:
+                if task_id in self.persistent_scheduled_tasks:
+                    self.persistent_scheduled_tasks[task_id]["config"] = new_config
+                    self.persistent_scheduled_tasks[task_id]["updated_at"] = datetime.now().isoformat()
+            
+            # 如果之前在运行，重新启动
+            if was_running:
+                resume_success, resume_error = self.resume_scheduled_task(task_id)
+                if not resume_success:
+                    logger.warning(f"配置更新成功但恢复任务失败: {resume_error}")
+                    return True, f"配置已更新，但恢复任务失败: {resume_error}"
+            
+            logger.info(f"定时任务配置已更新: {task_id}")
+            return True, None
+            
+        except Exception as e:
+            error_msg = f"更新定时任务配置失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def get_scheduled_task_detail(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """获取定时任务详情"""
+        try:
+            # 从持久化存储获取最新数据
+            task_data = self.data_manager.get_scheduled_task(task_id)
+            if not task_data:
+                return None
+            
+            # 添加运行时状态信息
+            with self.lock:
+                task_data["is_running"] = task_id in self.scheduled_tasks
+            
+            return task_data
+            
+        except Exception as e:
+            logger.error(f"获取定时任务详情失败: {e}")
+            return None
+    
+    def delete_scheduled_task_permanently(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """永久删除定时任务（包括持久化数据）"""
+        try:
+            # 先停止任务
+            self.stop_scheduled_task(task_id)
+            
+            # 删除持久化数据
+            success = self.data_manager.delete_scheduled_task(task_id)
+            
+            # 清理内存缓存
+            with self.lock:
+                if task_id in self.persistent_scheduled_tasks:
+                    del self.persistent_scheduled_tasks[task_id]
+            
+            if success:
+                logger.info(f"定时任务已永久删除: {task_id}")
+                return True, None
+            else:
+                return False, "删除持久化数据失败"
+            
+        except Exception as e:
+            error_msg = f"永久删除定时任务失败: {str(e)}"
             logger.error(error_msg)
             return False, error_msg
 
