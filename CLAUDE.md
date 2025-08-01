@@ -29,6 +29,9 @@ HomeSystem is a Python-based intelligent home automation system that integrates 
     - `models.py`: Data models including ArxivPaperModel with structured analysis fields
   - `paperless/`: Paperless-ngx document management integration
   - `dify/`: Dify AI workflow platform integration
+  - `siyuan/`: SiYuan Notes API integration for note management
+    - `siyuan.py`: Complete SiYuan API client with CRUD operations, search, SQL queries
+    - `models.py`: Data models for notes, notebooks, search results, sync operations
 
 - **HomeSystem/utility/**: Utility modules
   - `arxiv/`: ArXiv paper search and database integration with duplicate detection
@@ -371,6 +374,8 @@ Services are accessible at these ports:
   - `arxiv-api-documentation.md`: ArXiv API tool usage, paper search and download functionality
   - `workflow-framework-guide.md`: Task scheduling system, background job management, workflow engine
   - `project-structure.md`: Detailed module organization and architectural overview
+  - `siyuan-api-integration-guide.md`: Complete SiYuan Notes API integration guide with CRUD operations, search, SQL queries, and best practices
+  - **`local-services-api.md`**: **IMPORTANT** - Contains API credentials, tokens, and endpoint information for local services (SiYuan Notes, etc.). Always refer to this file when you need to integrate with external local applications or services. This is the central repository for all local service connection details.
 - The system uses async/await patterns extensively for concurrency
 - Database integration supports both PostgreSQL (persistent) and Redis (caching) with automatic Docker detection
 - Workflow system supports signal-based graceful shutdown

@@ -6,6 +6,7 @@ Home System 集成模块
 - database: 数据库集成 (PostgreSQL + Redis)
 - dify: Dify AI 平台集成
 - paperless: Paperless 文档管理集成
+- siyuan: SiYuan 笔记系统集成
 """
 
 __version__ = "1.0.0"
