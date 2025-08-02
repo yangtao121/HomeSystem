@@ -530,10 +530,6 @@ class PaperGatherTask(Task):
         except Exception as e:
             logger.error(f"完整论文分析失败: {e}")
             return None
-        finally:
-            # 清理内存
-            paper.clearPdf()
-            paper.clearOcrResult()
     
     async def summarize_paper(self, paper: ArxivData) -> Optional[Dict[str, Any]]:
         """
@@ -555,8 +551,11 @@ class PaperGatherTask(Task):
             # 检查是否已有OCR结果
             ocr_result = paper.ocr_result if hasattr(paper, 'ocr_result') and paper.ocr_result else None
             
-            if not ocr_result:
-                # 如果没有OCR结果，需要重新下载PDF并执行OCR
+            if ocr_result and len(ocr_result.strip()) >= 500:
+                # 使用现有的OCR结果
+                logger.debug(f"使用现有OCR结果进行论文总结: {len(ocr_result)} 字符")
+            else:
+                # 如果没有OCR结果或结果过短，需要重新下载PDF并执行OCR
                 logger.debug("重新下载PDF并执行OCR...")
                 paper.downloadPdf()
                 ocr_result, status_info = paper.performOCR(max_pages=25)
@@ -619,11 +618,7 @@ class PaperGatherTask(Task):
             logger.error(f"论文总结过程中发生异常: {e}")
             return None
         finally:
-            # # 清理内存
-            # if hasattr(paper, 'clearPdf'):
-            #     paper.clearPdf()
-            # if hasattr(paper, 'clearOcrResult'):
-            #     paper.clearOcrResult()
+            # 内存清理现在统一在 process_papers 方法中处理
             pass
     
     async def process_papers(self, papers: ArxivResult) -> List[ArxivData]:
@@ -735,7 +730,12 @@ class PaperGatherTask(Task):
             
 
             # 处理完毕释放内存
-            # paper.cleanup()
+            # 清理PDF和OCR结果，释放内存
+            if hasattr(paper, 'clearPdf'):
+                paper.clearPdf()
+            if hasattr(paper, 'clearOcrResult'):
+                paper.clearOcrResult()
+                
             processed_papers.append(paper)
         
         return processed_papers

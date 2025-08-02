@@ -96,7 +96,7 @@
     {% if paper.abstract %}
     <div class="detail-section">
         <div class="detail-label">摘要</div>
-        <div class="detail-content">{{ paper.abstract }}</div>
+        <div class="detail-content markdown-content">{{ paper.abstract|markdown|safe }}</div>
     </div>
     {% endif %}
     
@@ -140,9 +140,9 @@
                 <div class="row">
                     <div class="col-12">
                         <div class="detail-label">评分理由</div>
-                        <div class="detail-content" id="relevance-justification-display">
+                        <div class="detail-content markdown-content" id="relevance-justification-display">
                             {% if paper.full_paper_relevance_justification %}
-                                {{ paper.full_paper_relevance_justification|relevance_justification_display }}
+                                {{ paper.full_paper_relevance_justification|markdown|safe }}
                             {% else %}
                                 <span class="text-muted">
                                     <i class="bi bi-chat-text"></i> 暂无评分理由
@@ -173,49 +173,49 @@
                     {% if paper.research_background %}
                     <div class="col-md-6 mb-3">
                         <div class="detail-label">研究背景</div>
-                        <div class="detail-content">{{ paper.research_background }}</div>
+                        <div class="detail-content markdown-content">{{ paper.research_background|markdown|safe }}</div>
                     </div>
                     {% endif %}
                     
                     {% if paper.research_objectives %}
                     <div class="col-md-6 mb-3">
                         <div class="detail-label">研究目标</div>
-                        <div class="detail-content">{{ paper.research_objectives }}</div>
+                        <div class="detail-content markdown-content">{{ paper.research_objectives|markdown|safe }}</div>
                     </div>
                     {% endif %}
                     
                     {% if paper.methods %}
                     <div class="col-md-6 mb-3">
                         <div class="detail-label">研究方法</div>
-                        <div class="detail-content">{{ paper.methods }}</div>
+                        <div class="detail-content markdown-content">{{ paper.methods|markdown|safe }}</div>
                     </div>
                     {% endif %}
                     
                     {% if paper.key_findings %}
                     <div class="col-md-6 mb-3">
                         <div class="detail-label">主要发现</div>
-                        <div class="detail-content">{{ paper.key_findings }}</div>
+                        <div class="detail-content markdown-content">{{ paper.key_findings|markdown|safe }}</div>
                     </div>
                     {% endif %}
                     
                     {% if paper.conclusions %}
                     <div class="col-md-6 mb-3">
                         <div class="detail-label">结论</div>
-                        <div class="detail-content">{{ paper.conclusions }}</div>
+                        <div class="detail-content markdown-content">{{ paper.conclusions|markdown|safe }}</div>
                     </div>
                     {% endif %}
                     
                     {% if paper.limitations %}
                     <div class="col-md-6 mb-3">
                         <div class="detail-label">局限性</div>
-                        <div class="detail-content">{{ paper.limitations }}</div>
+                        <div class="detail-content markdown-content">{{ paper.limitations|markdown|safe }}</div>
                     </div>
                     {% endif %}
                     
                     {% if paper.future_work %}
                     <div class="col-md-12 mb-3">
                         <div class="detail-label">未来工作</div>
-                        <div class="detail-content">{{ paper.future_work }}</div>
+                        <div class="detail-content markdown-content">{{ paper.future_work|markdown|safe }}</div>
                     </div>
                     {% endif %}
                 </div>

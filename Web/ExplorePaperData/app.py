@@ -6,6 +6,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_moment import Moment
 from database import PaperService
 from config import Config
+from utils.markdown_utils import markdown_filter, markdown_safe_filter
 import logging
 import math
 
@@ -618,6 +619,16 @@ def relevance_status_badge(paper):
         return '<span class="badge bg-warning"><i class="bi bi-chat-text"></i> 仅有理由</span>'
     else:
         return '<span class="badge bg-secondary"><i class="bi bi-question-circle"></i> 未评分</span>'
+
+@app.template_filter('markdown')
+def markdown_template_filter(text):
+    """Markdown模板过滤器"""
+    return markdown_filter(text)
+
+@app.template_filter('markdown_safe')
+def markdown_safe_template_filter(text):
+    """安全Markdown模板过滤器"""
+    return markdown_safe_filter(text)
 
 if __name__ == '__main__':
     try:
