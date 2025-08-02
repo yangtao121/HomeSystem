@@ -29,6 +29,11 @@ class PaperGatherTaskConfig:
                  enable_paper_summarization: bool = True,
                  summarization_threshold: float = 0.8,
                  enable_translation: bool = True,
+                 # 重试相关参数
+                 translation_retry_count: int = 1,
+                 translation_retry_delay: float = 1.0,
+                 summarization_retry_count: int = 1,
+                 summarization_retry_delay: float = 1.0,
                  # 新增搜索模式相关参数
                  search_mode: ArxivSearchMode = ArxivSearchMode.LATEST,
                  start_year: Optional[int] = None,
@@ -63,6 +68,10 @@ class PaperGatherTaskConfig:
         self.enable_paper_summarization = enable_paper_summarization
         self.summarization_threshold = summarization_threshold
         self.enable_translation = enable_translation
+        self.translation_retry_count = translation_retry_count
+        self.translation_retry_delay = translation_retry_delay
+        self.summarization_retry_count = summarization_retry_count
+        self.summarization_retry_delay = summarization_retry_delay
         # 新增搜索模式相关属性
         self.search_mode = search_mode
         self.start_year = start_year
@@ -128,6 +137,10 @@ class PaperGatherTaskConfig:
             'enable_paper_summarization': self.enable_paper_summarization,
             'summarization_threshold': self.summarization_threshold,
             'enable_translation': self.enable_translation,
+            'translation_retry_count': self.translation_retry_count,
+            'translation_retry_delay': self.translation_retry_delay,
+            'summarization_retry_count': self.summarization_retry_count,
+            'summarization_retry_delay': self.summarization_retry_delay,
             # 搜索模式相关配置
             'search_mode': self.search_mode.value,
             'start_year': self.start_year,
@@ -248,16 +261,19 @@ class PaperGatherTask(Task):
         """获取当前配置"""
         return self.config
     
-    async def translate_paper_fields(self, paper: ArxivData) -> None:
+    async def translate_paper_fields(self, paper: ArxivData) -> bool:
         """
         将论文的英文结构化字段翻译为中文并直接覆盖原字段 (并发版本)
         
         Args:
             paper: 论文数据对象，会直接修改其字段
+            
+        Returns:
+            bool: 翻译是否成功
         """
         if not self.config.enable_translation:
             logger.debug("翻译功能已禁用，跳过翻译")
-            return
+            return True
             
         try:
             logger.debug(f"开始并发翻译论文字段: {paper.title[:50]}...")
@@ -280,47 +296,61 @@ class PaperGatherTask(Task):
             
             if not texts_to_translate:
                 logger.debug(f"没有需要翻译的字段: {paper.title[:50]}...")
-                return
+                return True
             
             logger.debug(f"准备并发翻译 {len(texts_to_translate)} 个字段: {field_names_to_translate}")
             
-            # 使用批量并发翻译
-            translation_results = await self.translator.translate_texts_batch(texts_to_translate)
+            # 使用重试逻辑进行翻译
+            retry_count = 0
+            last_error = None
             
-            # 将翻译结果应用到字段
-            for i, (field_name, original_text) in enumerate(texts_to_translate):
-                if i < len(translation_results):
-                    translation_result = translation_results[i]
-                    # 直接覆盖原字段
-                    setattr(paper, field_name, translation_result.translated_text)
-                    logger.debug(f"字段 {field_name} 翻译完成 (质量: {translation_result.translation_quality})")
-                else:
-                    logger.warning(f"字段 {field_name} 翻译结果缺失，保持原文")
+            while retry_count <= self.config.translation_retry_count:
+                try:
+                    if retry_count > 0:
+                        logger.info(f"翻译重试第 {retry_count} 次，延迟 {self.config.translation_retry_delay} 秒...")
+                        await asyncio.sleep(self.config.translation_retry_delay)
+                    
+                    # 使用批量并发翻译
+                    translation_results = await self.translator.translate_texts_batch(texts_to_translate)
+                    
+                    # 检查翻译结果是否成功
+                    failed_translations = []
+                    for i, result in enumerate(translation_results):
+                        if result.translated_text.startswith("翻译失败") or result.translated_text.startswith("翻译异常"):
+                            failed_translations.append(field_names_to_translate[i])
+                    
+                    if failed_translations:
+                        raise Exception(f"以下字段翻译失败: {', '.join(failed_translations)}")
+                    
+                    # 将翻译结果应用到字段
+                    for i, (field_name, original_text) in enumerate(texts_to_translate):
+                        if i < len(translation_results):
+                            translation_result = translation_results[i]
+                            # 直接覆盖原字段
+                            setattr(paper, field_name, translation_result.translated_text)
+                            logger.debug(f"字段 {field_name} 翻译完成 (质量: {translation_result.translation_quality})")
+                        else:
+                            logger.warning(f"字段 {field_name} 翻译结果缺失，保持原文")
+                    
+                    logger.info(f"论文字段并发翻译完成: {paper.title[:50]}... (翻译了 {len(translation_results)} 个字段)")
+                    return True
+                    
+                except Exception as e:
+                    last_error = e
+                    retry_count += 1
+                    logger.error(f"翻译尝试 {retry_count} 失败: {e}")
+                    
+                    if retry_count <= self.config.translation_retry_count:
+                        logger.info(f"将在 {self.config.translation_retry_delay} 秒后重试...")
+                        continue
             
-            logger.info(f"论文字段并发翻译完成: {paper.title[:50]}... (翻译了 {len(translation_results)} 个字段)")
+            # 所有重试都失败了
+            logger.error(f"翻译失败，已达到最大重试次数 ({self.config.translation_retry_count}): {last_error}")
+            return False
             
         except Exception as e:
-            logger.error(f"并发翻译论文字段时发生异常: {e}")
-            # 如果并发翻译失败，回退到原来的逐个翻译方式
-            logger.info("回退到逐个翻译模式")
-            try:
-                fields_to_translate = [
-                    'research_background', 'research_objectives', 'methods', 
-                    'key_findings', 'conclusions', 'limitations', 'future_work', "snippet"
-                ]
-                
-                for field_name in fields_to_translate:
-                    field_value = getattr(paper, field_name, None)
-                    if field_value and field_value.strip() and field_value != '无':
-                        try:
-                            translation_result = self.translator.translate_text(field_value)
-                            setattr(paper, field_name, translation_result.translated_text)
-                            logger.debug(f"字段 {field_name} 回退翻译完成 (质量: {translation_result.translation_quality})")
-                        except Exception as e:
-                            logger.error(f"回退翻译字段 {field_name} 失败: {e}")
-                            
-            except Exception as fallback_error:
-                logger.error(f"回退翻译也失败了: {fallback_error}")
+            logger.error(f"翻译过程中发生异常: {e}")
+            return False
     
     async def check_paper_in_database(self, arxiv_id: str) -> Optional[ArxivPaperModel]:
         """
@@ -376,6 +406,20 @@ class PaperGatherTask(Task):
         Returns:
             bool: 保存是否成功
         """
+        # 检查翻译和总结是否成功
+        translation_success = getattr(paper, 'translation_success', True)
+        summarization_success = getattr(paper, 'summarization_success', True)
+        
+        # 如果翻译失败且重试次数已用完，不保存到数据库
+        if not translation_success:
+            logger.error(f"论文翻译失败，不保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
+            return False
+            
+        # 如果总结失败且重试次数已用完，不保存到数据库
+        if not summarization_success:
+            logger.error(f"论文总结失败，不保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
+            return False
+            
         try:
             # 创建ArxivPaperModel实例
             paper_model = ArxivPaperModel(
@@ -563,12 +607,43 @@ class PaperGatherTask(Task):
             
             logger.debug(f"使用现有OCR结果进行论文总结: {len(ocr_result)} 字符")
             
-            # 使用论文分析智能体进行总结
-            logger.debug("开始使用论文分析智能体进行总结...")
-            summary_result = self.paper_analysis_agent.analyze_paper(
-                paper_text=ocr_result,
-                thread_id=f"paper_summary_{paper.arxiv_id}"
-            )
+            # 使用重试逻辑进行总结
+            retry_count = 0
+            last_error = None
+            summary_result = None
+            
+            while retry_count <= self.config.summarization_retry_count:
+                try:
+                    if retry_count > 0:
+                        logger.info(f"论文总结重试第 {retry_count} 次，延迟 {self.config.summarization_retry_delay} 秒...")
+                        await asyncio.sleep(self.config.summarization_retry_delay)
+                    
+                    # 使用论文分析智能体进行总结
+                    logger.debug("开始使用论文分析智能体进行总结...")
+                    summary_result = self.paper_analysis_agent.analyze_paper(
+                        paper_text=ocr_result,
+                        thread_id=f"paper_summary_{paper.arxiv_id}"
+                    )
+                    
+                    # 检查总结结果是否成功
+                    if not summary_result or "error" in summary_result:
+                        error_msg = summary_result.get("error", "未知错误") if summary_result else "无返回结果"
+                        raise Exception(f"论文总结失败: {error_msg}")
+                    
+                    break  # 总结成功，退出重试循环
+                    
+                except Exception as e:
+                    last_error = e
+                    retry_count += 1
+                    logger.error(f"论文总结尝试 {retry_count} 失败: {e}")
+                    
+                    if retry_count <= self.config.summarization_retry_count:
+                        logger.info(f"将在 {self.config.summarization_retry_delay} 秒后重试...")
+            
+            # 检查是否所有重试都失败了
+            if retry_count > self.config.summarization_retry_count:
+                logger.error(f"论文总结失败，已达到最大重试次数 ({self.config.summarization_retry_count}): {last_error}")
+                return None
             
             if summary_result and "error" not in summary_result:
                 # 提取结构化结果
@@ -636,6 +711,8 @@ class PaperGatherTask(Task):
             # 初始化论文处理标记
             setattr(paper, 'saved_to_database', False)
             setattr(paper, 'full_paper_analyzed', False)
+            setattr(paper, 'translation_success', True)  # 默认翻译成功
+            setattr(paper, 'summarization_success', True)  # 默认总结成功
             
             # 第一步：检查论文是否已在数据库中
             existing_paper = await self.check_paper_in_database(paper.arxiv_id)
@@ -693,19 +770,24 @@ class PaperGatherTask(Task):
                                 logger.info(f"论文总结完成: {paper.title[:50]}...")
                                 
                                 # 第五步：翻译结构化字段
-                                await self.translate_paper_fields(paper)
+                                translation_success = await self.translate_paper_fields(paper)
+                                setattr(paper, 'translation_success', translation_success)
                                 
-                                # 输出翻译后的中文内容（调试信息）
-                                logger.debug(f"论文关键词: {getattr(paper, 'keywords', '无')}")
-                                logger.debug(f"论文研究背景: {getattr(paper, 'research_background', '无') or '无'}")
-                                logger.debug(f"论文研究目标: {getattr(paper, 'research_objectives', '无') or '无'}")
-                                logger.debug(f"论文方法: {getattr(paper, 'methods', '无') or '无'}")
-                                logger.debug(f"论文主要发现: {getattr(paper, 'key_findings', '无') or '无'}")
-                                logger.debug(f"论文结论: {getattr(paper, 'conclusions', '无') or '无'}")
-                                logger.debug(f"论文局限性: {getattr(paper, 'limitations', '无') or '无'}")
-                                logger.debug(f"论文未来工作: {getattr(paper, 'future_work', '无') or '无'}")
+                                if translation_success:
+                                    # 输出翻译后的中文内容（调试信息）
+                                    logger.debug(f"论文关键词: {getattr(paper, 'keywords', '无')}")
+                                    logger.debug(f"论文研究背景: {getattr(paper, 'research_background', '无') or '无'}")
+                                    logger.debug(f"论文研究目标: {getattr(paper, 'research_objectives', '无') or '无'}")
+                                    logger.debug(f"论文方法: {getattr(paper, 'methods', '无') or '无'}")
+                                    logger.debug(f"论文主要发现: {getattr(paper, 'key_findings', '无') or '无'}")
+                                    logger.debug(f"论文结论: {getattr(paper, 'conclusions', '无') or '无'}")
+                                    logger.debug(f"论文局限性: {getattr(paper, 'limitations', '无') or '无'}")
+                                    logger.debug(f"论文未来工作: {getattr(paper, 'future_work', '无') or '无'}")
+                                else:
+                                    logger.warning(f"论文翻译失败: {paper.title[:50]}...")
                             else:
                                 logger.warning(f"论文总结失败: {paper.title[:50]}...")
+                                setattr(paper, 'summarization_success', False)
                         else:
                             if not self.config.enable_paper_summarization:
                                 logger.debug(f"论文总结功能已禁用，跳过总结: {paper.title[:50]}...")
