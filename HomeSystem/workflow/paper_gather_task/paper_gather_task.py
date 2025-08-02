@@ -143,17 +143,18 @@ class PaperGatherTaskConfig:
 class PaperGatherTask(Task):
     """论文收集任务 - 通过ArXiv搜索论文并使用LLM进行分析"""
     
-    def __init__(self, config: Optional[PaperGatherTaskConfig] = None):
+    def __init__(self, config: Optional[PaperGatherTaskConfig] = None, delay_first_run: bool = True):
         """
         初始化论文收集任务
         
         Args:
             config: 论文收集任务配置，如果为None则使用默认配置
+            delay_first_run: 是否延迟首次运行，默认为True（用于定时任务）
         """
         # 使用配置或默认配置
         self.config = config or PaperGatherTaskConfig()
         
-        super().__init__("paper_gather", self.config.interval_seconds)
+        super().__init__("paper_gather", self.config.interval_seconds, delay_first_run=delay_first_run)
         
         # 初始化工具
         self.arxiv_tool = ArxivTool()
@@ -415,16 +416,12 @@ class PaperGatherTask(Task):
             success = self.db_ops.create(paper_model)
             if success:
                 logger.info(f"论文成功保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
-                # 标记论文已保存到数据库
-                paper.saved_to_database = True
                 return True
             else:
                 logger.error(f"论文保存到数据库失败: {paper.arxiv_id}")
-                paper.saved_to_database = False
                 return False
         except Exception as e:
             logger.error(f"保存论文到数据库时发生异常: {paper.arxiv_id}, 错误: {e}")
-            paper.saved_to_database = False
             return False
         
     async def search_papers(self, query: str, num_results: int = 10) -> ArxivResult:
@@ -497,23 +494,31 @@ class PaperGatherTask(Task):
         try:
             logger.info(f"开始完整论文分析: {paper.title[:50]}...")
             
-            # 下载PDF
-            logger.debug("下载PDF中...")
-            paper.downloadPdf()
+            # 检查是否已有OCR结果
+            ocr_result = getattr(paper, 'ocr_result', None)
             
-            # 执行OCR
-            logger.debug("执行OCR识别...")
-            ocr_result, status_info = paper.performOCR(max_pages=25)
-
-            paper.ocr_result = ocr_result
-
             if not ocr_result or len(ocr_result.strip()) < 500:
-                logger.warning(f"OCR结果过短或为空，跳过完整分析: {len(ocr_result) if ocr_result else 0} 字符")
-                return None
-            
-            logger.info(f"OCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
-            if status_info['is_oversized']:
-                logger.info("检测到超长文档，可能是毕业论文或书籍")
+                # 下载PDF
+                logger.debug("下载PDF中...")
+                paper.downloadPdf()
+                
+                # 执行OCR
+                logger.debug("执行OCR识别...")
+                ocr_result, status_info = paper.performOCR(max_pages=25)
+                
+                # 确保OCR结果保存到paper对象
+                paper.ocr_result = ocr_result
+                paper.ocr_status_info = status_info
+                
+                if not ocr_result or len(ocr_result.strip()) < 500:
+                    logger.warning(f"OCR结果过短或为空，跳过完整分析: {len(ocr_result) if ocr_result else 0} 字符")
+                    return None
+                
+                logger.info(f"OCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+                if status_info['is_oversized']:
+                    logger.info("检测到超长文档，可能是毕业论文或书籍")
+            else:
+                logger.debug(f"使用现有OCR结果进行完整论文分析: {len(ocr_result)} 字符")
             
             # 使用FullPaperAnalysisLLM进行分析
             logger.debug("开始LLM分析完整论文...")
@@ -548,23 +553,15 @@ class PaperGatherTask(Task):
         try:
             logger.info(f"开始论文总结: {paper.title[:50]}...")
             
-            # 检查是否已有OCR结果
-            ocr_result = paper.ocr_result if hasattr(paper, 'ocr_result') and paper.ocr_result else None
+            # 优先使用现有的OCR结果
+            ocr_result = getattr(paper, 'ocr_result', None)
             
-            if ocr_result and len(ocr_result.strip()) >= 500:
-                # 使用现有的OCR结果
-                logger.debug(f"使用现有OCR结果进行论文总结: {len(ocr_result)} 字符")
-            else:
-                # 如果没有OCR结果或结果过短，需要重新下载PDF并执行OCR
-                logger.debug("重新下载PDF并执行OCR...")
-                paper.downloadPdf()
-                ocr_result, status_info = paper.performOCR(max_pages=25)
-                
-                if not ocr_result or len(ocr_result.strip()) < 500:
-                    logger.warning(f"OCR结果过短或为空，无法进行论文总结: {len(ocr_result) if ocr_result else 0} 字符")
-                    return None
-                
-                logger.info(f"OCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+            if not ocr_result or len(ocr_result.strip()) < 500:
+                logger.warning(f"无有效OCR结果可用于论文总结，需要先执行完整论文分析")
+                logger.warning(f"OCR结果长度: {len(ocr_result) if ocr_result else 0} 字符")
+                return None
+            
+            logger.debug(f"使用现有OCR结果进行论文总结: {len(ocr_result)} 字符")
             
             # 使用论文分析智能体进行总结
             logger.debug("开始使用论文分析智能体进行总结...")
@@ -637,8 +634,8 @@ class PaperGatherTask(Task):
             logger.info(f"开始处理论文: {paper.arxiv_id} - {paper.title[:50]}...")
             
             # 初始化论文处理标记
-            paper.saved_to_database = False
-            paper.full_paper_analyzed = False
+            setattr(paper, 'saved_to_database', False)
+            setattr(paper, 'full_paper_analyzed', False)
             
             # 第一步：检查论文是否已在数据库中
             existing_paper = await self.check_paper_in_database(paper.arxiv_id)
@@ -648,7 +645,7 @@ class PaperGatherTask(Task):
                 # 从数据库中的数据创建ArxivData对象，保持一致性
                 paper.final_is_relevant = existing_paper.processing_status == 'completed'
                 paper.final_relevance_score = existing_paper.metadata.get('final_relevance_score', 0.0) if existing_paper.metadata else 0.0
-                paper.saved_to_database = True  # 已在数据库中的论文标记为已保存
+                setattr(paper, 'saved_to_database', True)  # 已在数据库中的论文标记为已保存
                 processed_papers.append(paper)
                 continue
             
@@ -663,10 +660,11 @@ class PaperGatherTask(Task):
             paper.final_is_relevant = abstract_analysis.is_relevant
             paper.final_relevance_score = abstract_analysis.relevance_score
             
-            # 第二步：如果摘要相关性足够高，进行完整论文分析
+            # 第三步：如果摘要相关性足够高，进行完整论文分析
             if abstract_analysis.is_relevant and abstract_analysis.relevance_score >= self.config.relevance_threshold:
                 logger.info(f"摘要相关性高 ({abstract_analysis.relevance_score:.2f})，开始完整论文分析: {paper.title[:50]}...")
                 
+                # 执行完整论文分析（包含PDF下载和OCR）
                 full_analysis = await self.analyze_full_paper(paper)
                 
                 if full_analysis:
@@ -680,7 +678,8 @@ class PaperGatherTask(Task):
                     if full_analysis.is_relevant:
                         logger.info(f"完整论文分析确认相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
                         
-                        # 如果启用了论文总结且相关性评分足够高，则进行论文总结
+                        # 第四步：如果启用了论文总结且相关性评分足够高，则进行论文总结
+                        # 此时OCR结果已经在analyze_full_paper中准备好，不会重复执行
                         if (self.config.enable_paper_summarization and 
                             self.paper_analysis_agent and 
                             full_analysis.relevance_score >= self.config.summarization_threshold):
@@ -693,18 +692,18 @@ class PaperGatherTask(Task):
                                 paper.paper_summary = summary_result
                                 logger.info(f"论文总结完成: {paper.title[:50]}...")
                                 
-                                # 翻译结构化字段
+                                # 第五步：翻译结构化字段
                                 await self.translate_paper_fields(paper)
                                 
-                                # 输出翻译后的中文内容
-                                logger.debug(f"论文关键词: {paper.keywords}")
-                                logger.debug(f"论文研究背景: {paper.research_background if paper.research_background else '无'}")
-                                logger.debug(f"论文研究目标: {paper.research_objectives if paper.research_objectives else '无'}")
-                                logger.debug(f"论文方法: {paper.methods if paper.methods else '无'}")
-                                logger.debug(f"论文主要发现: {paper.key_findings if paper.key_findings else '无'}")
-                                logger.debug(f"论文结论: {paper.conclusions if paper.conclusions else '无'}")
-                                logger.debug(f"论文局限性: {paper.limitations if paper.limitations else '无'}")
-                                logger.debug(f"论文未来工作: {paper.future_work if paper.future_work else '无'}")
+                                # 输出翻译后的中文内容（调试信息）
+                                logger.debug(f"论文关键词: {getattr(paper, 'keywords', '无')}")
+                                logger.debug(f"论文研究背景: {getattr(paper, 'research_background', '无') or '无'}")
+                                logger.debug(f"论文研究目标: {getattr(paper, 'research_objectives', '无') or '无'}")
+                                logger.debug(f"论文方法: {getattr(paper, 'methods', '无') or '无'}")
+                                logger.debug(f"论文主要发现: {getattr(paper, 'key_findings', '无') or '无'}")
+                                logger.debug(f"论文结论: {getattr(paper, 'conclusions', '无') or '无'}")
+                                logger.debug(f"论文局限性: {getattr(paper, 'limitations', '无') or '无'}")
+                                logger.debug(f"论文未来工作: {getattr(paper, 'future_work', '无') or '无'}")
                             else:
                                 logger.warning(f"论文总结失败: {paper.title[:50]}...")
                         else:
@@ -719,17 +718,21 @@ class PaperGatherTask(Task):
             else:
                 logger.debug(f"摘要相关性低 ({abstract_analysis.relevance_score:.2f})，跳过完整分析: {paper.title[:50]}...")
             
-            # 第三步：如果论文符合要求（相关性达标），保存到数据库
+            # 第六步：如果论文符合要求（相关性达标），保存到数据库
             if paper.final_is_relevant and paper.final_relevance_score >= self.config.relevance_threshold:
                 logger.info(f"论文符合要求，保存到数据库: {paper.arxiv_id} (评分: {paper.final_relevance_score:.2f})")
                 save_success = await self.save_paper_to_database(paper)
-                if not save_success:
+                if save_success:
+                    # 设置保存标记，用于后续统计
+                    setattr(paper, 'saved_to_database', True)
+                else:
                     logger.warning(f"论文保存到数据库失败，但继续处理: {paper.arxiv_id}")
+                    setattr(paper, 'saved_to_database', False)
             else:
                 logger.debug(f"论文不符合要求，不保存到数据库: {paper.arxiv_id} (相关性: {paper.final_is_relevant}, 评分: {paper.final_relevance_score:.2f})")
+                setattr(paper, 'saved_to_database', False)
             
-
-            # 处理完毕释放内存
+            # 第七步：处理完毕释放内存
             # 清理PDF和OCR结果，释放内存
             if hasattr(paper, 'clearPdf'):
                 paper.clearPdf()
@@ -780,7 +783,7 @@ class PaperGatherTask(Task):
             
             # 统计保存到数据库的论文数量
             saved_papers = [p for p in processed_papers 
-                          if hasattr(p, 'saved_to_database') and p.saved_to_database]
+                          if hasattr(p, 'saved_to_database') and getattr(p, 'saved_to_database', False)]
             total_saved_papers = len(saved_papers)
             
             # 添加查询标识

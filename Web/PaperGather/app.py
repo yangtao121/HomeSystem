@@ -164,6 +164,40 @@ def format_relevance_score(score):
     except (ValueError, TypeError):
         return "无效分数"
 
+@app.template_filter('format_seconds_to_time')
+def format_seconds_to_time(seconds):
+    """将秒数格式化为可读时间"""
+    if not seconds:
+        return "0秒"
+    
+    try:
+        seconds = int(float(seconds))
+        if seconds < 60:
+            return f"{seconds}秒"
+        elif seconds < 3600:  # 小于1小时
+            minutes = seconds // 60
+            remaining_seconds = seconds % 60
+            if remaining_seconds > 0:
+                return f"{minutes}分{remaining_seconds}秒"
+            else:
+                return f"{minutes}分钟"
+        elif seconds < 86400:  # 小于1天
+            hours = seconds // 3600
+            remaining_minutes = (seconds % 3600) // 60
+            if remaining_minutes > 0:
+                return f"{hours}小时{remaining_minutes}分钟"
+            else:
+                return f"{hours}小时"
+        else:  # 大于等于1天
+            days = seconds // 86400
+            remaining_hours = (seconds % 86400) // 3600
+            if remaining_hours > 0:
+                return f"{days}天{remaining_hours}小时"
+            else:
+                return f"{days}天"
+    except (ValueError, TypeError):
+        return "未知"
+
 # 错误处理
 @app.errorhandler(404)
 def not_found(error):

@@ -113,7 +113,10 @@ def paper_detail(arxiv_id):
         if not paper:
             return render_template('error.html', error="论文不存在"), 404
         
-        return render_template('paper_detail.html', paper=paper)
+        # 获取导航信息
+        navigation = paper_service.get_paper_navigation(arxiv_id)
+        
+        return render_template('paper_detail.html', paper=paper, navigation=navigation)
     
     except Exception as e:
         logger.error(f"论文详情加载失败: {e}")

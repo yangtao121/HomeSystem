@@ -229,3 +229,23 @@ def scheduled_tasks():
     except Exception as e:
         logger.error(f"获取定时任务失败: {e}")
         return render_template('error.html', error="获取定时任务失败"), 500
+
+
+@task_bp.route('/trigger_scheduled/<task_id>', methods=['POST'])
+def trigger_scheduled_task(task_id):
+    """手动触发定时任务"""
+    try:
+        success, error_msg = paper_gather_service.trigger_scheduled_task_manual(task_id)
+        
+        return jsonify({
+            'success': success,
+            'error': error_msg,
+            'message': '任务已手动触发，将在几秒内开始执行' if success else None
+        })
+    
+    except Exception as e:
+        logger.error(f"手动触发定时任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'手动触发定时任务失败: {str(e)}'
+        }), 500

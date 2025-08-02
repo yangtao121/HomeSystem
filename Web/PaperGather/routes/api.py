@@ -707,6 +707,43 @@ def resume_scheduled_task(task_id):
         }), 500
 
 
+@api_bp.route('/scheduled_tasks/<task_id>/sync_status', methods=['POST'])
+def sync_scheduled_task_status(task_id):
+    """同步定时任务状态"""
+    try:
+        # 先验证状态一致性
+        validation_success, validation_error = paper_gather_service._validate_task_status_consistency(task_id)
+        
+        if validation_success:
+            return jsonify({
+                'success': True,
+                'message': '任务状态一致，无需同步'
+            })
+        
+        # 执行状态同步
+        sync_success, sync_error = paper_gather_service._sync_task_status(task_id)
+        
+        if sync_success:
+            return jsonify({
+                'success': True,
+                'message': '任务状态已同步',
+                'previous_issue': validation_error
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f"状态同步失败: {sync_error}",
+                'validation_error': validation_error
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"同步任务状态失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @api_bp.route('/scheduled_tasks/<task_id>/config', methods=['PUT'])
 def update_scheduled_task_config(task_id):
     """更新定时任务配置"""

@@ -3,12 +3,48 @@
 {% block title %}{{ paper.title }} - ArXiv论文详情{% endblock %}
 
 {% block content %}
-<!-- 返回按钮 -->
+<!-- 导航按钮组 -->
 <div class="row mb-3">
     <div class="col">
-        <a href="{{ url_for('papers') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> 返回论文列表
-        </a>
+        <div class="d-flex justify-content-between align-items-center">
+            <!-- 左侧：返回按钮 -->
+            <a href="{{ url_for('papers') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回论文列表
+            </a>
+            
+            <!-- 中间：论文导航按钮 -->
+            <div class="btn-group" role="group" aria-label="论文导航">
+                {% if navigation.previous %}
+                <a href="{{ url_for('paper_detail', arxiv_id=navigation.previous.arxiv_id) }}" 
+                   class="btn btn-outline-primary" id="prev-paper-btn"
+                   title="{{ navigation.previous.title | truncate_text(50) }}">
+                    <i class="bi bi-chevron-left"></i> 上一篇
+                </a>
+                {% else %}
+                <button class="btn btn-outline-secondary" disabled title="已是第一篇论文">
+                    <i class="bi bi-chevron-left"></i> 上一篇
+                </button>
+                {% endif %}
+                
+                {% if navigation.next %}
+                <a href="{{ url_for('paper_detail', arxiv_id=navigation.next.arxiv_id) }}" 
+                   class="btn btn-outline-primary" id="next-paper-btn"
+                   title="{{ navigation.next.title | truncate_text(50) }}">
+                    下一篇 <i class="bi bi-chevron-right"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-outline-secondary" disabled title="已是最后一篇论文">
+                    下一篇 <i class="bi bi-chevron-right"></i>
+                </button>
+                {% endif %}
+            </div>
+            
+            <!-- 右侧：快捷键提示 -->
+            <small class="text-muted d-none d-md-block">
+                <i class="bi bi-keyboard"></i> 
+                使用 ← → 键导航
+            </small>
+        </div>
     </div>
 </div>
 
@@ -662,6 +698,11 @@
     
     // 键盘快捷键
     document.addEventListener('keydown', function(e) {
+        // 如果正在编辑相关度模态框，不处理导航快捷键
+        if (document.getElementById('relevanceEditModal').classList.contains('show')) {
+            return;
+        }
+        
         // ESC 键返回列表
         if (e.key === 'Escape') {
             window.location.href = '{{ url_for("papers") }}';
@@ -671,6 +712,26 @@
         if (e.key === 'p' || e.key === 'P') {
             {% if paper.pdf_url %}
             window.open('{{ paper.pdf_url }}', '_blank');
+            {% endif %}
+        }
+        
+        // 左箭头键：上一篇论文
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            {% if navigation.previous %}
+            window.location.href = '{{ url_for("paper_detail", arxiv_id=navigation.previous.arxiv_id) }}';
+            {% else %}
+            showAlert('已是第一篇论文', 'info');
+            {% endif %}
+        }
+        
+        // 右箭头键：下一篇论文
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            {% if navigation.next %}
+            window.location.href = '{{ url_for("paper_detail", arxiv_id=navigation.next.arxiv_id) }}';
+            {% else %}
+            showAlert('已是最后一篇论文', 'info');
             {% endif %}
         }
     });

@@ -7,14 +7,13 @@ SiYuan 笔记集成使用示例
 
 import os
 import sys
-import asyncio
 from pathlib import Path
 
 # 添加项目路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-async def example_basic_connection():
+def example_basic_connection():
     """基础连接测试示例"""
     print("📝 基础连接测试示例")
     print("-" * 50)
@@ -28,14 +27,20 @@ async def example_basic_connection():
         
         # 测试连接
         print("🔄 测试连接...")
-        is_connected = await client.test_connection()
+        connection_result = client.test_connection()
+        is_connected = connection_result.get('success', False)
         print(f"连接测试: {'✅ 成功' if is_connected else '❌ 失败'}")
         
         if is_connected:
+            print(f"响应时间: {connection_result.get('response_time', 0):.2f}ms")
+            print(f"数据块数量: {connection_result.get('block_count', 0)}")
+            
             # 获取健康状态
-            health = await client.health_check()
-            print(f"健康状态: {'✅ 正常' if health.is_healthy else '❌ 异常'}")
-            print(f"响应时间: {health.response_time:.2f}ms")
+            health = client.health_check()
+            print(f"健康状态: {'✅ 正常' if health.get('is_healthy', False) else '❌ 异常'}")
+            print(f"健康检查响应时间: {health.get('response_time', 0):.2f}ms")
+        else:
+            print(f"错误信息: {connection_result.get('error_message', 'Unknown error')}")
             
         return is_connected
         
@@ -43,7 +48,7 @@ async def example_basic_connection():
         print(f"❌ 连接测试失败: {e}")
         return False
 
-async def example_notebook_operations():
+def example_notebook_operations():
     """笔记本操作示例"""
     print("\n📚 笔记本操作示例")
     print("-" * 50)
@@ -55,7 +60,7 @@ async def example_notebook_operations():
         
         # 获取所有笔记本
         print("🔍 获取笔记本列表...")
-        notebooks = await client.get_notebooks()
+        notebooks = client.get_notebooks()
         
         if notebooks:
             print(f"✅ 找到 {len(notebooks)} 个笔记本:")
@@ -74,7 +79,7 @@ async def example_notebook_operations():
         print(f"❌ 笔记本操作失败: {e}")
         return None
 
-async def example_note_crud_operations(notebook_id: str):
+def example_note_crud_operations(notebook_id: str):
     """笔记 CRUD 操作示例"""
     print("\n📄 笔记 CRUD 操作示例")
     print("-" * 50)
@@ -111,7 +116,7 @@ async def example_note_crud_operations(notebook_id: str):
 *由 HomeSystem 自动生成*
 """
         
-        created_note = await client.create_note(
+        created_note = client.create_note(
             notebook_id=notebook_id,
             title=test_title,
             content=test_content,
@@ -124,7 +129,7 @@ async def example_note_crud_operations(notebook_id: str):
         
         # 获取笔记详情
         print("\n🔍 获取笔记详情...")
-        note_detail = await client.get_note(created_note.note_id)
+        note_detail = client.get_note(created_note.note_id)
         print(f"✅ 获取成功: {note_detail.title}")
         print(f"   内容长度: {len(note_detail.content or '')} 字符")
         print(f"   创建时间: {note_detail.created_time}")
@@ -132,7 +137,7 @@ async def example_note_crud_operations(notebook_id: str):
         # 更新笔记
         print("\n✏️  更新笔记内容...")
         updated_content = test_content + "\n\n## 更新测试\n\n笔记已成功更新！"
-        updated_note = await client.update_note(
+        updated_note = client.update_note(
             note_id=created_note.note_id,
             content=updated_content,
             title=f"{test_title} - 已更新"
@@ -146,7 +151,7 @@ async def example_note_crud_operations(notebook_id: str):
         print(f"❌ 笔记 CRUD 操作失败: {e}")
         return None
 
-async def example_search_operations():
+def example_search_operations():
     """搜索操作示例"""
     print("\n🔍 搜索操作示例")
     print("-" * 50)
@@ -162,7 +167,7 @@ async def example_search_operations():
         for query in search_queries:
             print(f"🔍 搜索关键词: '{query}'...")
             
-            search_result = await client.search_notes(
+            search_result = client.search_notes(
                 query=query,
                 limit=5
             )
@@ -184,7 +189,7 @@ async def example_search_operations():
         print(f"❌ 搜索操作失败: {e}")
         return False
 
-async def example_sql_query_operations():
+def example_sql_query_operations():
     """SQL 查询操作示例"""
     print("\n🗄️  SQL 查询操作示例")
     print("-" * 50)
@@ -204,7 +209,7 @@ async def example_sql_query_operations():
         for name, sql in queries:
             print(f"📊 {name}查询...")
             try:
-                result = await client.execute_sql(sql)
+                result = client.execute_sql(sql)
                 print(f"✅ 查询成功，返回 {len(result)} 条记录")
                 
                 # 显示部分结果
@@ -228,7 +233,7 @@ async def example_sql_query_operations():
         print(f"❌ SQL 查询操作失败: {e}")
         return False
 
-async def example_export_operations(note_id: str):
+def example_export_operations(note_id: str):
     """导出操作示例"""
     print("\n📤 导出操作示例")
     print("-" * 50)
@@ -241,7 +246,7 @@ async def example_export_operations(note_id: str):
         # 导出笔记为 Markdown
         print(f"📄 导出笔记 (ID: {note_id[:8]}...)...")
         
-        exported_content = await client.export_note(note_id, format='md')
+        exported_content = client.export_note(note_id, format='md')
         
         if exported_content:
             print(f"✅ 导出成功，内容长度: {len(exported_content)} 字符")
@@ -264,7 +269,7 @@ async def example_export_operations(note_id: str):
         print(f"❌ 导出操作失败: {e}")
         return False
 
-async def example_sync_operations():
+def example_sync_operations():
     """同步操作示例"""
     print("\n🔄 同步操作示例")
     print("-" * 50)
@@ -274,31 +279,30 @@ async def example_sync_operations():
         
         client = SiYuanClient.from_environment()
         
-        # 配置同步参数
-        sync_config = {
-            'type': 'incremental',  # 增量同步
-            'notebook_ids': [],     # 空表示所有笔记本
-            'last_sync_time': None  # None 表示获取所有数据
-        }
-        
         print("🔄 开始同步数据...")
-        sync_result = await client.sync_data(sync_config)
+        sync_result = client.sync_data(
+            notebook_ids=None,  # None 表示所有笔记本
+            sync_type='incremental',  # 增量同步
+            last_sync_time=None  # None 表示获取所有数据
+        )
         
-        print(f"同步状态: {sync_result.status.value}")
-        print(f"处理项目: {sync_result.items_processed}")
-        print(f"创建项目: {sync_result.items_created}")
-        print(f"失败项目: {sync_result.items_failed}")
-        print(f"耗时: {sync_result.duration_seconds:.2f}秒")
-        print(f"成功率: {sync_result.success_rate:.1%}")
+        print(f"同步状态: {sync_result.get('status', 'unknown')}")
+        print(f"处理项目: {sync_result.get('items_processed', 0)}")
+        print(f"创建项目: {sync_result.get('items_created', 0)}")
+        print(f"失败项目: {sync_result.get('items_failed', 0)}")
         
         # 显示同步的笔记
-        notes = sync_result.details.get('notes', [])
+        details = sync_result.get('details', {})
+        notes = details.get('notes', [])
         if notes:
             print(f"\n📝 同步的笔记 (显示前3篇):")
-            for i, note in enumerate(notes[:3], 1):
-                print(f"   {i}. {note.title[:40]}...")
-                print(f"      笔记本: {note.notebook_name or '未知'}")
-                print(f"      标签: {', '.join(note.tags) if note.tags else '无'}")
+            for i, note_dict in enumerate(notes[:3], 1):
+                title = note_dict.get('title', '无标题')[:40]
+                notebook_name = note_dict.get('notebook_name', '未知')
+                tags = note_dict.get('tags', [])
+                print(f"   {i}. {title}...")
+                print(f"      笔记本: {notebook_name}")
+                print(f"      标签: {', '.join(tags) if tags else '无'}")
         
         return True
         
@@ -306,7 +310,7 @@ async def example_sync_operations():
         print(f"❌ 同步操作失败: {e}")
         return False
 
-async def example_advanced_usage():
+def example_advanced_usage():
     """高级用法示例"""
     print("\n🚀 高级用法示例")
     print("-" * 50)
@@ -355,7 +359,7 @@ async def example_advanced_usage():
         for query_info in complex_queries:
             print(f"📊 执行查询: {query_info['name']}")
             try:
-                results = await client.execute_sql(query_info['sql'])
+                results = client.execute_sql(query_info['sql'])
                 print(f"✅ 找到 {len(results)} 条记录")
                 
                 for i, row in enumerate(results[:2], 1):
@@ -369,7 +373,7 @@ async def example_advanced_usage():
         print("🔄 批量操作示例...")
         
         # 获取所有笔记本
-        notebooks = await client.get_notebooks()
+        notebooks = client.get_notebooks()
         if notebooks:
             print(f"✅ 获取到 {len(notebooks)} 个笔记本")
             
@@ -379,7 +383,7 @@ async def example_advanced_usage():
                 notebook_name = notebook['name']
                 
                 count_sql = f"SELECT COUNT(*) as count FROM blocks WHERE box = '{notebook_id}' AND type = 'd'"
-                count_result = await client.execute_sql(count_sql)
+                count_result = client.execute_sql(count_sql)
                 
                 if count_result:
                     note_count = count_result[0].get('count', 0)
@@ -391,7 +395,7 @@ async def example_advanced_usage():
         print(f"❌ 高级用法示例失败: {e}")
         return False
 
-async def main():
+def main():
     """主函数"""
     print("🎯 SiYuan 笔记集成使用示例")
     print("=" * 60)
@@ -418,13 +422,13 @@ async def main():
         print("⚠️  python-dotenv 未安装，使用系统环境变量")
     
     # 基础连接测试
-    is_connected = await example_basic_connection()
+    is_connected = example_basic_connection()
     if not is_connected:
         print("❌ 连接失败，无法继续后续示例")
         return
     
     # 获取笔记本信息
-    notebook = await example_notebook_operations()
+    notebook = example_notebook_operations()
     
     # 运行示例
     examples = [
@@ -446,10 +450,10 @@ async def main():
             
             # 特殊处理 CRUD 操作的返回值
             if name == "笔记 CRUD 操作":
-                created_note_id = await func(*args)
+                created_note_id = func(*args)
                 success = created_note_id is not None
             else:
-                success = await func(*args)
+                success = func(*args)
             
             if not success:
                 print(f"⚠️  {name} 示例未完全成功")
@@ -463,7 +467,7 @@ async def main():
     if created_note_id:
         try:
             print(f"{'='*20} 导出操作 {'='*20}")
-            await example_export_operations(created_note_id)
+            example_export_operations(created_note_id)
         except Exception as e:
             print(f"❌ 导出操作示例执行失败: {e}")
     
@@ -475,5 +479,5 @@ async def main():
     print("- 运行前请备份重要数据")
 
 if __name__ == "__main__":
-    # 运行异步主函数
-    asyncio.run(main())
+    # 运行主函数
+    main()

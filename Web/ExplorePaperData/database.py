@@ -898,3 +898,53 @@ class PaperService:
                 redis_client.delete(cache_key)
             except Exception as e:
                 logger.warning(f"清除论文详情缓存失败: {e}")
+    
+    def get_paper_navigation(self, arxiv_id: str) -> Dict[str, Optional[Dict]]:
+        """获取论文导航信息（上一篇和下一篇）"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 获取当前论文的创建时间
+                cursor.execute("""
+                    SELECT created_at FROM arxiv_papers WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                current_paper = cursor.fetchone()
+                if not current_paper:
+                    return {'previous': None, 'next': None}
+                
+                current_time = current_paper['created_at']
+                
+                # 获取上一篇论文（创建时间较早的最近一篇）
+                cursor.execute("""
+                    SELECT arxiv_id, title, created_at
+                    FROM arxiv_papers 
+                    WHERE created_at < %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (current_time,))
+                
+                previous_paper = cursor.fetchone()
+                previous_paper_dict = dict(previous_paper) if previous_paper else None
+                
+                # 获取下一篇论文（创建时间较晚的最近一篇）
+                cursor.execute("""
+                    SELECT arxiv_id, title, created_at
+                    FROM arxiv_papers 
+                    WHERE created_at > %s
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                """, (current_time,))
+                
+                next_paper = cursor.fetchone()
+                next_paper_dict = dict(next_paper) if next_paper else None
+                
+                return {
+                    'previous': previous_paper_dict,
+                    'next': next_paper_dict
+                }
+                
+        except Exception as e:
+            logger.error(f"获取论文导航信息失败: {e}")
+            return {'previous': None, 'next': None}

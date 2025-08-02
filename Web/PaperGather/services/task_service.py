@@ -758,8 +758,8 @@ class PaperGatherService:
             
             config = PaperGatherTaskConfig(**filtered_config)
             
-            # 创建并执行任务
-            paper_task = PaperGatherTask(config=config)
+            # 创建并执行任务，即时任务不延迟首次运行
+            paper_task = PaperGatherTask(config=config, delay_first_run=False)
             
             # 更新进度
             with self.lock:
@@ -917,8 +917,8 @@ class PaperGatherService:
             
             config = PaperGatherTaskConfig(**filtered_config)
             
-            # 创建任务
-            paper_task = PaperGatherTask(config=config)
+            # 创建任务，启用延迟首次运行
+            paper_task = PaperGatherTask(config=config, delay_first_run=True)
             
             with self.lock:
                 self.scheduled_tasks[task_id] = paper_task
@@ -1034,6 +1034,18 @@ class PaperGatherService:
         with self.lock:
             # 遍历持久化任务数据（这是权威数据源）
             for task_id, persistent_data in self.persistent_scheduled_tasks.items():
+                # 获取运行时任务信息（如果存在）
+                runtime_task = self.scheduled_tasks.get(task_id)
+                next_execution_at = None
+                next_run_in_seconds = 0
+                
+                if runtime_task:
+                    # 从运行时任务获取精确的下次执行时间
+                    next_run_time = runtime_task.get_next_run_time()
+                    if next_run_time:
+                        next_execution_at = next_run_time.isoformat()
+                        next_run_in_seconds = max(0, (next_run_time - datetime.now()).total_seconds())
+                
                 task_info = {
                     'task_id': task_id,
                     'name': persistent_data.get('config', {}).get('task_name', 'paper_gather_scheduled'),
@@ -1044,9 +1056,12 @@ class PaperGatherService:
                     'updated_at': persistent_data.get('updated_at'),
                     'execution_count': persistent_data.get('execution_count', 0),
                     'last_executed_at': persistent_data.get('last_executed_at'),
-                    'next_execution_at': persistent_data.get('next_execution_at'),
+                    'next_execution_at': next_execution_at or persistent_data.get('next_execution_at'),
+                    'next_run_in_seconds': next_run_in_seconds,
                     'error_message': persistent_data.get('error_message'),
-                    'is_running': task_id in self.scheduled_tasks  # 运行时状态
+                    'is_running': task_id in self.scheduled_tasks,  # 运行时状态
+                    'task_is_executing': runtime_task.is_running if runtime_task else False,  # 任务是否正在执行
+                    'manual_trigger_requested': runtime_task.manual_trigger_requested if runtime_task else False
                 }
                 tasks.append(task_info)
             
@@ -1386,8 +1401,19 @@ class PaperGatherService:
             if not task_data:
                 return False, "任务不存在"
             
-            if task_data.get("status") != "paused":
-                return False, f"任务状态不是暂停状态，当前状态: {task_data.get('status')}"
+            # 先验证和同步状态
+            validation_success, validation_error = self._validate_task_status_consistency(task_id)
+            if not validation_success:
+                logger.warning(f"任务状态不一致，尝试自动同步: {validation_error}")
+                sync_success, sync_error = self._sync_task_status(task_id)
+                if not sync_success:
+                    return False, f"状态同步失败: {sync_error}"
+                # 重新获取任务数据
+                task_data = self.data_manager.get_scheduled_task(task_id)
+            
+            current_status = task_data.get("status")
+            if current_status not in ["paused", "stopped"]:
+                return False, f"任务状态不是暂停或停止状态，当前状态: {current_status}"
             
             # 验证配置有效性
             config_dict = task_data.get("config", {})
@@ -1438,12 +1464,17 @@ class PaperGatherService:
             
             # 如果任务正在运行，先停止它
             if was_running:
-                self.pause_scheduled_task(task_id)
+                pause_success, pause_error = self.pause_scheduled_task(task_id)
+                if not pause_success:
+                    return False, f"暂停任务失败: {pause_error}"
             
-            # 更新持久化配置
+            # 更新持久化配置，状态应该保持当前的实际状态
+            # 如果刚刚暂停了任务，状态应该是 "paused"
+            current_status = "paused" if was_running else old_status
+            
             success = self.data_manager.update_scheduled_task(task_id, {
                 "config": new_config,
-                "status": old_status,  # 保持原状态
+                "status": current_status,  # 使用当前实际状态
                 "error_message": None
             })
             
@@ -1454,14 +1485,18 @@ class PaperGatherService:
             with self.lock:
                 if task_id in self.persistent_scheduled_tasks:
                     self.persistent_scheduled_tasks[task_id]["config"] = new_config
+                    self.persistent_scheduled_tasks[task_id]["status"] = current_status
                     self.persistent_scheduled_tasks[task_id]["updated_at"] = datetime.now().isoformat()
             
             # 如果之前在运行，重新启动
             if was_running:
+                logger.info(f"任务之前在运行，尝试恢复任务: {task_id}")
                 resume_success, resume_error = self.resume_scheduled_task(task_id)
                 if not resume_success:
                     logger.warning(f"配置更新成功但恢复任务失败: {resume_error}")
                     return True, f"配置已更新，但恢复任务失败: {resume_error}"
+                else:
+                    logger.info(f"任务恢复成功: {task_id}")
             
             logger.info(f"定时任务配置已更新: {task_id}")
             return True, None
@@ -1478,6 +1513,17 @@ class PaperGatherService:
             task_data = self.data_manager.get_scheduled_task(task_id)
             if not task_data:
                 return None
+            
+            # 验证状态一致性
+            validation_success, validation_error = self._validate_task_status_consistency(task_id)
+            if not validation_success:
+                logger.warning(f"获取任务详情时发现状态不一致: {validation_error}")
+                # 尝试自动同步
+                sync_success, sync_error = self._sync_task_status(task_id)
+                if sync_success:
+                    # 重新获取数据
+                    task_data = self.data_manager.get_scheduled_task(task_id)
+                    logger.info(f"任务 {task_id} 状态已自动同步")
             
             # 添加运行时状态信息
             with self.lock:
@@ -1511,6 +1557,115 @@ class PaperGatherService:
             
         except Exception as e:
             error_msg = f"永久删除定时任务失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def _validate_task_status_consistency(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """验证任务状态一致性"""
+        try:
+            # 获取持久化状态
+            persistent_data = self.data_manager.get_scheduled_task(task_id)
+            if not persistent_data:
+                return False, "任务不存在"
+            
+            persistent_status = persistent_data.get("status")
+            
+            # 检查运行时状态
+            with self.lock:
+                is_runtime_active = task_id in self.scheduled_tasks
+                memory_status = self.persistent_scheduled_tasks.get(task_id, {}).get("status")
+            
+            # 状态一致性检查
+            status_inconsistent = False
+            issues = []
+            
+            # 检查持久化状态与内存状态是否一致
+            if persistent_status != memory_status:
+                status_inconsistent = True
+                issues.append(f"持久化状态({persistent_status})与内存状态({memory_status})不一致")
+            
+            # 检查运行时状态与状态标记是否一致
+            if persistent_status == "running" and not is_runtime_active:
+                status_inconsistent = True
+                issues.append("状态标记为运行中但运行时任务不存在")
+            elif persistent_status != "running" and is_runtime_active:
+                status_inconsistent = True
+                issues.append("状态标记为非运行但运行时任务存在")
+            
+            if status_inconsistent:
+                error_msg = f"任务 {task_id} 状态不一致: {'; '.join(issues)}"
+                logger.warning(error_msg)
+                return False, error_msg
+            
+            return True, None
+            
+        except Exception as e:
+            error_msg = f"状态一致性验证失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def _sync_task_status(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """同步任务状态，以运行时状态为准"""
+        try:
+            with self.lock:
+                is_runtime_active = task_id in self.scheduled_tasks
+                
+                # 确定正确的状态
+                correct_status = "running" if is_runtime_active else "paused"
+                
+                # 更新持久化状态
+                success = self.data_manager.update_scheduled_task(task_id, {
+                    "status": correct_status
+                })
+                
+                if success:
+                    # 更新内存缓存
+                    if task_id in self.persistent_scheduled_tasks:
+                        self.persistent_scheduled_tasks[task_id]["status"] = correct_status
+                        self.persistent_scheduled_tasks[task_id]["updated_at"] = datetime.now().isoformat()
+                    
+                    logger.info(f"任务 {task_id} 状态已同步为: {correct_status}")
+                    return True, None
+                else:
+                    return False, "更新持久化状态失败"
+                    
+        except Exception as e:
+            error_msg = f"状态同步失败: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    def trigger_scheduled_task_manual(self, task_id: str) -> tuple[bool, Optional[str]]:
+        """手动触发定时任务执行"""
+        try:
+            with self.lock:
+                # 检查任务是否存在且正在运行
+                if task_id not in self.scheduled_tasks:
+                    return False, "定时任务不存在或未在运行"
+                
+                task = self.scheduled_tasks[task_id]
+                
+                # 检查任务状态
+                if not task.enabled:
+                    return False, "任务已被禁用"
+                
+                if task.is_running:
+                    return False, "任务正在运行中，请等待完成后再试"
+                
+                # 手动触发任务
+                success = task.trigger_manual_run()
+                if success:
+                    logger.info(f"成功手动触发定时任务: {task_id} ({task.name})")
+                    
+                    # 更新持久化数据中的执行统计
+                    if task_id in self.persistent_scheduled_tasks:
+                        self.persistent_scheduled_tasks[task_id]["last_manual_trigger"] = datetime.now().isoformat()
+                    
+                    return True, None
+                else:
+                    return False, "触发任务失败"
+            
+        except Exception as e:
+            error_msg = f"手动触发定时任务失败: {str(e)}"
             logger.error(error_msg)
             return False, error_msg
 

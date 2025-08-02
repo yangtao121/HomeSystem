@@ -81,7 +81,20 @@
                                     </span>
                                     {% if task.next_execution_at %}
                                     <br>
-                                    <small class="text-muted">下次: {{ task.next_execution_at | format_date }}</small>
+                                    <small class="text-muted">
+                                        下次: {{ task.next_execution_at | format_date }}
+                                    </small>
+                                    {% if task.next_run_in_seconds %}
+                                    <br>
+                                    <small class="badge badge-outline-primary">
+                                        {{ task.next_run_in_seconds | format_seconds_to_time }} 后执行
+                                    </small>
+                                    {% endif %}
+                                    {% elif task.is_running %}
+                                    <br>
+                                    <small class="text-info">
+                                        <i class="fas fa-clock"></i> 计算下次执行时间中...
+                                    </small>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -116,6 +129,20 @@
                                                 title="查看配置">
                                             <i class="fas fa-info-circle"></i>
                                         </button>
+                                        {% if task.status == 'running' and task.is_running %}
+                                        <button class="btn btn-success btn-sm" 
+                                                onclick="triggerScheduledTask('{{ task.task_id }}', '{{ task.name }}')" 
+                                                title="立即执行"
+                                                {% if task.task_is_executing %}disabled{% endif %}>
+                                            {% if task.task_is_executing %}
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            {% elif task.manual_trigger_requested %}
+                                            <i class="fas fa-clock"></i>
+                                            {% else %}
+                                            <i class="fas fa-play"></i>
+                                            {% endif %}
+                                        </button>
+                                        {% endif %}
                                         <button class="btn btn-outline-primary" 
                                                 onclick="editTaskConfig('{{ task.task_id }}')" 
                                                 title="编辑配置">
@@ -359,6 +386,17 @@ function showTaskConfig(taskId) {
 }
 
 // === 新增任务管理功能 ===
+
+// 手动触发定时任务
+function triggerScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要立即执行定时任务 "${taskName}" 吗？\n\n任务将在几秒内开始执行，但不会影响正常的定时调度。`)) {
+        return;
+    }
+    
+    performTaskAction(`/task/trigger_scheduled/${taskId}`, 'POST', 
+        `定时任务 "${taskName}" 已触发执行`, 
+        `触发任务 "${taskName}" 失败`);
+}
 
 // 暂停定时任务
 function pauseScheduledTask(taskId, taskName) {
