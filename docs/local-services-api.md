@@ -10,3 +10,12 @@ This document contains API credentials and endpoint information for local applic
 
 **API Documentation**: https://docs.siyuan-note.club/zh-Hans/reference/api/kernel/
 
+## Dify
+
+**Service URL**: http://192.168.5.54/v1
+
+**Authentication Token**: dataset-FeqIPq6YFN4vjTkAm3wA9bWn
+
+## ollama
+
+**Service URL**: http://192.168.5.217:11434

@@ -1,3 +1,4 @@
+
 # HomeSystem MCP 集成指南
 
 本指南介绍如何在 HomeSystem 中使用 MCP (Model Context Protocol) 功能，实现与外部工具和服务的标准化集成。

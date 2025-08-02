@@ -208,6 +208,7 @@ python examples/simple_arxiv_demo.py
 
 - **HomeSystem/utility/**: 工具模块
   - **arxiv/**: ArXiv论文搜索和数据库集成
+  - **ollama/**: Ollama模型管理工具
 
 ### 数据库架构
 
@@ -232,10 +233,39 @@ docker compose --profile tools up -d
 # Redis Commander: http://localhost:8081
 ```
 
+## 🛠️ Ollama模型管理工具
+
+自动查询和更新Ollama模型配置的工具：
+
+```bash
+# 列出所有14B+模型
+python -m HomeSystem.utility.ollama.cli list
+
+# 比较当前模型与配置文件
+python -m HomeSystem.utility.ollama.cli compare
+
+# 更新配置文件（预览模式）
+python -m HomeSystem.utility.ollama.cli update --dry-run
+
+# 实际更新配置文件
+python -m HomeSystem.utility.ollama.cli update
+
+# 运行交互式示例
+python examples/update_ollama_models.py
+```
+
+**功能特性**:
+- 🔍 自动发现Ollama中的14B+大模型
+- 🔄 智能更新`llm_providers.yaml`配置文件
+- 💾 自动备份，保持文件其他部分不变
+- 🧪 Dry-run模式预览更改
+- ⚡ 支持CLI和Python API两种使用方式
+
 ## 📚 文档
 
 - **数据库集成**: `docs/database-integration-guide.md` - 完整的数据库使用指南
 - **ArXiv模块**: `HomeSystem/utility/arxiv/README.md` - ArXiv功能详细说明
+- **Ollama工具**: `HomeSystem/utility/ollama/` - Ollama模型管理工具
 - **示例代码**: `examples/` - 各组件使用示例
 
 ## 🧪 测试
