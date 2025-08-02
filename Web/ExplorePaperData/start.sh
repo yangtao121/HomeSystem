@@ -54,21 +54,21 @@ export FLASK_DEBUG=true
 
 check_port() {
     local port=${1:-5000}
-    print_info "检查端口 $port..."
+    echo "🔍 检查端口 $port..."
     
     if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-        print_warning "端口 $port 已被占用"
+        echo "⚠️  端口 $port 已被占用"
         read -p "是否终止占用进程？(y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             local pid=$(lsof -Pi :$port -sTCP:LISTEN -t)
             kill -9 $pid 2>/dev/null
-            print_success "已终止进程 $pid"
+            echo "✅ 已终止进程 $pid"
         else
-            print_info "请手动更改端口配置"
+            echo "ℹ️  请手动更改端口配置"
         fi
     else
-        print_success "端口 $port 可用"
+        echo "✅ 端口 $port 可用"
     fi
 }
 

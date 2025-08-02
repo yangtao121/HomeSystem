@@ -3,16 +3,38 @@ from loguru import logger
 from abc import ABC, abstractmethod
 import os
 import re
+import asyncio
+from typing import Optional, List, Dict, Any
 from langchain_core.messages import SystemMessage
 
 from .llm_factory import get_llm, get_embedding
 
+# 尝试导入 MCP 管理器，如果失败则禁用 MCP 功能
+try:
+    from .mcp_manager import MCPManager
+    MCP_MANAGER_AVAILABLE = True
+except ImportError as e:
+    logger.debug(f"MCP Manager not available: {e}")
+    MCPManager = None
+    MCP_MANAGER_AVAILABLE = False
+
 
 class BaseGraph(ABC):
     def __init__(self,
+                 enable_mcp: bool = False,
+                 mcp_config_path: Optional[str] = None
                  ):
         
         self.agent = None
+        
+        # MCP 相关属性（完全可选，不影响现有功能）
+        self.mcp_enabled = enable_mcp and MCP_MANAGER_AVAILABLE
+        self.mcp_manager: Optional[MCPManager] = None
+        self.mcp_tools: List[Any] = []
+        
+        # 如果启用 MCP，初始化管理器
+        if self.mcp_enabled:
+            self._initialize_mcp(mcp_config_path)
         
     def export_graph_png(self,
                          file_path: str,
@@ -150,5 +172,168 @@ class BaseGraph(ABC):
             
             logger.info("Task completed. Enter your next query or type 'exit' to quit")
 
+    # ========== MCP 相关方法（完全可选，不影响现有功能） ==========
+    
+    def _initialize_mcp(self, config_path: Optional[str] = None) -> None:
+        """初始化 MCP 管理器（私有方法，仅在启用时调用）"""
+        try:
+            if not MCP_MANAGER_AVAILABLE:
+                logger.warning("MCP Manager not available, MCP functionality disabled")
+                self.mcp_enabled = False
+                return
+                
+            self.mcp_manager = MCPManager(config_path)
+            logger.info("MCP Manager created successfully")
+            
+            # 异步初始化将在子类中调用
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP Manager: {e}")
+            self.mcp_enabled = False
+            self.mcp_manager = None
+    
+    async def initialize_mcp_async(self) -> bool:
+        """异步初始化 MCP 连接（需要在子类中调用）"""
+        if not self.mcp_enabled or not self.mcp_manager:
+            return False
+            
+        try:
+            success = await self.mcp_manager.initialize()
+            if success:
+                # 获取所有可用工具
+                self.mcp_tools = await self.mcp_manager.get_all_tools()
+                logger.info(f"MCP initialized successfully with {len(self.mcp_tools)} tools")
+            return success
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP async: {e}")
+            return False
+    
+    def get_mcp_tools(self, transport_type: Optional[str] = None, server_name: Optional[str] = None) -> List[Any]:
+        """获取 MCP 工具
         
+        Args:
+            transport_type: 传输类型筛选 ('stdio' 或 'sse')
+            server_name: 服务器名称筛选
+            
+        Returns:
+            List[Any]: 工具列表，如果 MCP 未启用则返回空列表
+        """
+        if not self.mcp_enabled or not self.mcp_manager:
+            return []
+            
+        try:
+            # 同步方法，返回已缓存的工具
+            if transport_type:
+                # 按传输类型筛选（需要异步调用，这里返回缓存）
+                return [tool for tool in self.mcp_tools 
+                       if hasattr(tool, 'transport_type') and tool.transport_type == transport_type]
+            elif server_name:
+                # 按服务器名称筛选（需要异步调用，这里返回缓存）
+                return [tool for tool in self.mcp_tools 
+                       if hasattr(tool, 'server_name') and tool.server_name == server_name]
+            else:
+                return self.mcp_tools.copy()
+                
+        except Exception as e:
+            logger.error(f"Failed to get MCP tools: {e}")
+            return []
+    
+    async def get_mcp_tools_async(self, transport_type: Optional[str] = None, server_name: Optional[str] = None) -> List[Any]:
+        """异步获取 MCP 工具（实时查询）"""
+        if not self.mcp_enabled or not self.mcp_manager:
+            return []
+            
+        try:
+            if transport_type:
+                return await self.mcp_manager.get_tools_by_transport(transport_type)
+            elif server_name:
+                return await self.mcp_manager.get_tools_by_server(server_name)
+            else:
+                return await self.mcp_manager.get_all_tools()
+                
+        except Exception as e:
+            logger.error(f"Failed to get MCP tools async: {e}")
+            return []
+    
+    async def add_mcp_server(self, server_name: str, server_config: Dict[str, Any]) -> bool:
+        """动态添加 MCP 服务器"""
+        if not self.mcp_enabled or not self.mcp_manager:
+            logger.warning("MCP not enabled, cannot add server")
+            return False
+            
+        try:
+            success = await self.mcp_manager.add_server(server_name, server_config)
+            if success:
+                # 刷新工具缓存
+                self.mcp_tools = await self.mcp_manager.get_all_tools()
+            return success
+        except Exception as e:
+            logger.error(f"Failed to add MCP server {server_name}: {e}")
+            return False
+    
+    async def remove_mcp_server(self, server_name: str) -> bool:
+        """动态移除 MCP 服务器"""
+        if not self.mcp_enabled or not self.mcp_manager:
+            logger.warning("MCP not enabled, cannot remove server")
+            return False
+            
+        try:
+            success = await self.mcp_manager.remove_server(server_name)
+            if success:
+                # 刷新工具缓存
+                self.mcp_tools = await self.mcp_manager.get_all_tools()
+            return success
+        except Exception as e:
+            logger.error(f"Failed to remove MCP server {server_name}: {e}")
+            return False
+    
+    async def reload_mcp_tools(self) -> int:
+        """重新加载 MCP 工具"""
+        if not self.mcp_enabled or not self.mcp_manager:
+            return 0
+            
+        try:
+            self.mcp_tools = await self.mcp_manager.get_all_tools()
+            logger.info(f"Reloaded {len(self.mcp_tools)} MCP tools")
+            return len(self.mcp_tools)
+        except Exception as e:
+            logger.error(f"Failed to reload MCP tools: {e}")
+            return 0
+    
+    async def mcp_health_check(self) -> Dict[str, bool]:
+        """检查 MCP 服务器健康状态"""
+        if not self.mcp_enabled or not self.mcp_manager:
+            return {}
+            
+        try:
+            return await self.mcp_manager.health_check_all()
+        except Exception as e:
+            logger.error(f"MCP health check failed: {e}")
+            return {}
+    
+    def get_mcp_status(self) -> Dict[str, Any]:
+        """获取 MCP 状态信息"""
+        if not self.mcp_manager:
+            return {
+                'mcp_available': MCP_MANAGER_AVAILABLE,
+                'enabled': False,
+                'initialized': False,
+                'tools_count': 0,
+                'servers': []
+            }
+            
+        status = self.mcp_manager.get_status()
+        status['tools_count'] = len(self.mcp_tools)
+        return status
+    
+    async def shutdown_mcp(self) -> None:
+        """关闭 MCP 连接"""
+        if self.mcp_enabled and self.mcp_manager:
+            try:
+                await self.mcp_manager.shutdown()
+                logger.info("MCP Manager shutdown complete")
+            except Exception as e:
+                logger.error(f"Error shutting down MCP Manager: {e}")
+            finally:
+                self.mcp_tools.clear()
 

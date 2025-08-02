@@ -921,7 +921,506 @@ function getSelectedPapers() {
     return Array.from(checkboxes).map(cb => cb.dataset.arxivId);
 }
 
-// 导出给全局使用，添加相关度编辑功能
+// ========== 论文迁移功能 ==========
+
+// 全局变量存储任务列表和当前状态
+let availableTasks = [];
+let filteredTasks = [];
+let currentMigrationArxivId = null;
+
+// 显示单个论文迁移模态框
+function showMigrationModal(arxivId, paperTitle) {
+    currentMigrationArxivId = arxivId;
+    document.getElementById('migrationPaperArxivId').value = arxivId;
+    document.getElementById('migrationPaperTitle').textContent = paperTitle;
+    
+    // 清空搜索框和选择
+    document.getElementById('taskSearchInput').value = '';
+    clearTaskSelection();
+    
+    // 加载任务列表
+    loadTasksForMigration('taskListContainer');
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('migrationModal'));
+    modal.show();
+}
+
+// 显示批量迁移模态框
+function showBatchMigrationModal() {
+    const selectedPapers = getSelectedPapers();
+    if (selectedPapers.length === 0) {
+        showAlert('请先选择要迁移的论文', 'warning');
+        return;
+    }
+    
+    document.getElementById('batchMigrationPaperCount').textContent = selectedPapers.length;
+    document.getElementById('batchTaskSearchInput').value = '';
+    clearBatchTaskSelection();
+    
+    // 加载任务列表
+    loadTasksForMigration('batchTaskListContainer');
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('batchMigrationModal'));
+    modal.show();
+}
+
+// 加载可用任务列表
+function loadTasksForMigration(containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2">正在加载任务列表...</p>
+        </div>
+    `;
+    
+    fetch('/api/tasks/available_for_migration')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                availableTasks = data.data.tasks || [];
+                filteredTasks = [...availableTasks];
+                renderTaskList(containerId);
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        加载任务列表失败: ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('加载任务列表失败:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    网络错误，请稍后重试
+                </div>
+            `;
+        });
+}
+
+// 渲染任务列表
+function renderTaskList(containerId) {
+    const container = document.getElementById(containerId);
+    
+    if (filteredTasks.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="bi bi-inbox"></i>
+                <p class="mt-2">没有找到可用的任务</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const isBatch = containerId === 'batchTaskListContainer';
+    const taskItems = filteredTasks.map(task => {
+        const categories = task.top_categories ? task.top_categories.slice(0, 2).join(', ') : '无分类';
+        const statusCounts = `完成: ${task.completed_count}, 待处理: ${task.pending_count}, 失败: ${task.failed_count}`;
+        
+        return `
+            <div class="card mb-2 task-item" data-task-name="${task.task_name}" data-task-id="${task.task_id || ''}" 
+                 style="cursor: pointer;" onclick="selectTask(this, ${isBatch})">
+                <div class="card-body py-2">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h6 class="mb-1">${task.task_name}</h6>
+                            <small class="text-muted">
+                                <i class="bi bi-files"></i> ${task.paper_count} 篇论文 |
+                                <i class="bi bi-tag"></i> ${categories} |
+                                <i class="bi bi-clock"></i> ${new Date(task.last_created).toLocaleDateString()}
+                            </small>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <small class="text-muted">${statusCounts}</small>
+                            ${task.task_id ? `<br><small class="text-info">ID: ${task.task_id}</small>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = taskItems;
+}
+
+// 选择任务
+function selectTask(element, isBatch = false) {
+    const taskName = element.getAttribute('data-task-name');
+    const taskId = element.getAttribute('data-task-id');
+    const paperCount = filteredTasks.find(t => t.task_name === taskName)?.paper_count || 0;
+    
+    if (isBatch) {
+        // 清除之前的选择
+        document.querySelectorAll('#batchTaskListContainer .task-item').forEach(item => {
+            item.classList.remove('border-success', 'bg-light');
+        });
+        
+        // 高亮当前选择
+        element.classList.add('border-success', 'bg-light');
+        
+        // 更新选择信息
+        document.getElementById('batchSelectedTaskName').textContent = taskName;
+        document.getElementById('batchSelectedTaskPaperCount').textContent = paperCount;
+        document.getElementById('batchSelectedTaskIdForMigration').value = taskId;
+        document.getElementById('batchSelectedTaskInfo').classList.remove('d-none');
+        
+        // 启用按钮
+        document.getElementById('previewBatchMigrationBtn').disabled = false;
+        document.getElementById('confirmBatchMigrationBtn').disabled = false;
+    } else {
+        // 清除之前的选择
+        document.querySelectorAll('#taskListContainer .task-item').forEach(item => {
+            item.classList.remove('border-success', 'bg-light');
+        });
+        
+        // 高亮当前选择
+        element.classList.add('border-success', 'bg-light');
+        
+        // 更新选择信息
+        document.getElementById('selectedTaskName').textContent = taskName;
+        document.getElementById('selectedTaskPaperCount').textContent = paperCount;
+        document.getElementById('selectedTaskIdForMigration').value = taskId;
+        document.getElementById('selectedTaskInfo').classList.remove('d-none');
+        
+        // 启用确认按钮
+        document.getElementById('confirmMigrationBtn').disabled = false;
+    }
+}
+
+// 过滤任务列表
+function filterTasks() {
+    const searchTerm = document.getElementById('taskSearchInput').value.toLowerCase().trim();
+    filteredTasks = availableTasks.filter(task => 
+        task.task_name.toLowerCase().includes(searchTerm) ||
+        (task.task_id && task.task_id.toLowerCase().includes(searchTerm)) ||
+        (task.top_categories && task.top_categories.some(cat => cat.toLowerCase().includes(searchTerm)))
+    );
+    renderTaskList('taskListContainer');
+    clearTaskSelection();
+}
+
+// 过滤批量任务列表
+function filterBatchTasks() {
+    const searchTerm = document.getElementById('batchTaskSearchInput').value.toLowerCase().trim();
+    filteredTasks = availableTasks.filter(task => 
+        task.task_name.toLowerCase().includes(searchTerm) ||
+        (task.task_id && task.task_id.toLowerCase().includes(searchTerm)) ||
+        (task.top_categories && task.top_categories.some(cat => cat.toLowerCase().includes(searchTerm)))
+    );
+    renderTaskList('batchTaskListContainer');
+    clearBatchTaskSelection();
+}
+
+// 清除单个迁移的任务选择
+function clearTaskSelection() {
+    document.getElementById('selectedTaskInfo').classList.add('d-none');
+    document.getElementById('confirmMigrationBtn').disabled = true;
+}
+
+// 清除批量迁移的任务选择
+function clearBatchTaskSelection() {
+    document.getElementById('batchSelectedTaskInfo').classList.add('d-none');
+    document.getElementById('previewBatchMigrationBtn').disabled = true;
+    document.getElementById('confirmBatchMigrationBtn').disabled = true;
+}
+
+// 确认单个论文迁移
+function confirmMigration() {
+    const arxivId = document.getElementById('migrationPaperArxivId').value;
+    const taskName = document.getElementById('selectedTaskName').textContent;
+    const taskId = document.getElementById('selectedTaskIdForMigration').value;
+    
+    const confirmBtn = document.getElementById('confirmMigrationBtn');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 迁移中...';
+    confirmBtn.disabled = true;
+    
+    fetch('/api/migrate_paper_to_task', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            arxiv_id: arxivId,
+            target_task_name: taskName,
+            target_task_id: taskId || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`论文已成功迁移到任务: ${taskName}`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('migrationModal')).hide();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('迁移失败: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('迁移失败:', error);
+        showAlert('网络错误，请稍后重试', 'error');
+    })
+    .finally(() => {
+        confirmBtn.innerHTML = originalText;
+        confirmBtn.disabled = false;
+    });
+}
+
+// 确认批量迁移
+function confirmBatchMigration() {
+    const selectedPapers = getSelectedPapers();
+    const taskName = document.getElementById('batchSelectedTaskName').textContent;
+    const taskId = document.getElementById('batchSelectedTaskIdForMigration').value;
+    
+    const confirmBtn = document.getElementById('confirmBatchMigrationBtn');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 迁移中...';
+    confirmBtn.disabled = true;
+    
+    fetch('/api/batch_migrate_to_task', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            arxiv_ids: selectedPapers,
+            target_task_name: taskName,
+            target_task_id: taskId || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = `成功迁移 ${data.affected_rows} 篇论文到任务: ${taskName}`;
+            if (data.warning) {
+                message += `\n${data.warning}`;
+            }
+            showAlert(message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('batchMigrationModal')).hide();
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert('批量迁移失败: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('批量迁移失败:', error);
+        showAlert('网络错误，请稍后重试', 'error');
+    })
+    .finally(() => {
+        confirmBtn.innerHTML = originalText;
+        confirmBtn.disabled = false;
+    });
+}
+
+// 显示批量迁移预览
+function showBatchMigrationPreview() {
+    const selectedPapers = getSelectedPapers();
+    const taskName = document.getElementById('batchSelectedTaskName').textContent;
+    
+    // 隐藏批量迁移模态框，显示预览模态框
+    bootstrap.Modal.getInstance(document.getElementById('batchMigrationModal')).hide();
+    const previewModal = new bootstrap.Modal(document.getElementById('batchMigrationPreviewModal'));
+    previewModal.show();
+    
+    // 加载预览数据
+    const previewContent = document.getElementById('migrationPreviewContent');
+    previewContent.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2">正在生成迁移预览...</p>
+        </div>
+    `;
+    
+    fetch('/api/migration_preview', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            arxiv_ids: selectedPapers,
+            target_task_name: taskName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderMigrationPreview(data.data);
+        } else {
+            previewContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    生成预览失败: ${data.error}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('生成预览失败:', error);
+        previewContent.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                网络错误，请稍后重试
+            </div>
+        `;
+    });
+}
+
+// 渲染迁移预览
+function renderMigrationPreview(previewData) {
+    const { valid_papers, invalid_papers, summary } = previewData;
+    const previewContent = document.getElementById('migrationPreviewContent');
+    
+    let html = `
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> 迁移摘要</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>总选择:</strong> ${summary.total_selected} 篇</li>
+                            <li><strong>有效论文:</strong> ${summary.valid_count} 篇</li>
+                            <li><strong>无效论文:</strong> ${summary.invalid_count} 篇</li>
+                            <li><strong>已在目标任务:</strong> ${summary.same_task_count} 篇</li>
+                            <li><strong>需要迁移:</strong> ${summary.different_task_count} 篇</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-target"></i> 目标任务信息</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>当前论文数:</strong> ${summary.target_task_info.paper_count} 篇</li>
+                            <li><strong>迁移后论文数:</strong> ${summary.target_task_info.paper_count + summary.different_task_count} 篇</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    if (summary.different_task_count > 0) {
+        html += `
+            <div class="mt-3">
+                <h6><i class="bi bi-list"></i> 需要迁移的论文 (${summary.different_task_count} 篇)</h6>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <div class="list-group">
+        `;
+        
+        valid_papers.filter(paper => paper.task_name !== document.getElementById('batchSelectedTaskName').textContent)
+                    .forEach(paper => {
+            html += `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">${paper.title}</h6>
+                            <p class="mb-1">
+                                <small class="text-muted">
+                                    当前任务: ${paper.task_name || '未分配'}
+                                    ${paper.task_id ? ` (ID: ${paper.task_id})` : ''}
+                                </small>
+                            </p>
+                        </div>
+                        <small class="text-primary">${paper.arxiv_id}</small>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (summary.same_task_count > 0) {
+        html += `
+            <div class="mt-3">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    有 ${summary.same_task_count} 篇论文已经在目标任务中，将不会被重复迁移。
+                </div>
+            </div>
+        `;
+    }
+    
+    if (summary.invalid_count > 0) {
+        html += `
+            <div class="mt-3">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    有 ${summary.invalid_count} 篇论文不存在，将被跳过。
+                </div>
+            </div>
+        `;
+    }
+    
+    previewContent.innerHTML = html;
+}
+
+// 从预览执行批量迁移
+function executeBatchMigrationFromPreview() {
+    const selectedPapers = getSelectedPapers();
+    const taskName = document.getElementById('batchSelectedTaskName').textContent;
+    const taskId = document.getElementById('batchSelectedTaskIdForMigration').value;
+    
+    const executeBtn = document.getElementById('executeMigrationBtn');
+    const originalText = executeBtn.innerHTML;
+    executeBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 执行中...';
+    executeBtn.disabled = true;
+    
+    fetch('/api/batch_migrate_to_task', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            arxiv_ids: selectedPapers,
+            target_task_name: taskName,
+            target_task_id: taskId || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = `成功迁移 ${data.affected_rows} 篇论文到任务: ${taskName}`;
+            if (data.warning) {
+                message += `\n${data.warning}`;
+            }
+            showAlert(message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('batchMigrationPreviewModal')).hide();
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert('执行迁移失败: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('执行迁移失败:', error);
+        showAlert('网络错误，请稍后重试', 'error');
+    })
+    .finally(() => {
+        executeBtn.innerHTML = originalText;
+        executeBtn.disabled = false;
+    });
+}
+
+// ========== 增强的批量操作功能 ==========
+
+// 全选当前页面的论文
+function selectAllVisible() {
+    const checkboxes = document.querySelectorAll('.paper-checkbox');
+    checkboxes.forEach(checkbox => checkbox.checked = true);
+    updateBatchToolbar();
+}
+
+// 导出给全局使用，添加相关度编辑功能和论文迁移功能
 window.ExplorePaperData = {
     applyFilter,
     clearFilters,
@@ -931,9 +1430,23 @@ window.ExplorePaperData = {
     refreshData,
     // 相关度编辑功能
     editRelevanceQuick,
-    batchEditRelevance
+    batchEditRelevance,
+    // 论文迁移功能
+    showMigrationModal,
+    showBatchMigrationModal,
+    selectAllVisible
 };
 
-// 将相关度编辑函数导出到全局作用域以便模板调用
+// 将函数导出到全局作用域以便模板调用
 window.editRelevanceQuick = editRelevanceQuick;
 window.batchEditRelevance = batchEditRelevance;
+window.showMigrationModal = showMigrationModal;
+window.showBatchMigrationModal = showBatchMigrationModal;
+window.selectAllVisible = selectAllVisible;
+window.selectTask = selectTask;
+window.filterTasks = filterTasks;
+window.filterBatchTasks = filterBatchTasks;
+window.confirmMigration = confirmMigration;
+window.confirmBatchMigration = confirmBatchMigration;
+window.showBatchMigrationPreview = showBatchMigrationPreview;
+window.executeBatchMigrationFromPreview = executeBatchMigrationFromPreview;

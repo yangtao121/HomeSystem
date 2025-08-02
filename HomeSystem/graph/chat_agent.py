@@ -70,9 +70,12 @@ class ChatAgent(BaseGraph):
     
     def __init__(self, 
                  config: Optional[ChatAgentConfig] = None,
-                 config_path: Optional[str] = None):
+                 config_path: Optional[str] = None,
+                 enable_mcp: bool = False,
+                 mcp_config_path: Optional[str] = None):
         
-        super().__init__()
+        # 初始化基类（包含 MCP 支持）
+        super().__init__(enable_mcp=enable_mcp, mcp_config_path=mcp_config_path)
         
         # 加载配置
         if config_path:
@@ -94,6 +97,18 @@ class ChatAgent(BaseGraph):
         self._build_graph()
         
         logger.info("聊天代理初始化完成")
+    
+    async def initialize_with_mcp(self) -> bool:
+        """异步初始化包含 MCP 功能的聊天代理"""
+        if self.mcp_enabled:
+            success = await self.initialize_mcp_async()
+            if success:
+                logger.info(f"ChatAgent MCP 初始化成功，可用工具数量: {len(self.mcp_tools)}")
+                # 可以在这里将 MCP 工具添加到 LLM 中（如果支持函数调用）
+                return True
+            else:
+                logger.warning("ChatAgent MCP 初始化失败，将以标准模式运行")
+        return False
     
     def _build_graph(self) -> None:
         """构建对话图"""
@@ -213,3 +228,85 @@ class ChatAgent(BaseGraph):
         except Exception as e:
             logger.error(f"单次对话失败: {e}")
             return f"抱歉，处理您的消息时出现错误: {str(e)}"
+    
+    # ========== MCP 相关便利方法 ==========
+    
+    def get_available_mcp_tools_info(self) -> Dict[str, Any]:
+        """获取 MCP 工具信息（用于用户查询）"""
+        if not self.mcp_enabled:
+            return {
+                'mcp_enabled': False,
+                'message': 'MCP 功能未启用'
+            }
+        
+        tools_info = {
+            'mcp_enabled': True,
+            'total_tools': len(self.mcp_tools),
+            'tools_by_transport': {},
+            'tools_summary': []
+        }
+        
+        # 按传输类型分组统计
+        stdio_tools = self.get_mcp_tools(transport_type='stdio')
+        sse_tools = self.get_mcp_tools(transport_type='sse')
+        
+        tools_info['tools_by_transport'] = {
+            'stdio': len(stdio_tools),
+            'sse': len(sse_tools)
+        }
+        
+        # 生成工具摘要
+        for tool in self.mcp_tools[:10]:  # 最多显示前10个工具
+            tool_summary = {
+                'name': getattr(tool, 'name', 'unknown'),
+                'description': getattr(tool, 'description', 'No description available')[:100]
+            }
+            tools_info['tools_summary'].append(tool_summary)
+        
+        return tools_info
+    
+    async def add_mcp_server_interactive(self, server_name: str, transport: str, **kwargs) -> str:
+        """交互式添加 MCP 服务器（返回用户友好的消息）"""
+        if not self.mcp_enabled:
+            return "MCP 功能未启用，无法添加服务器。"
+        
+        server_config = {
+            'transport': transport,
+            'enabled': True,
+            **kwargs
+        }
+        
+        try:
+            success = await self.add_mcp_server(server_name, server_config)
+            if success:
+                tools_count = len(await self.get_mcp_tools_async())
+                return f"成功添加 MCP 服务器 '{server_name}'，当前总工具数: {tools_count}"
+            else:
+                return f"添加 MCP 服务器 '{server_name}' 失败，请检查配置。"
+        except Exception as e:
+            return f"添加服务器时发生错误: {str(e)}"
+    
+    async def check_mcp_health_interactive(self) -> str:
+        """交互式检查 MCP 健康状态（返回用户友好的消息）"""
+        if not self.mcp_enabled:
+            return "MCP 功能未启用。"
+        
+        try:
+            health_status = await self.mcp_health_check()
+            
+            if not health_status:
+                return "当前没有活跃的 MCP 服务器。"
+            
+            healthy_servers = [name for name, status in health_status.items() if status]
+            unhealthy_servers = [name for name, status in health_status.items() if not status]
+            
+            message = f"MCP 服务器健康检查结果:\n"
+            message += f"✅ 健康服务器 ({len(healthy_servers)}): {', '.join(healthy_servers)}\n"
+            
+            if unhealthy_servers:
+                message += f"❌ 异常服务器 ({len(unhealthy_servers)}): {', '.join(unhealthy_servers)}"
+            
+            return message
+            
+        except Exception as e:
+            return f"健康检查失败: {str(e)}"

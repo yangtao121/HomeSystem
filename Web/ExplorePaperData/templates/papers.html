@@ -3,6 +3,8 @@
 {% block title %}论文浏览 - ArXiv论文数据探索{% endblock %}
 
 {% block content %}
+<!-- 进度指示器 -->
+<div class="progress-indicator" id="progressIndicator"></div>
 <!-- 页面标题 -->
 <div class="row mb-4">
     <div class="col">
@@ -125,32 +127,40 @@
     <div class="card border-primary">
         <div class="card-body py-2">
             <div class="row align-items-center">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <small class="text-muted">
                         已选择 <span id="selectedCount">0</span> 篇论文
-                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="clearSelection()">
-                            清除选择
-                        </button>
                     </small>
+                    <div class="mt-1">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="selectAllVisible()">
+                            <i class="bi bi-check-all"></i> 全选
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                            <i class="bi bi-x"></i> 清除
+                        </button>
+                    </div>
                 </div>
-                <div class="col-md-8">
+                <div class="col-md-9">
                     <div class="row g-2">
-                        <div class="col-md-4">
-                            <input type="text" class="form-control form-control-sm" id="batchTaskName" 
-                                   placeholder="任务名称" maxlength="255">
-                        </div>
                         <div class="col-md-3">
+                            <input type="text" class="form-control form-control-sm" id="batchTaskName" 
+                                   placeholder="新任务名称" maxlength="255">
+                        </div>
+                        <div class="col-md-2">
                             <input type="text" class="form-control form-control-sm" id="batchTaskId" 
                                    placeholder="任务ID (可选)" maxlength="100">
                         </div>
-                        <div class="col-md-5">
-                            <button type="button" class="btn btn-primary btn-sm me-2" onclick="batchAssignTasks()">
-                                <i class="bi bi-check-square"></i> 批量分配任务
+                        <div class="col-md-7">
+                            <button type="button" class="btn btn-success btn-sm me-1" onclick="showBatchMigrationModal()">
+                                <i class="bi bi-arrow-right-circle"></i> 批量迁移
                             </button>
-                            <button type="button" class="btn btn-info btn-sm" onclick="batchEditRelevance()">
+                            <button type="button" class="btn btn-primary btn-sm me-1" onclick="batchAssignTasks()">
+                                <i class="bi bi-check-square"></i> 分配新任务
+                            </button>
+                            <button type="button" class="btn btn-info btn-sm me-1" onclick="batchEditRelevance()">
                                 <i class="bi bi-star"></i> 批量评分
                             </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="batchDeletePapers()">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="batchDeletePapers()">
                                 <i class="bi bi-trash"></i> 批量删除
                             </button>
                         </div>
@@ -310,6 +320,11 @@
                        class="btn btn-sm btn-primary">
                         <i class="bi bi-eye"></i> 查看详情
                     </a>
+                    <button class="btn btn-sm btn-outline-success" 
+                            onclick="showMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')"
+                            title="迁移到其他任务">
+                        <i class="bi bi-arrow-right-circle"></i> 迁移任务
+                    </button>
                     <button class="btn btn-sm btn-outline-secondary" 
                             onclick="copyToClipboard('{{ paper.arxiv_id }}')">
                         <i class="bi bi-clipboard"></i> 复制ID
@@ -482,6 +497,153 @@
     </div>
 </div>
 
+<!-- 论文迁移模态框 -->
+<div class="modal fade" id="migrationModal" tabindex="-1" aria-labelledby="migrationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="migrationModalLabel">
+                    <i class="bi bi-arrow-right-circle"></i> 迁移到已有任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>论文:</strong> <span id="migrationPaperTitle"></span>
+                </div>
+                
+                <!-- 任务搜索 -->
+                <div class="mb-3">
+                    <label for="taskSearchInput" class="form-label">搜索任务</label>
+                    <input type="text" class="form-control" id="taskSearchInput" 
+                           placeholder="输入任务名称进行搜索..." 
+                           onkeyup="filterTasks()">
+                </div>
+                
+                <!-- 任务列表 -->
+                <div id="taskListContainer" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务列表...</p>
+                    </div>
+                </div>
+                
+                <!-- 选中的任务信息 -->
+                <div class="mt-3 d-none" id="selectedTaskInfo">
+                    <div class="alert alert-info">
+                        <strong>选中任务:</strong> <span id="selectedTaskName"></span>
+                        <br>
+                        <small class="text-muted">
+                            包含 <span id="selectedTaskPaperCount"></span> 篇论文
+                        </small>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="migrationPaperArxivId">
+                <input type="hidden" id="selectedTaskIdForMigration">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="confirmMigration()" id="confirmMigrationBtn" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> 确认迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量迁移模态框 -->
+<div class="modal fade" id="batchMigrationModal" tabindex="-1" aria-labelledby="batchMigrationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchMigrationModalLabel">
+                    <i class="bi bi-arrow-right-circle"></i> 批量迁移到已有任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    已选择 <strong id="batchMigrationPaperCount">0</strong> 篇论文进行批量迁移
+                </div>
+                
+                <!-- 任务搜索 -->
+                <div class="mb-3">
+                    <label for="batchTaskSearchInput" class="form-label">搜索任务</label>
+                    <input type="text" class="form-control" id="batchTaskSearchInput" 
+                           placeholder="输入任务名称进行搜索..." 
+                           onkeyup="filterBatchTasks()">
+                </div>
+                
+                <!-- 任务列表 -->
+                <div id="batchTaskListContainer" style="max-height: 350px; overflow-y: auto;">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务列表...</p>
+                    </div>
+                </div>
+                
+                <!-- 选中的任务信息 -->
+                <div class="mt-3 d-none" id="batchSelectedTaskInfo">
+                    <div class="alert alert-success">
+                        <strong>目标任务:</strong> <span id="batchSelectedTaskName"></span>
+                        <br>
+                        <small class="text-muted">
+                            当前包含 <span id="batchSelectedTaskPaperCount"></span> 篇论文
+                        </small>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="batchSelectedTaskIdForMigration">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="showBatchMigrationPreview()" id="previewBatchMigrationBtn" disabled>
+                    <i class="bi bi-eye"></i> 预览迁移
+                </button>
+                <button type="button" class="btn btn-success" onclick="confirmBatchMigration()" id="confirmBatchMigrationBtn" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> 确认批量迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量迁移预览模态框 -->
+<div class="modal fade" id="batchMigrationPreviewModal" tabindex="-1" aria-labelledby="batchMigrationPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchMigrationPreviewModalLabel">
+                    <i class="bi bi-eye"></i> 批量迁移预览
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="migrationPreviewContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在生成迁移预览...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消预览</button>
+                <button type="button" class="btn btn-success" onclick="executeBatchMigrationFromPreview()" id="executeMigrationBtn">
+                    <i class="bi bi-check-circle"></i> 执行迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_styles %}
@@ -514,11 +676,28 @@
         position: sticky;
         top: 20px;
         z-index: 100;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     /* 论文选择复选框样式 */
     .paper-checkbox {
         transform: scale(1.2);
+        transition: all 0.2s ease;
+    }
+    
+    .paper-checkbox:hover {
+        transform: scale(1.3);
     }
     
     /* 警告提示样式 */
@@ -541,19 +720,451 @@
     .batch-operations-toolbar .card {
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         border: 2px solid #007bff;
+        transition: all 0.3s ease;
+    }
+    
+    .batch-operations-toolbar .card:hover {
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
+    }
+    
+    /* 任务选择卡片样式 */
+    .task-item {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .task-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .task-item.border-success {
+        animation: selectPulse 0.3s ease;
+    }
+    
+    @keyframes selectPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+    }
+    
+    /* 按钮加载状态 */
+    .btn-loading {
+        position: relative;
+        color: transparent !important;
+    }
+    
+    .btn-loading::after {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        top: 50%;
+        left: 50%;
+        margin-left: -8px;
+        margin-top: -8px;
+        border: 2px solid transparent;
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* 论文卡片悬浮效果 */
+    .paper-item {
+        transition: all 0.2s ease;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .paper-item:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    /* 迁移按钮特殊样式 */
+    .btn-outline-success {
+        border-color: #28a745;
+        color: #28a745;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-outline-success:hover {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: white;
+        transform: scale(1.05);
+    }
+    
+    /* 搜索框改进 */
+    .search-input {
+        transition: all 0.2s ease;
+    }
+    
+    .search-input:focus {
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        transform: scale(1.02);
+    }
+    
+    /* 进度指示器 */
+    .progress-indicator {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, #007bff, #28a745);
+        z-index: 9999;
+        display: none;
+        animation: progressSlide 2s ease-in-out infinite;
+    }
+    
+    @keyframes progressSlide {
+        0% { transform: translateX(-100%); }
+        50% { transform: translateX(0%); }
+        100% { transform: translateX(100%); }
+    }
+    
+    /* 响应式改进 */
+    @media (max-width: 768px) {
+        .batch-operations-toolbar .card-body {
+            padding: 0.75rem;
+        }
+        
+        .batch-operations-toolbar .row {
+            margin: 0;
+        }
+        
+        .batch-operations-toolbar .col-md-3,
+        .batch-operations-toolbar .col-md-9 {
+            padding: 0.25rem;
+        }
+        
+        .paper-item {
+            padding: 0.75rem;
+        }
+        
+        .modal-lg {
+            max-width: 95%;
+        }
+        
+        .task-item .row {
+            flex-direction: column;
+        }
+        
+        .task-item .col-md-4,
+        .task-item .col-md-8 {
+            text-align: left !important;
+        }
+    }
+    
+    /* 成功/错误状态视觉反馈 */
+    .operation-success {
+        animation: successPulse 0.5s ease;
+    }
+    
+    @keyframes successPulse {
+        0% { background-color: transparent; }
+        50% { background-color: rgba(40, 167, 69, 0.1); }
+        100% { background-color: transparent; }
+    }
+    
+    .operation-error {
+        animation: errorShake 0.5s ease;
+    }
+    
+    @keyframes errorShake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+    
+    /* 模态框改进 */
+    .modal-header {
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .modal-footer {
+        border-top: 2px solid #dee2e6;
+    }
+    
+    .modal-title {
+        font-weight: 600;
+    }
+    
+    /* 任务信息卡片 */
+    .alert-info, .alert-success {
+        border-left: 4px solid;
+        border-radius: 6px;
+    }
+    
+    .alert-info {
+        border-left-color: #17a2b8;
+    }
+    
+    .alert-success {
+        border-left-color: #28a745;
+    }
+    
+    /* 滚动条美化 */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
+    /* Toast 动画 */
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    /* 键盘快捷键样式 */
+    kbd {
+        display: inline-block;
+        padding: 0.2rem 0.4rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 1;
+        color: #495057;
+        background-color: #f8f9fa;
+        border: 1px solid #6c757d;
+        border-radius: 0.25rem;
+        box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+    }
+    
+    /* 加载状态改进 */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        backdrop-filter: blur(2px);
+    }
+    
+    .loading-spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 0.4em solid transparent;
+        border-top-color: #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
     }
 </style>
 {% endblock %}
 
+
 {% block extra_scripts %}
 <script>
+    // ========== 用户体验优化 ==========
+    
+    // 显示/隐藏进度指示器
+    function showProgressIndicator() {
+        const indicator = document.getElementById('progressIndicator');
+        if (indicator) {
+            indicator.style.display = 'block';
+        }
+    }
+    
+    function hideProgressIndicator() {
+        const indicator = document.getElementById('progressIndicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
+    
+    // 改进的提示函数，支持不同类型和位置
+    function showToast(message, type = 'success', duration = 3000) {
+        // 创建提示元素
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px; max-width: 500px; animation: slideInRight 0.3s ease;';
+        
+        // 添加图标
+        let icon = '';
+        switch(type) {
+            case 'success': icon = '<i class="bi bi-check-circle-fill"></i>'; break;
+            case 'error': case 'danger': icon = '<i class="bi bi-exclamation-triangle-fill"></i>'; break;
+            case 'warning': icon = '<i class="bi bi-exclamation-circle-fill"></i>'; break;
+            case 'info': icon = '<i class="bi bi-info-circle-fill"></i>'; break;
+            default: icon = '<i class="bi bi-info-circle-fill"></i>';
+        }
+        
+        toast.innerHTML = `
+            ${icon} ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 自动删除
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.style.animation = 'slideOutRight 0.3s ease';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }
+        }, duration);
+        
+        return toast;
+    }
+    
+    // 操作状态视觉反馈
+    function addOperationFeedback(element, success = true) {
+        const className = success ? 'operation-success' : 'operation-error';
+        element.classList.add(className);
+        setTimeout(() => {
+            element.classList.remove(className);
+        }, 500);
+    }
+    
+    // 改进的复制功能
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            showToast(`已复制 ${text} 到剪贴板`, 'success', 2000);
+        }, function(err) {
+            console.error('复制失败: ', err);
+            showToast('复制失败', 'error', 2000);
+        });
+    }
+    
     // 快捷键支持
     document.addEventListener('keydown', function(e) {
         // Ctrl+Enter 提交搜索
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             document.getElementById('searchForm').submit();
         }
+        
+        // Ctrl+A 全选当前页面论文
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a' && !e.target.matches('input, textarea')) {
+            e.preventDefault();
+            selectAllVisible();
+        }
+        
+        // ESC 键清除选择
+        if (e.key === 'Escape') {
+            clearSelection();
+        }
+        
+        // Ctrl+/ 显示快捷键帮助
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+            e.preventDefault();
+            showKeyboardShortcuts();
+        }
     });
+    
+    // 显示快捷键帮助
+    function showKeyboardShortcuts() {
+        const helpContent = `
+            <div class="modal fade" id="keyboardShortcutsModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-keyboard"></i> 键盘快捷键
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>搜索与导航</h6>
+                                    <ul class="list-unstyled">
+                                        <li><kbd>Ctrl</kbd> + <kbd>Enter</kbd> - 提交搜索</li>
+                                        <li><kbd>Ctrl</kbd> + <kbd>K</kbd> - 聚焦搜索框</li>
+                                        <li><kbd>ESC</kbd> - 清除搜索或关闭</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>批量操作</h6>
+                                    <ul class="list-unstyled">
+                                        <li><kbd>Ctrl</kbd> + <kbd>A</kbd> - 全选论文</li>
+                                        <li><kbd>ESC</kbd> - 清除选择</li>
+                                        <li><kbd>Ctrl</kbd> + <kbd>/</kbd> - 显示此帮助</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 检查是否已存在模态框
+        let modal = document.getElementById('keyboardShortcutsModal');
+        if (!modal) {
+            document.body.insertAdjacentHTML('beforeend', helpContent);
+            modal = document.getElementById('keyboardShortcutsModal');
+        }
+        
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    }
+    
+    // 改进批量操作相关函数以包含进度指示
+    function updateBatchToolbar() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox:checked');
+        const selectedCount = checkboxes.length;
+        const toolbar = document.getElementById('batchToolbar');
+        const countSpan = document.getElementById('selectedCount');
+        
+        if (selectedCount > 0) {
+            toolbar.style.display = 'block';
+            countSpan.textContent = selectedCount;
+            // 添加动画效果
+            toolbar.classList.add('batch-operations-toolbar');
+        } else {
+            toolbar.style.display = 'none';
+        }
+    }
     
     // 搜索建议功能（可扩展）
     const searchInput = document.getElementById('searchInput');

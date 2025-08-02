@@ -415,6 +415,7 @@ Services are accessible at these ports:
   - `siyuan-api-integration-guide.md`: Complete SiYuan Notes API integration guide with CRUD operations, search, SQL queries, and best practices
   - `papergather-web-architecture.md`: PaperGather web application architecture, components, and development patterns
   - `explore-paper-data-architecture.md`: ExplorePaperData web application architecture, data visualization, and UI components
+  - `mcp-integration-guide.md`: Complete MCP (Model Context Protocol) integration guide for LangGraph agents, supporting stdio and SSE transport modes, with backward compatibility
   - **`local-services-api.md`**: **IMPORTANT** - Contains API credentials, tokens, and endpoint information for local services (SiYuan Notes, etc.). Always refer to this file when you need to integrate with external local applications or services. This is the central repository for all local service connection details.
 - The system uses async/await patterns extensively for concurrency
 - Database integration supports both PostgreSQL (persistent) and Redis (caching) with automatic Docker detection

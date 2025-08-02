@@ -47,3 +47,7 @@ langchain-community>=0.0.20
 sentence-transformers>=2.2.0
 torch>=2.0.0
 transformers>=4.30.0
+
+# MCP (Model Context Protocol) 相关依赖
+langchain-mcp-adapters>=0.1.0
+mcp>=1.0.0

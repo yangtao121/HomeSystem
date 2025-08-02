@@ -109,6 +109,9 @@
                         <i class="bi bi-file-pdf"></i> 查看PDF
                     </a>
                     {% endif %}
+                    <button class="btn btn-outline-warning" onclick="openMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title | e }}')">
+                        <i class="bi bi-arrow-right-circle"></i> 迁移任务
+                    </button>
                     <button class="btn btn-outline-info" onclick="copyToClipboard(window.location.href)">
                         <i class="bi bi-share"></i> 分享链接
                     </button>
@@ -483,9 +486,75 @@
     </div>
 </div>
 
+<!-- 任务迁移模态框 -->
+<div class="modal fade" id="migrationModal" tabindex="-1" aria-labelledby="migrationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="migrationModalLabel">
+                    <i class="bi bi-arrow-right-circle"></i> 迁移到已有任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>论文:</strong> <span id="migrationPaperTitle"></span>
+                </div>
+                
+                <!-- 任务搜索 -->
+                <div class="mb-3">
+                    <label for="taskSearchInput" class="form-label">搜索任务</label>
+                    <input type="text" class="form-control" id="taskSearchInput" 
+                           placeholder="输入任务名称进行搜索..." 
+                           onkeyup="filterTasks()">
+                </div>
+                
+                <!-- 任务列表 -->
+                <div id="taskListContainer" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务列表...</p>
+                    </div>
+                </div>
+                
+                <!-- 迁移状态显示 -->
+                <div id="migrationStatus" class="alert d-none mt-3" role="alert">
+                    <span id="migrationStatusMessage"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="confirmMigrationBtn" onclick="confirmMigration()" disabled>
+                    <i class="bi bi-check-circle"></i> 确认迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    .task-option {
+        transition: all 0.2s ease;
+    }
+    
+    .task-option:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    .task-option.border-primary {
+        border-width: 2px !important;
+    }
+</style>
 <script>
     // 相关度编辑功能
     function editRelevance(arxivId) {
@@ -736,6 +805,243 @@
         }
     });
     
+    // 任务迁移相关变量
+    let availableTasks = [];
+    let filteredTasks = [];
+    let selectedTaskForMigration = null;
+    
+    // 打开迁移模态框
+    function openMigrationModal(arxivId, paperTitle) {
+        document.getElementById('migrationPaperTitle').textContent = paperTitle;
+        
+        // 存储当前论文的arxiv_id
+        window.currentMigrationArxivId = arxivId;
+        
+        // 重置状态
+        selectedTaskForMigration = null;
+        document.getElementById('confirmMigrationBtn').disabled = true;
+        hideMigrationStatus();
+        
+        // 加载任务列表
+        loadTasksForMigration();
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('migrationModal'));
+        modal.show();
+    }
+    
+    // 加载可用于迁移的任务
+    function loadTasksForMigration() {
+        const container = document.getElementById('taskListContainer');
+        container.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <p class="mt-2">正在加载任务列表...</p>
+            </div>
+        `;
+        
+        fetch('/api/tasks/available_for_migration')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    availableTasks = data.data.tasks || [];
+                    filteredTasks = [...availableTasks];
+                    renderTaskList();
+                } else {
+                    container.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            加载任务列表失败: ${data.error || '未知错误'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('加载任务列表失败:', error);
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        网络错误，请检查网络连接后重试
+                    </div>
+                `;
+            });
+    }
+    
+    // 渲染任务列表
+    function renderTaskList() {
+        const container = document.getElementById('taskListContainer');
+        
+        if (filteredTasks.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    ${availableTasks.length === 0 ? '暂无可用任务' : '搜索结果为空'}
+                </div>
+            `;
+            return;
+        }
+        
+        const tasksHtml = filteredTasks.map(task => `
+            <div class="task-option border rounded p-3 mb-2 cursor-pointer" data-task='${JSON.stringify(task)}'>
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">
+                            <strong>${escapeHtml(task.task_name)}</strong>
+                            ${task.task_id ? `<span class="text-muted small">(${escapeHtml(task.task_id)})</span>` : ''}
+                        </h6>
+                        <div class="small text-muted">
+                            <i class="bi bi-file-text"></i> ${task.paper_count || 0} 篇论文
+                            ${task.top_categories && task.top_categories.length > 0 ? 
+                                `<span class="ms-2"><i class="bi bi-tags"></i> ${task.top_categories.slice(0, 3).map(cat => escapeHtml(cat)).join(', ')}</span>` 
+                                : ''
+                            }
+                        </div>
+                        ${task.created_at ? `<div class="small text-muted mt-1"><i class="bi bi-calendar"></i> ${formatDate(task.created_at)}</div>` : ''}
+                    </div>
+                    <div class="text-end">
+                        <button class="btn btn-outline-primary btn-sm select-task-btn">选择</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = tasksHtml;
+        
+        // 添加点击事件监听器
+        container.querySelectorAll('.task-option').forEach(taskElement => {
+            taskElement.addEventListener('click', function() {
+                selectTaskForMigration(this);
+            });
+        });
+    }
+    
+    // 选择任务
+    function selectTaskForMigration(taskElement) {
+        // 清除之前的选择
+        document.querySelectorAll('.task-option').forEach(el => {
+            el.classList.remove('border-primary', 'bg-light');
+            el.querySelector('.select-task-btn').textContent = '选择';
+            el.querySelector('.select-task-btn').className = 'btn btn-outline-primary btn-sm select-task-btn';
+        });
+        
+        // 高亮当前选择
+        taskElement.classList.add('border-primary', 'bg-light');
+        const selectBtn = taskElement.querySelector('.select-task-btn');
+        selectBtn.textContent = '已选择';
+        selectBtn.className = 'btn btn-primary btn-sm select-task-btn';
+        
+        // 存储选择的任务
+        selectedTaskForMigration = JSON.parse(taskElement.dataset.task);
+        
+        // 启用确认按钮
+        document.getElementById('confirmMigrationBtn').disabled = false;
+    }
+    
+    // 过滤任务列表
+    function filterTasks() {
+        const searchTerm = document.getElementById('taskSearchInput').value.toLowerCase().trim();
+        filteredTasks = availableTasks.filter(task => 
+            task.task_name.toLowerCase().includes(searchTerm) ||
+            (task.task_id && task.task_id.toLowerCase().includes(searchTerm)) ||
+            (task.top_categories && task.top_categories.some(cat => cat.toLowerCase().includes(searchTerm)))
+        );
+        renderTaskList();
+        
+        // 清除选择状态
+        selectedTaskForMigration = null;
+        document.getElementById('confirmMigrationBtn').disabled = true;
+    }
+    
+    // 确认迁移
+    function confirmMigration() {
+        if (!selectedTaskForMigration || !window.currentMigrationArxivId) {
+            showMigrationStatus('error', '请先选择一个任务');
+            return;
+        }
+        
+        const confirmBtn = document.getElementById('confirmMigrationBtn');
+        const originalText = confirmBtn.innerHTML;
+        confirmBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 迁移中...';
+        confirmBtn.disabled = true;
+        
+        fetch('/api/migrate_paper_to_task', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                arxiv_id: window.currentMigrationArxivId,
+                target_task_name: selectedTaskForMigration.task_name,
+                target_task_id: selectedTaskForMigration.task_id || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMigrationStatus('success', '论文迁移成功！页面将刷新...');
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showMigrationStatus('error', data.error || '迁移失败');
+                confirmBtn.innerHTML = originalText;
+                confirmBtn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('迁移请求失败:', error);
+            showMigrationStatus('error', '网络错误，请稍后重试');
+            confirmBtn.innerHTML = originalText;
+            confirmBtn.disabled = false;
+        });
+    }
+    
+    // 显示迁移状态
+    function showMigrationStatus(type, message) {
+        const statusDiv = document.getElementById('migrationStatus');
+        const messageSpan = document.getElementById('migrationStatusMessage');
+        
+        statusDiv.className = 'alert mt-3';
+        
+        if (type === 'success') {
+            statusDiv.classList.add('alert-success');
+            messageSpan.innerHTML = `<i class="bi bi-check-circle"></i> ${message}`;
+        } else if (type === 'error') {
+            statusDiv.classList.add('alert-danger');
+            messageSpan.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}`;
+        } else {
+            statusDiv.classList.add('alert-info');
+            messageSpan.innerHTML = `<i class="bi bi-info-circle"></i> ${message}`;
+        }
+    }
+    
+    // 隐藏迁移状态
+    function hideMigrationStatus() {
+        const statusDiv = document.getElementById('migrationStatus');
+        statusDiv.className = 'alert d-none mt-3';
+    }
+    
+    // 工具函数：HTML转义
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // 工具函数：格式化日期
+    function formatDate(dateString) {
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+        } catch {
+            return dateString;
+        }
+    }
+
     // 页面加载完成后的处理
     document.addEventListener('DOMContentLoaded', function() {
         // 长文本自动展开/折叠功能

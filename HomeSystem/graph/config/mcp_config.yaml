@@ -1,0 +1,162 @@
+# MCP (Model Context Protocol) 配置文件
+# 支持 stdio 和 SSE 传输模式
+
+mcp:
+  # 是否启用 MCP 功能
+  enabled: true
+  
+  # 全局配置
+  global_settings:
+    # 连接超时（秒）
+    connection_timeout: 30
+    # 初始化超时（秒）
+    initialization_timeout: 15
+    # 重连间隔（秒）
+    reconnect_interval: 5
+    # 最大重连次数
+    max_reconnect_attempts: 3
+    # 是否启用详细日志
+    verbose_logging: false
+  
+  # MCP 服务器配置
+  servers:
+    # 文件系统工具服务器 (stdio 模式)
+    filesystem:
+      transport: "stdio"
+      command: "mcp-server-filesystem"
+      args: ["/tmp/mcp-workspace"]
+      enabled: true
+      description: "文件系统操作工具"
+      
+    # 序列思考服务器 (stdio 模式)
+    sequential_thinking:
+      transport: "stdio"
+      command: "npx"
+      args: ["@modelcontextprotocol/server-sequential-thinking"]
+      enabled: true
+      description: "序列思考和问题解决工具"
+      
+    # Hello World 测试服务器 (stdio 模式)
+    hello_world:
+      transport: "stdio"
+      command: "npx"
+      args: ["mcp-hello-world"]
+      enabled: true
+      description: "Hello World 测试服务器"
+      
+    # 网页搜索服务器 (SSE 模式)
+    web_search:
+      transport: "sse"
+      url: "http://localhost:8000/sse"
+      enabled: false
+      description: "网页搜索和内容提取"
+      headers:
+        Authorization: "Bearer your-api-key"
+        Content-Type: "application/json"
+      
+    # Git 仓库工具服务器 (stdio 模式)
+    git_tools:
+      transport: "stdio"
+      command: "npx"
+      args: ["@modelcontextprotocol/server-git", "--repository", "."]
+      enabled: false
+      description: "Git 仓库操作工具"
+      
+    # 数据库工具服务器 (SSE 模式)
+    database_tools:
+      transport: "sse"
+      url: "http://localhost:8001/sse"
+      enabled: false
+      description: "数据库查询和操作工具"
+      
+    # 自定义本地工具服务器 (stdio 模式)
+    local_tools:
+      transport: "stdio"
+      command: "python"
+      args: ["HomeSystem/graph/tools/local_mcp_server.py"]
+      enabled: false
+      description: "HomeSystem 自定义工具集"
+      working_directory: "/mnt/nfs_share/code/homesystem"
+      
+    # 开发工具服务器 (SSE 模式)
+    dev_tools:
+      transport: "sse" 
+      url: "http://localhost:8002/sse"
+      enabled: false
+      description: "开发和调试工具"
+      
+  # 传输模式特定配置
+  transport_settings:
+    stdio:
+      # 进程超时（秒）
+      process_timeout: 60
+      # 缓冲区大小
+      buffer_size: 8192
+      # 是否自动重启失败的进程
+      auto_restart: true
+      
+    sse:
+      # HTTP 超时（秒）
+      http_timeout: 30
+      # 连接池大小
+      pool_size: 10
+      # 是否验证 SSL 证书
+      verify_ssl: true
+      # 重试策略
+      retry_strategy:
+        max_retries: 3
+        backoff_factor: 2
+        
+  # 工具过滤和映射
+  tool_config:
+    # 全局禁用的工具
+    disabled_tools:
+      - "dangerous_operation"
+      - "system_shutdown"
+      
+    # 工具别名映射
+    tool_aliases:
+      "fs_read": "filesystem_read_file"
+      "fs_write": "filesystem_write_file"
+      "search": "web_search_query"
+      
+    # 工具权限控制
+    tool_permissions:
+      filesystem:
+        - "read"
+        - "write"
+      web_search:
+        - "query"
+        - "extract"
+      git_tools:
+        - "status"
+        - "log"
+        # - "commit"  # 默认禁用写操作
+        
+# 环境特定配置
+environments:
+  development:
+    mcp:
+      global_settings:
+        verbose_logging: true
+        connection_timeout: 10
+      servers:
+        local_tools:
+          enabled: true
+        filesystem:
+          enabled: true
+          
+  production:
+    mcp:
+      global_settings:
+        verbose_logging: false
+        connection_timeout: 30
+      servers:
+        web_search:
+          enabled: true
+        database_tools:
+          enabled: true
+          
+  testing:
+    mcp:
+      enabled: false

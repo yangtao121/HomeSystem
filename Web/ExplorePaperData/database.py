@@ -179,7 +179,7 @@ class PaperService:
                 FROM arxiv_papers 
                 WHERE created_at >= NOW() - INTERVAL '7 days'
                 GROUP BY created_at::date 
-                ORDER BY date DESC
+                ORDER BY date ASC
             """)
             recent_stats = [dict(row) for row in cursor.fetchall()]
             
@@ -656,6 +656,7 @@ class PaperService:
             try:
                 keys_to_delete = [
                     "available_tasks",
+                    "available_tasks_migration",
                     "task_statistics", 
                     "overview_stats",
                     "unassigned_papers_stats"
@@ -676,6 +677,7 @@ class PaperService:
                     "detailed_statistics",
                     "research_insights",
                     "available_tasks",
+                    "available_tasks_migration",
                     "task_statistics",
                     "unassigned_papers_stats"
                 ]
@@ -948,3 +950,215 @@ class PaperService:
         except Exception as e:
             logger.error(f"获取论文导航信息失败: {e}")
             return {'previous': None, 'next': None}
+    
+    def get_available_tasks_for_migration(self) -> Dict[str, Any]:
+        """获取可用于迁移的任务列表（包含详细信息）"""
+        cache_key = "available_tasks_migration"
+        cached_data = self.db_manager.get_cache(cache_key)
+        if cached_data:
+            return cached_data
+        
+        with self.db_manager.get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 获取所有任务的详细信息
+            cursor.execute("""
+                SELECT 
+                    task_name,
+                    task_id,
+                    COUNT(*) as paper_count,
+                    MIN(created_at) as first_created,
+                    MAX(created_at) as last_created,
+                    COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_count,
+                    COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending_count,
+                    COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed_count
+                FROM arxiv_papers 
+                WHERE task_name IS NOT NULL AND task_name != ''
+                GROUP BY task_name, task_id
+                ORDER BY last_created DESC, paper_count DESC
+            """)
+            
+            tasks = [dict(row) for row in cursor.fetchall()]
+            
+            # 获取每个任务的代表性分类
+            for task in tasks:
+                cursor.execute("""
+                    SELECT categories, COUNT(*) as count
+                    FROM arxiv_papers 
+                    WHERE task_name = %s AND categories IS NOT NULL AND categories != ''
+                    GROUP BY categories
+                    ORDER BY count DESC
+                    LIMIT 3
+                """, (task['task_name'],))
+                
+                categories = [row['categories'] for row in cursor.fetchall()]
+                task['top_categories'] = categories
+            
+            result = {'tasks': tasks}
+            
+            # 缓存结果
+            self.db_manager.set_cache(cache_key, result, timeout=300)
+            return result
+    
+    def migrate_paper_to_task(self, arxiv_id: str, target_task_name: str, target_task_id: str = None) -> bool:
+        """将论文迁移到指定任务"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 检查论文是否存在
+                cursor.execute("""
+                    SELECT task_name, task_id FROM arxiv_papers WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                current_paper = cursor.fetchone()
+                if not current_paper:
+                    logger.error(f"论文不存在: {arxiv_id}")
+                    return False
+                
+                # 执行迁移
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, task_id = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id = %s
+                """, (target_task_name, target_task_id, arxiv_id))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                    logger.info(f"论文迁移成功: {arxiv_id} -> {target_task_name}")
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"论文迁移失败: {e}")
+            return False
+    
+    def batch_migrate_papers_to_task(self, arxiv_ids: List[str], target_task_name: str, 
+                                   target_task_id: str = None) -> Tuple[int, List[str]]:
+        """批量将论文迁移到指定任务"""
+        if not arxiv_ids:
+            return 0, []
+            
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 检查哪些论文存在
+                placeholders = ','.join(['%s'] * len(arxiv_ids))
+                cursor.execute(f"""
+                    SELECT arxiv_id FROM arxiv_papers WHERE arxiv_id IN ({placeholders})
+                """, arxiv_ids)
+                
+                existing_papers = [row[0] for row in cursor.fetchall()]
+                missing_papers = list(set(arxiv_ids) - set(existing_papers))
+                
+                if not existing_papers:
+                    return 0, arxiv_ids
+                
+                # 批量迁移存在的论文
+                placeholders = ','.join(['%s'] * len(existing_papers))
+                cursor.execute(f"""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, task_id = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id IN ({placeholders})
+                """, [target_task_name, target_task_id] + existing_papers)
+                
+                affected_rows = cursor.rowcount
+                conn.commit()
+                
+                if affected_rows > 0:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                    logger.info(f"批量迁移成功: {affected_rows} 篇论文 -> {target_task_name}")
+                
+                return affected_rows, missing_papers
+                
+        except Exception as e:
+            logger.error(f"批量迁移失败: {e}")
+            return 0, arxiv_ids
+    
+    def merge_tasks(self, source_task_name: str, target_task_name: str, 
+                   target_task_id: str = None) -> int:
+        """合并任务：将源任务的所有论文迁移到目标任务"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 执行任务合并
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET task_name = %s, task_id = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE task_name = %s
+                """, (target_task_name, target_task_id, source_task_name))
+                
+                affected_rows = cursor.rowcount
+                conn.commit()
+                
+                if affected_rows > 0:
+                    # 清除相关缓存
+                    self._clear_task_related_cache()
+                    logger.info(f"任务合并成功: {source_task_name} -> {target_task_name}, 影响 {affected_rows} 篇论文")
+                
+                return affected_rows
+                
+        except Exception as e:
+            logger.error(f"任务合并失败: {e}")
+            return 0
+    
+    def get_task_migration_preview(self, arxiv_ids: List[str], target_task_name: str) -> Dict[str, Any]:
+        """获取任务迁移预览信息"""
+        if not arxiv_ids:
+            return {'valid_papers': [], 'invalid_papers': [], 'summary': {}}
+        
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 获取有效论文信息
+                placeholders = ','.join(['%s'] * len(arxiv_ids))
+                cursor.execute(f"""
+                    SELECT arxiv_id, title, task_name, task_id
+                    FROM arxiv_papers 
+                    WHERE arxiv_id IN ({placeholders})
+                """, arxiv_ids)
+                
+                valid_papers = [dict(row) for row in cursor.fetchall()]
+                valid_ids = [paper['arxiv_id'] for paper in valid_papers]
+                invalid_ids = list(set(arxiv_ids) - set(valid_ids))
+                
+                # 统计信息
+                same_task_count = sum(1 for paper in valid_papers if paper['task_name'] == target_task_name)
+                different_task_count = len(valid_papers) - same_task_count
+                
+                # 获取目标任务信息
+                cursor.execute("""
+                    SELECT COUNT(*) as paper_count, 
+                           MAX(created_at) as last_updated
+                    FROM arxiv_papers 
+                    WHERE task_name = %s
+                """, (target_task_name,))
+                
+                target_task_info = dict(cursor.fetchone()) if cursor.rowcount > 0 else {
+                    'paper_count': 0, 'last_updated': None
+                }
+                
+                return {
+                    'valid_papers': valid_papers,
+                    'invalid_papers': invalid_ids,
+                    'summary': {
+                        'total_selected': len(arxiv_ids),
+                        'valid_count': len(valid_papers),
+                        'invalid_count': len(invalid_ids),
+                        'same_task_count': same_task_count,
+                        'different_task_count': different_task_count,
+                        'target_task_info': target_task_info
+                    }
+                }
+                
+        except Exception as e:
+            logger.error(f"获取迁移预览失败: {e}")
+            return {'valid_papers': [], 'invalid_papers': arxiv_ids, 'summary': {}}

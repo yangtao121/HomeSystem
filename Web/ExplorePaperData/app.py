@@ -438,6 +438,160 @@ def api_update_relevance():
         logger.error(f"更新相关度失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/tasks/available_for_migration')
+def api_available_tasks_for_migration():
+    """API接口 - 获取可用于迁移的任务列表"""
+    try:
+        tasks_data = paper_service.get_available_tasks_for_migration()
+        return jsonify({'success': True, 'data': tasks_data})
+    
+    except Exception as e:
+        logger.error(f"获取迁移任务列表失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/migrate_paper_to_task', methods=['POST'])
+def api_migrate_paper_to_task():
+    """API接口 - 将论文迁移到指定任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = (data.get('arxiv_id') or '').strip()
+        target_task_name = (data.get('target_task_name') or '').strip()
+        target_task_id = (data.get('target_task_id') or '').strip() or None
+        
+        if not arxiv_id or not target_task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        success = paper_service.migrate_paper_to_task(
+            arxiv_id=arxiv_id,
+            target_task_name=target_task_name,
+            target_task_id=target_task_id
+        )
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f'论文已成功迁移到任务: {target_task_name}',
+                'data': {
+                    'arxiv_id': arxiv_id,
+                    'target_task_name': target_task_name,
+                    'target_task_id': target_task_id
+                }
+            })
+        else:
+            return jsonify({'success': False, 'error': '迁移失败，论文不存在'}), 404
+    
+    except Exception as e:
+        logger.error(f"论文迁移失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/batch_migrate_to_task', methods=['POST'])
+def api_batch_migrate_to_task():
+    """API接口 - 批量将论文迁移到指定任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        target_task_name = (data.get('target_task_name') or '').strip()
+        target_task_id = (data.get('target_task_id') or '').strip() or None
+        
+        if not arxiv_ids or not target_task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        if not isinstance(arxiv_ids, list):
+            return jsonify({'success': False, 'error': 'arxiv_ids必须是数组'}), 400
+        
+        affected_rows, missing_papers = paper_service.batch_migrate_papers_to_task(
+            arxiv_ids=arxiv_ids,
+            target_task_name=target_task_name,
+            target_task_id=target_task_id
+        )
+        
+        result = {
+            'success': True,
+            'message': f'成功迁移 {affected_rows} 篇论文到任务: {target_task_name}',
+            'affected_rows': affected_rows,
+            'total_requested': len(arxiv_ids),
+            'missing_papers': missing_papers
+        }
+        
+        if missing_papers:
+            result['warning'] = f'有 {len(missing_papers)} 篇论文不存在'
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f"批量迁移失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/merge_tasks', methods=['POST'])
+def api_merge_tasks():
+    """API接口 - 合并任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        source_task_name = (data.get('source_task_name') or '').strip()
+        target_task_name = (data.get('target_task_name') or '').strip()
+        target_task_id = (data.get('target_task_id') or '').strip() or None
+        
+        if not source_task_name or not target_task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        if source_task_name == target_task_name:
+            return jsonify({'success': False, 'error': '源任务和目标任务不能相同'}), 400
+        
+        affected_rows = paper_service.merge_tasks(
+            source_task_name=source_task_name,
+            target_task_name=target_task_name,
+            target_task_id=target_task_id
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功合并任务: {source_task_name} -> {target_task_name}，影响 {affected_rows} 篇论文',
+            'affected_rows': affected_rows,
+            'source_task_name': source_task_name,
+            'target_task_name': target_task_name
+        })
+    
+    except Exception as e:
+        logger.error(f"任务合并失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/migration_preview', methods=['POST'])
+def api_migration_preview():
+    """API接口 - 获取迁移预览信息"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        target_task_name = (data.get('target_task_name') or '').strip()
+        
+        if not arxiv_ids or not target_task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        if not isinstance(arxiv_ids, list):
+            return jsonify({'success': False, 'error': 'arxiv_ids必须是数组'}), 400
+        
+        preview_data = paper_service.get_task_migration_preview(
+            arxiv_ids=arxiv_ids,
+            target_task_name=target_task_name
+        )
+        
+        return jsonify({'success': True, 'data': preview_data})
+    
+    except Exception as e:
+        logger.error(f"获取迁移预览失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/tasks')
 def tasks():
     """任务管理页面"""
