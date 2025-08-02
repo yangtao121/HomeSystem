@@ -161,6 +161,13 @@ python examples/database_usage_example.py
 | **task_id** | VARCHAR(100) | 任务执行ID | INDEX |
 | **full_paper_relevance_score** | DECIMAL(5,3) | 完整论文相关性评分 | INDEX |
 | **full_paper_relevance_justification** | TEXT | 完整论文相关性评分理由 | - |
+| **dify_dataset_id** | VARCHAR(255) | Dify知识库ID | INDEX |
+| **dify_document_id** | VARCHAR(255) | Dify文档ID | INDEX |
+| **dify_upload_time** | TIMESTAMP | Dify上传时间 | INDEX |
+| **dify_document_name** | VARCHAR(500) | Dify中的文档名 | INDEX |
+| **dify_character_count** | INTEGER | Dify中的字符数 | - |
+| **dify_segment_count** | INTEGER | Dify分片数量 | - |
+| **dify_metadata** | JSONB | Dify相关元数据 | - |
 | created_at | TIMESTAMP | 创建时间 | INDEX |
 | updated_at | TIMESTAMP | 更新时间 | - |
 
@@ -242,6 +249,138 @@ arxiv_data.conclusions = "Transformer架构在NLP领域具有广泛的应用前�
 arxiv_data.full_paper_relevance_score = 0.85
 arxiv_data.full_paper_relevance_justification = "该论文与NLP任务高度相关，因为它详细探讨了Transformer架构在多个NLP任务中的应用效果，提供了全面的实验验证和深入的分析，对相关研究具有重要参考价值。"
 ```
+
+### 新增：Dify 知识库追踪功能
+
+系统现在支持追踪论文在 Dify 知识库中的位置，便于管理和维护数据一致性：
+
+**Dify 追踪字段说明**：
+
+- **dify_dataset_id**: Dify 知识库 ID
+  - 类型：VARCHAR(255)
+  - 用途：记录论文上传到的 Dify 知识库 ID
+  - 应用：用于批量操作、数据同步和删除管理
+  
+- **dify_document_id**: Dify 文档 ID
+  - 类型：VARCHAR(255)
+  - 用途：记录论文在 Dify 知识库中的文档 ID
+  - 应用：精确定位文档，支持更新和删除操作
+
+- **dify_upload_time**: Dify 上传时间
+  - 类型：TIMESTAMP
+  - 用途：记录论文上传到 Dify 的具体时间
+  - 应用：追踪上传历史，便于时间范围查询和排序
+
+- **dify_document_name**: Dify 中的文档名
+  - 类型：VARCHAR(500)
+  - 用途：记录论文在 Dify 中的实际文档名称
+  - 应用：可能与原始标题不同，便于准确定位和管理
+
+- **dify_character_count**: Dify 中的字符数
+  - 类型：INTEGER
+  - 用途：记录文档在 Dify 中的字符数统计
+  - 应用：数据对比、统计分析和容量管理
+
+- **dify_segment_count**: Dify 分片数量
+  - 类型：INTEGER  
+  - 用途：记录文档在 Dify 中的分片数量
+  - 应用：了解文档处理情况和检索性能优化
+
+- **dify_metadata**: Dify 相关元数据
+  - 类型：JSONB
+  - 用途：存储其他 Dify 相关信息的JSON字段
+  - 应用：扩展性强，可存储任意相关数据
+
+**使用场景**：
+
+1. **上传状态追踪**：检查论文是否已上传到 Dify
+   ```python
+   # 检查是否已上传
+   if paper.dify_dataset_id and paper.dify_document_id:
+       print(f"论文已上传到 Dify 数据集: {paper.dify_dataset_id}")
+   ```
+
+2. **批量管理**：按数据集管理论文
+   ```python
+   # 查询特定数据集中的所有论文
+   cursor.execute("""
+       SELECT arxiv_id, title, dify_document_id 
+       FROM arxiv_papers 
+       WHERE dify_dataset_id = %s
+   """, (dataset_id,))
+   ```
+
+3. **数据同步**：删除本地数据时同步删除 Dify 中的文档
+   ```python
+   # 删除前检查 Dify 中是否存在
+   if paper.dify_dataset_id and paper.dify_document_id:
+       dify_client.delete_document(paper.dify_dataset_id, paper.dify_document_id)
+   ```
+
+4. **更新操作**：更新 Dify 中的文档信息
+   ```python
+   # 当论文元数据更新时，同步更新 Dify
+   if paper.dify_document_id:
+       dify_client.update_document(
+           paper.dify_dataset_id, 
+           paper.dify_document_id, 
+           new_metadata
+       )
+   ```
+
+5. **便捷方法使用**：使用新增的便捷操作方法
+   ```python
+   # 更新 Dify 信息
+   paper.update_dify_info(
+       dataset_id="ds-xxxx", 
+       document_id="doc-yyyy",
+       document_name="论文标题",
+       character_count=5000,
+       segment_count=10,
+       metadata={"upload_source": "paper_gather_task"}
+   )
+   
+   # 检查是否已上传
+   if paper.is_uploaded_to_dify():
+       print(f"论文已上传，上传时间: {paper.dify_upload_time}")
+   
+   # 获取 Dify 信息摘要
+   dify_info = paper.get_dify_summary()
+   print(f"Dify状态: {dify_info}")
+   
+   # 清除 Dify 信息（删除时使用）
+   paper.clear_dify_info()
+   ```
+
+6. **时间范围查询**：基于上传时间查询
+   ```python
+   # 查询最近一天上传的论文
+   cursor.execute("""
+       SELECT arxiv_id, title, dify_upload_time 
+       FROM arxiv_papers 
+       WHERE dify_upload_time >= NOW() - INTERVAL '1 day'
+       ORDER BY dify_upload_time DESC
+   """)
+   ```
+
+7. **统计分析**：基于新字段进行统计
+   ```python
+   # 统计各数据集中的论文数量和字符数
+   cursor.execute("""
+       SELECT dify_dataset_id,
+              COUNT(*) as paper_count,
+              SUM(dify_character_count) as total_characters,
+              AVG(dify_segment_count) as avg_segments
+       FROM arxiv_papers 
+       WHERE dify_dataset_id IS NOT NULL
+       GROUP BY dify_dataset_id
+   """)
+   ```
+
+**数据完整性**：
+- 新字段为可选字段，现有数据保持为 NULL
+- 只有成功上传到 Dify 的论文才会设置这些字段
+- 提供完整的追踪能力，同时保持向后兼容性
 
 ## 💻 基础使用
 
@@ -429,6 +568,34 @@ cursor.execute("""
     WHERE full_paper_relevance_score IS NOT NULL
     GROUP BY relevance_range
     ORDER BY MIN(full_paper_relevance_score) DESC
+""")
+
+# Dify 知识库相关查询
+cursor.execute("""
+    -- 查询已上传到 Dify 的论文
+    SELECT arxiv_id, title, dify_dataset_id, dify_document_id 
+    FROM arxiv_papers 
+    WHERE dify_dataset_id IS NOT NULL AND dify_document_id IS NOT NULL
+    ORDER BY created_at DESC
+""")
+
+cursor.execute("""
+    -- 按数据集统计论文数量
+    SELECT dify_dataset_id, COUNT(*) as paper_count
+    FROM arxiv_papers 
+    WHERE dify_dataset_id IS NOT NULL
+    GROUP BY dify_dataset_id
+    ORDER BY paper_count DESC
+""")
+
+cursor.execute("""
+    -- 查找未上传到 Dify 的论文
+    SELECT arxiv_id, title, categories
+    FROM arxiv_papers 
+    WHERE dify_dataset_id IS NULL OR dify_document_id IS NULL
+    AND processing_status = 'completed'
+    ORDER BY created_at DESC
+    LIMIT 20
 """)
 
 # 时间范围查询

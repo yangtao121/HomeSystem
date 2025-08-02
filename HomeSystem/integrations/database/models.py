@@ -74,6 +74,15 @@ class ArxivPaperModel(BaseModel):
         # 完整论文相关性评分字段
         self.full_paper_relevance_score = kwargs.get('full_paper_relevance_score', None)
         self.full_paper_relevance_justification = kwargs.get('full_paper_relevance_justification', None)
+        
+        # Dify知识库追踪字段
+        self.dify_dataset_id = kwargs.get('dify_dataset_id', None)  # Dify数据集ID
+        self.dify_document_id = kwargs.get('dify_document_id', None)  # Dify文档ID
+        self.dify_upload_time = kwargs.get('dify_upload_time', None)  # 上传时间
+        self.dify_document_name = kwargs.get('dify_document_name', None)  # 在Dify中的文档名
+        self.dify_character_count = kwargs.get('dify_character_count', 0)  # Dify中的字符数
+        self.dify_segment_count = kwargs.get('dify_segment_count', 0)  # 分片数量
+        self.dify_metadata = kwargs.get('dify_metadata', {})  # Dify相关元数据
     
     @property
     def table_name(self) -> str:
@@ -104,6 +113,13 @@ class ArxivPaperModel(BaseModel):
             'keywords': self.keywords,
             'full_paper_relevance_score': self.full_paper_relevance_score,
             'full_paper_relevance_justification': self.full_paper_relevance_justification,
+            'dify_dataset_id': self.dify_dataset_id,
+            'dify_document_id': self.dify_document_id,
+            'dify_upload_time': self.dify_upload_time.isoformat() if self.dify_upload_time else None,
+            'dify_document_name': self.dify_document_name,
+            'dify_character_count': self.dify_character_count,
+            'dify_segment_count': self.dify_segment_count,
+            'dify_metadata': json.dumps(self.dify_metadata) if isinstance(self.dify_metadata, dict) else self.dify_metadata,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
@@ -122,6 +138,20 @@ class ArxivPaperModel(BaseModel):
                 data['metadata'] = json.loads(data['metadata'])
             except json.JSONDecodeError:
                 data['metadata'] = {}
+        
+        # 处理dify_metadata JSON字段
+        if 'dify_metadata' in data and isinstance(data['dify_metadata'], str):
+            try:
+                data['dify_metadata'] = json.loads(data['dify_metadata'])
+            except json.JSONDecodeError:
+                data['dify_metadata'] = {}
+        
+        # 处理dify_upload_time时间字段
+        if 'dify_upload_time' in data and isinstance(data['dify_upload_time'], str):
+            try:
+                data['dify_upload_time'] = datetime.fromisoformat(data['dify_upload_time'])
+            except (ValueError, TypeError):
+                data['dify_upload_time'] = None
         
         return cls(**data)
     
@@ -158,6 +188,13 @@ class ArxivPaperModel(BaseModel):
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS task_id VARCHAR(100) DEFAULT NULL;
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS full_paper_relevance_score DECIMAL(5,3) DEFAULT NULL;
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS full_paper_relevance_justification TEXT DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_dataset_id VARCHAR(255) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_document_id VARCHAR(255) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_upload_time TIMESTAMP DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_document_name VARCHAR(500) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_character_count INTEGER DEFAULT 0;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_segment_count INTEGER DEFAULT 0;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_metadata JSONB DEFAULT '{}';
         
         -- 创建索引
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_arxiv_id ON arxiv_papers(arxiv_id);
@@ -175,6 +212,13 @@ class ArxivPaperModel(BaseModel):
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_task_name_id ON arxiv_papers(task_name, task_id);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_full_paper_relevance_score ON arxiv_papers(full_paper_relevance_score);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_full_paper_relevance_score_desc ON arxiv_papers(full_paper_relevance_score DESC);
+        
+        -- Dify知识库追踪字段索引
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_dataset_id ON arxiv_papers(dify_dataset_id);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_document_id ON arxiv_papers(dify_document_id);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_mapping ON arxiv_papers(dify_dataset_id, dify_document_id);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_upload_time ON arxiv_papers(dify_upload_time);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_document_name ON arxiv_papers(dify_document_name);
         
         -- 创建更新时间戳触发器
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -307,6 +351,62 @@ class ArxivPaperModel(BaseModel):
             'keywords': self.keywords,
             'full_paper_relevance_score': self.full_paper_relevance_score,
             'full_paper_relevance_justification': self.full_paper_relevance_justification
+        }
+    
+    def update_dify_info(self, dataset_id: str, document_id: str, document_name: str,
+                        character_count: int = 0, segment_count: int = 0,
+                        metadata: Optional[Dict[str, Any]] = None):
+        """
+        更新 Dify 信息
+        
+        Args:
+            dataset_id: Dify数据集ID
+            document_id: Dify文档ID  
+            document_name: Dify中的文档名
+            character_count: 字符数
+            segment_count: 分片数量
+            metadata: 额外的元数据
+        """
+        self.dify_dataset_id = dataset_id
+        self.dify_document_id = document_id
+        self.dify_document_name = document_name
+        self.dify_character_count = character_count
+        self.dify_segment_count = segment_count
+        self.dify_upload_time = datetime.now()
+        
+        if metadata:
+            if not isinstance(self.dify_metadata, dict):
+                self.dify_metadata = {}
+            self.dify_metadata.update(metadata)
+        
+        self.update_timestamp()
+    
+    def clear_dify_info(self):
+        """清除 Dify 信息（用于删除操作）"""
+        self.dify_dataset_id = None
+        self.dify_document_id = None
+        self.dify_document_name = None
+        self.dify_character_count = 0
+        self.dify_segment_count = 0
+        self.dify_upload_time = None
+        self.dify_metadata = {}
+        self.update_timestamp()
+    
+    def is_uploaded_to_dify(self) -> bool:
+        """检查是否已上传到 Dify"""
+        return bool(self.dify_dataset_id and self.dify_document_id)
+    
+    def get_dify_summary(self) -> Dict[str, Any]:
+        """获取 Dify 追踪信息摘要"""
+        return {
+            'uploaded': self.is_uploaded_to_dify(),
+            'dataset_id': self.dify_dataset_id,
+            'document_id': self.dify_document_id,
+            'document_name': self.dify_document_name,
+            'upload_time': self.dify_upload_time.isoformat() if self.dify_upload_time else None,
+            'character_count': self.dify_character_count,
+            'segment_count': self.dify_segment_count,
+            'metadata': self.dify_metadata or {}
         }
 
 
