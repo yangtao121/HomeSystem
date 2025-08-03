@@ -12,7 +12,8 @@ This document contains API credentials and endpoint information for local applic
 
 ## Dify
 
-**Service URL**: http://192.168.5.54/v1
+**Service URL**: http://192.168.5.54:5001/v1
+
 
 **Authentication Token**: dataset-FeqIPq6YFN4vjTkAm3wA9bWn
 

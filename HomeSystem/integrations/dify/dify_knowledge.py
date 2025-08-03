@@ -973,7 +973,14 @@ class DifyKnowledgeBaseClient:
         Raises:
             DifyKnowledgeBaseError: API请求失败
         """
-        url = f"{self.config.base_url}/v1/{endpoint.lstrip('/')}"
+        # 构造URL，避免路径重复
+        base_url = self.config.base_url.rstrip('/')
+        endpoint = endpoint.lstrip('/')
+        # Dify API需要/v1前缀
+        if not base_url.endswith('/v1'):
+            url = f"{base_url}/v1/{endpoint}"
+        else:
+            url = f"{base_url}/{endpoint}"
         
         # 设置超时
         if timeout is None:
@@ -1301,7 +1308,7 @@ class DifyKnowledgeBaseClient:
                 headers = self.session.headers.copy()
                 headers.pop('Content-Type', None)
                 
-                url = f"{self.config.base_url}/v1/datasets/{dataset_id}/document/create-by-file"
+                url = f"{self.config.base_url.rstrip('/')}/datasets/{dataset_id}/document/create-by-file"
                 
                 response = requests.post(
                     url,

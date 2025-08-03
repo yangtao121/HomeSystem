@@ -18,6 +18,7 @@ providers:
       parameters: 671B总参数/37B激活
       max_tokens: 131072
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: MoE架构，14.8万亿token训练
     - name: deepseek-reasoner
@@ -26,6 +27,7 @@ providers:
       parameters: 推理专用模型
       max_tokens: 131072
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: 最新推理模型，AIME 2025达87.5%准确率
   siliconflow:
@@ -42,6 +44,7 @@ providers:
       parameters: 推理优化版本
       max_tokens: 131072
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: 通过硅基流动提供的DeepSeek R1
     - name: deepseek-ai/DeepSeek-V3
@@ -50,6 +53,7 @@ providers:
       parameters: 671B总参数/37B激活
       max_tokens: 131072
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: 通过硅基流动提供的DeepSeek V3
     - name: Qwen/QwQ-32B-Preview
@@ -58,6 +62,7 @@ providers:
       parameters: 32B
       max_tokens: 32768
       supports_functions: true
+      supports_vision: false
       context_length: 32768
       description: 阿里通义千问推理增强版本
     - name: Qwen/Qwen2.5-72B-Instruct
@@ -66,6 +71,7 @@ providers:
       parameters: 72B
       max_tokens: 131072
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: 通义千问2.5系列最强版本
   volcano:
@@ -82,6 +88,7 @@ providers:
       parameters: 未公开参数量
       max_tokens: 16384
       supports_functions: true
+      supports_vision: false
       context_length: 256000
       description: All-in-One综合模型，支持深度思考和多模态
     - name: doubao-seed-1.6-thinking
@@ -90,6 +97,7 @@ providers:
       parameters: 未公开参数量
       max_tokens: 16384
       supports_functions: true
+      supports_vision: false
       context_length: 256000
       description: 深度思考强化版，数学推理能力突出
     - name: doubao-seed-1.6-flash
@@ -98,6 +106,7 @@ providers:
       parameters: 未公开参数量
       max_tokens: 16384
       supports_functions: true
+      supports_vision: false
       context_length: 256000
       description: 极低延迟版本，TOPT仅需10ms，支持256K上下文
   moonshot:
@@ -114,6 +123,7 @@ providers:
       parameters: 1T总参数/32B激活
       max_tokens: 16384
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: 万亿参数MoE智能体模型，专注代码和推理
     - name: moonshot-v1-128k
@@ -122,6 +132,7 @@ providers:
       parameters: 未公开参数量
       max_tokens: 16384
       supports_functions: true
+      supports_vision: false
       context_length: 131072
       description: 长上下文处理专用版本
   ollama:
@@ -138,22 +149,25 @@ providers:
       parameters: 14B
       max_tokens: 32768
       supports_functions: false
+      supports_vision: false
       context_length: 131072
       description: DeepSeek推理模型14B版本，支持128K上下文
     - name: qwen2.5vl:7b
-      key: ollama.Qwen2_5_7B
-      display_name: 通义千问 2.5-7B
+      key: ollama.Qwen2_5_VL_7B
+      display_name: 通义千问 2.5-VL-7B (视觉)
       parameters: 7B
       max_tokens: 32768
       supports_functions: false
+      supports_vision: true
       context_length: 131072
-      description: 通义千问2.5系列7B版本
+      description: 通义千问2.5系列7B版本，支持视觉和图片分析
     - name: qwen3:30b
       key: ollama.Qwen3_30B
       display_name: 通义千问3 30B
       parameters: 30B
       max_tokens: 32768
       supports_functions: false
+      supports_vision: false
       context_length: 131072
       description: MoE架构代码专用模型，多语言支持，支持128K上下文
 embedding_providers:

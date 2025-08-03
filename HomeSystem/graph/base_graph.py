@@ -4,10 +4,12 @@ from abc import ABC, abstractmethod
 import os
 import re
 import asyncio
-from typing import Optional, List, Dict, Any
-from langchain_core.messages import SystemMessage
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Union
+from langchain_core.messages import SystemMessage, HumanMessage
 
-from .llm_factory import get_llm, get_embedding
+from .llm_factory import get_llm, get_embedding, get_vision_llm, validate_vision_input
+from .vision_utils import VisionUtils, create_vision_message
 
 # 尝试导入 MCP 管理器，如果失败则禁用 MCP 功能
 try:
@@ -92,6 +94,105 @@ class BaseGraph(ABC):
         
         return content
 
+    def process_image_input(self, image_path: Union[str, Path], text: str = "") -> List[dict]:
+        """
+        处理图片输入，创建多模态消息内容
+        
+        Args:
+            image_path: 图片文件路径
+            text: 附加的文本内容
+            
+        Returns:
+            List[dict]: 多模态消息内容
+            
+        Raises:
+            ValueError: 图片处理失败或格式不支持
+            FileNotFoundError: 图片文件不存在
+        """
+        try:
+            # 验证图片文件
+            image_path = Path(image_path)
+            if not image_path.exists():
+                raise FileNotFoundError(f"图片文件不存在: {image_path}")
+            
+            # 获取图片信息
+            image_info = VisionUtils.get_image_info(image_path)
+            logger.info(f"处理图片: {image_info['filename']}, 格式: {image_info.get('format', 'unknown')}, "
+                       f"尺寸: {image_info.get('width', 0)}x{image_info.get('height', 0)}")
+            
+            # 创建多模态消息内容
+            content = create_vision_message(image_path, text)
+            
+            return content
+            
+        except Exception as e:
+            logger.error(f"图片输入处理失败: {e}")
+            raise
+
+    def run_with_image(self, image_path: Union[str, Path], text: str = "", model_name: Optional[str] = None, thread_id: str = "1"):
+        """
+        使用图片输入运行agent
+        
+        Args:
+            image_path: 图片文件路径
+            text: 附加的文本提示
+            model_name: 指定的模型名称（必须支持视觉）
+            thread_id: 线程ID
+            
+        Returns:
+            str: AI响应内容
+            
+        Raises:
+            ValueError: 模型不支持视觉或为云端模型
+        """
+        if self.agent is None:
+            logger.error("Agent is not initialized. Please set the agent before running.")
+            raise ValueError("Agent is not initialized")
+        
+        # 验证模型视觉支持（如果指定了模型）
+        if model_name:
+            validate_vision_input(model_name)
+            
+            # 如果指定了不同的模型，需要创建一个临时的视觉代理
+            from .chat_agent import ChatAgent, ChatAgentConfig
+            vision_config = ChatAgentConfig(model_name=model_name)
+            vision_agent = ChatAgent(config=vision_config)
+            
+            # 使用视觉代理处理请求
+            return vision_agent.run_with_image(image_path, text, None, thread_id)
+        
+        try:
+            # 处理图片输入
+            content = self.process_image_input(image_path, text)
+            
+            # 创建包含图片的消息
+            message = HumanMessage(content=content)
+            
+            config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+            input_data = {"messages": [message]}
+            
+            logger.info(f"使用图片运行Agent: {Path(image_path).name}")
+            
+            events = self.agent.stream(
+                input_data,
+                config,
+                stream_mode="values"
+            )
+            
+            # 收集所有非SystemMessage的内容
+            result_content = ""
+            for event in events:
+                message = event["messages"][-1]
+                if not isinstance(message, SystemMessage):
+                    if hasattr(message, 'content') and message.content:
+                        result_content = message.content
+            
+            return result_content
+            
+        except Exception as e:
+            logger.error(f"图片运行失败: {e}")
+            raise
+
     def run(self, input_text: str, thread_id: str = "1"):
         """
         运行单次执行模式，区别于chat交互模式
@@ -125,6 +226,82 @@ class BaseGraph(ABC):
                     result_content = message.content
         
         return result_content
+
+    def chat_with_image(self, image_path: Union[str, Path], model_name: Optional[str] = None):
+        """
+        支持图片的交互式聊天模式
+        
+        Args:
+            image_path: 图片文件路径
+            model_name: 指定的模型名称（必须支持视觉）
+        """
+        logger.info("Starting vision chat session. Type 'exit' to quit.")
+        
+        if self.agent is None:
+            logger.error("Agent is not initialized. Please set the agent before starting the chat.")
+            raise ValueError("Agent is not initialized")
+
+        # 验证模型视觉支持
+        if model_name:
+            validate_vision_input(model_name)
+        
+        # 显示图片信息
+        try:
+            image_info = VisionUtils.get_image_info(image_path)
+            logger.info(f"加载图片: {image_info['filename']}, "
+                       f"格式: {image_info.get('format', 'unknown')}, "
+                       f"尺寸: {image_info.get('width', 0)}x{image_info.get('height', 0)}")
+        except Exception as e:
+            logger.error(f"无法加载图片: {e}")
+            return
+
+        config = {"configurable": {"thread_id": "1"}, "recursion_limit": 100}
+        
+        while True:
+            try:
+                user_input = input("> ")
+            except UnicodeDecodeError:
+                import sys
+                user_input = sys.stdin.buffer.readline().decode('utf-8', errors='replace').strip()
+            
+            if user_input.lower() in ['exit', 'quit', 'q']:
+                logger.info("Exiting vision chat...")
+                break
+            
+            try:
+                logger.info("Processing your request with image...")
+                
+                # 处理图片输入
+                content = self.process_image_input(image_path, user_input)
+                message = HumanMessage(content=content)
+                
+                input_data = {"messages": [message]}
+                events = self.agent.stream(
+                    input_data,
+                    config,
+                    stream_mode="values"
+                )
+                
+                # 处理响应
+                for event in events:
+                    message = event["messages"][-1]
+                    if isinstance(message, SystemMessage):
+                        continue
+                    else:
+                        if hasattr(message, 'content') and message.content:
+                            formatted_content = self._format_response_content(message.content)
+                            from langchain_core.messages import AIMessage
+                            formatted_message = AIMessage(content=formatted_content)
+                            formatted_message.pretty_print()
+                        else:
+                            message.pretty_print()
+                            
+            except Exception as e:
+                logger.error(f"处理请求失败: {e}")
+                logger.info("请重试或输入 'exit' 退出")
+                continue
+            
+            logger.info("Task completed. Enter your next query or type 'exit' to quit")
 
     def chat(self,):
         logger.info("Starting chat session. Type 'exit' to quit.")

@@ -71,7 +71,8 @@ class LLMFactory:
                         'base_url': provider_config.get('base_url'),
                         'description': model.get('description', ''),
                         'max_tokens': model.get('max_tokens'),
-                        'supports_functions': model.get('supports_functions', False)
+                        'supports_functions': model.get('supports_functions', False),
+                        'supports_vision': model.get('supports_vision', False)
                     }
         
         return available
@@ -107,6 +108,23 @@ class LLMFactory:
     def get_available_embedding_models(self) -> List[str]:
         """获取所有可用Embedding模型列表"""
         return list(self.available_embedding_models.keys())
+    
+    def get_available_vision_models(self) -> List[str]:
+        """获取所有支持视觉的模型列表"""
+        return [model_key for model_key, config in self.available_llm_models.items() 
+                if config.get('supports_vision', False)]
+    
+    def supports_vision(self, model_name: str) -> bool:
+        """检查指定模型是否支持视觉功能"""
+        if model_name not in self.available_llm_models:
+            return False
+        return self.available_llm_models[model_name].get('supports_vision', False)
+    
+    def is_local_model(self, model_name: str) -> bool:
+        """检查是否为本地模型"""
+        if model_name not in self.available_llm_models:
+            return False
+        return self.available_llm_models[model_name]['type'] == 'ollama'
     
     def create_llm(self, model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
         """
@@ -167,6 +185,57 @@ class LLMFactory:
                 **params
             )
     
+    def create_vision_llm(self, model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
+        """
+        创建支持视觉的LLM实例
+        
+        Args:
+            model_name: 模型名称，如果为None则自动选择支持视觉的模型
+            **kwargs: 传递给模型的参数
+            
+        Returns:
+            BaseChatModel: 支持视觉的LLM实例
+            
+        Raises:
+            ValueError: 如果指定的模型不支持视觉功能或为云端模型
+        """
+        # 如果未指定模型，选择默认的视觉模型
+        if model_name is None:
+            vision_models = self.get_available_vision_models()
+            if not vision_models:
+                raise ValueError("没有可用的视觉模型")
+            model_name = vision_models[0]  # 选择第一个可用的视觉模型
+        
+        # 检查模型是否支持视觉
+        if not self.supports_vision(model_name):
+            raise ValueError(f"模型 '{model_name}' 不支持视觉功能")
+        
+        # 检查是否为本地模型（只有本地模型支持视觉）
+        if not self.is_local_model(model_name):
+            available_vision = ', '.join(self.get_available_vision_models())
+            raise ValueError(f"云端模型 '{model_name}' 不支持视觉功能。请使用本地视觉模型: {available_vision}")
+        
+        # 创建支持视觉的LLM实例
+        logger.info(f"创建视觉LLM: {model_name}")
+        return self.create_llm(model_name, **kwargs)
+    
+    def validate_vision_input(self, model_name: str) -> None:
+        """
+        验证模型是否可以接受视觉输入
+        
+        Args:
+            model_name: 模型名称
+            
+        Raises:
+            ValueError: 如果模型不支持视觉或为云端模型
+        """
+        if not self.supports_vision(model_name):
+            if self.is_local_model(model_name):
+                available_vision = ', '.join(self.get_available_vision_models())
+                raise ValueError(f"本地模型 '{model_name}' 不支持视觉功能。请使用: {available_vision}")
+            else:
+                raise ValueError(f"云端模型 '{model_name}' 仅支持纯文本输入，不支持图片处理")
+    
     def create_embedding(self, model_name: Optional[str] = None, **kwargs) -> Embeddings:
         """
         创建Embedding实例
@@ -218,7 +287,9 @@ class LLMFactory:
         logger.info("\n📝 LLM模型:")
         logger.info("-" * 60)
         for model_name, config in self.available_llm_models.items():
-            logger.info(f"✅ {model_name:35} | {config['display_name']}")
+            vision_mark = "👁️" if config.get('supports_vision', False) else "📝"
+            local_mark = "🏠" if config['type'] == 'ollama' else "☁️"
+            logger.info(f"✅ {model_name:35} | {vision_mark}{local_mark} {config['display_name']}")
         
         logger.info("\n🔍 Embedding模型:")
         logger.info("-" * 60)
@@ -252,6 +323,26 @@ def list_available_llm_models() -> List[str]:
 def list_available_embedding_models() -> List[str]:
     """便捷函数：获取可用Embedding模型列表"""
     return llm_factory.get_available_embedding_models()
+
+
+def get_vision_llm(model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
+    """便捷函数：创建支持视觉的LLM实例"""
+    return llm_factory.create_vision_llm(model_name, **kwargs)
+
+
+def list_available_vision_models() -> List[str]:
+    """便捷函数：获取可用视觉模型列表"""
+    return llm_factory.get_available_vision_models()
+
+
+def check_vision_support(model_name: str) -> bool:
+    """便捷函数：检查模型是否支持视觉"""
+    return llm_factory.supports_vision(model_name)
+
+
+def validate_vision_input(model_name: str) -> None:
+    """便捷函数：验证模型视觉输入能力"""
+    return llm_factory.validate_vision_input(model_name)
 
 
 if __name__ == "__main__":
