@@ -570,7 +570,7 @@ class ArxivData:
                     saved_files.append(str(mkd_file_path))
                     
                     # 保存图片到标准化的图片目录
-                    images_dir = output_md_dir / "images"
+                    images_dir = output_md_dir 
                     for item in markdown_images:
                         if item:
                             for path, image in item.items():
@@ -700,7 +700,7 @@ class ArxivData:
             
             # 保存图片到标准化的图片目录
             if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
-                images_dir = output_dir / "images"
+                images_dir = output_dir 
                 for path, image in self.paddle_ocr_images.items():
                     image_path = images_dir / path
                     image_path.parent.mkdir(parents=True, exist_ok=True)

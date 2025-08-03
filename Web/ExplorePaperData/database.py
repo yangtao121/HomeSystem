@@ -1255,7 +1255,19 @@ class DifyService:
     
     def is_available(self) -> bool:
         """检查 Dify 服务是否可用"""
-        return self.dify_client is not None and self.dify_client.health_check()
+        if not self.dify_client:
+            logger.error("Dify 客户端未初始化，请检查环境变量配置")
+            return False
+        
+        try:
+            # 尝试调用 health_check 或简单的 API 调用来验证连接
+            health_status = self.dify_client.health_check()
+            if not health_status:
+                logger.error("Dify 服务健康检查失败，请检查服务状态和网络连接")
+            return health_status
+        except Exception as e:
+            logger.error(f"Dify 服务连接测试失败: {e}")
+            return False
     
     def get_or_create_dataset(self, task_name: str) -> Optional[str]:
         """获取或创建以 task_name 命名的知识库"""
@@ -2090,4 +2102,430 @@ class DifyService:
                 "message": f"批量验证过程中发生错误: {e}",
                 "failed_papers": [],
                 "missing_papers": []
+            }
+    
+    def get_eligible_papers_for_upload(self, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """
+        获取符合上传条件的论文列表
+        
+        Args:
+            filters: 过滤条件
+                - task_name: 指定任务名称
+                - category: 指定分类
+                - exclude_already_uploaded: 排除已上传的论文 (默认True)
+                - require_task_name: 要求有任务名称 (默认True)
+                - max_papers: 最大论文数量
+        
+        Returns:
+            符合条件的论文列表
+        """
+        if filters is None:
+            filters = {}
+        
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 构建基础查询
+                base_query = """
+                    SELECT arxiv_id, title, authors, abstract, categories, pdf_url, task_name,
+                           dify_dataset_id, dify_document_id, created_at
+                    FROM arxiv_papers 
+                    WHERE 1=1
+                """
+                
+                query_params = []
+                
+                # 应用过滤条件
+                if filters.get('exclude_already_uploaded', True):
+                    base_query += " AND (dify_document_id IS NULL OR dify_document_id = '')"
+                
+                if filters.get('require_task_name', True):
+                    base_query += " AND task_name IS NOT NULL AND task_name != ''"
+                
+                if filters.get('task_name'):
+                    base_query += " AND task_name = %s"
+                    query_params.append(filters['task_name'])
+                
+                if filters.get('category'):
+                    base_query += " AND categories LIKE %s"
+                    query_params.append(f"%{filters['category']}%")
+                
+                # 排序和限制
+                base_query += " ORDER BY created_at DESC"
+                
+                if filters.get('max_papers'):
+                    base_query += " LIMIT %s"
+                    query_params.append(filters['max_papers'])
+                
+                cursor.execute(base_query, query_params)
+                papers = cursor.fetchall()
+                
+                # 转换为字典列表
+                return [dict(paper) for paper in papers]
+                
+        except Exception as e:
+            logger.error(f"获取符合条件的论文失败: {e}")
+            return []
+    
+    def upload_all_eligible_papers_with_summary(self, filters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        上传所有符合条件的论文并生成详细总结
+        
+        Args:
+            filters: 过滤条件
+        
+        Returns:
+            包含详细统计和失败信息的结果字典
+        """
+        if not self.dify_client:
+            return {
+                "success": False,
+                "error": "Dify 客户端未初始化",
+                "total_eligible": 0,
+                "total_attempted": 0,
+                "success_count": 0,
+                "failed_count": 0,
+                "skipped_count": 0,
+                "progress": 0,
+                "successful_papers": [],
+                "failed_papers": [],
+                "skipped_papers": [],
+                "failure_summary": {},
+                "suggestions": []
+            }
+        
+        try:
+            # 获取符合条件的论文
+            eligible_papers = self.get_eligible_papers_for_upload(filters)
+            total_eligible = len(eligible_papers)
+            
+            if total_eligible == 0:
+                return {
+                    "success": True,
+                    "total_eligible": 0,
+                    "total_attempted": 0,
+                    "success_count": 0,
+                    "failed_count": 0,
+                    "skipped_count": 0,
+                    "progress": 100,
+                    "message": "没有找到符合条件的论文",
+                    "successful_papers": [],
+                    "failed_papers": [],
+                    "skipped_papers": [],
+                    "failure_summary": {},
+                    "suggestions": []
+                }
+            
+            # 初始化结果统计
+            successful_papers = []
+            failed_papers = []
+            skipped_papers = []
+            failure_summary = {}
+            
+            logger.info(f"开始批量上传 {total_eligible} 篇符合条件的论文")
+            
+            # 批量上传
+            for i, paper in enumerate(eligible_papers):
+                arxiv_id = paper['arxiv_id']
+                title = paper.get('title', 'Unknown Title')
+                
+                try:
+                    # 上传单个论文
+                    upload_result = self.upload_paper_to_dify(arxiv_id)
+                    
+                    if upload_result['success']:
+                        successful_papers.append({
+                            'arxiv_id': arxiv_id,
+                            'title': title,
+                            'task_name': paper.get('task_name'),
+                            'dataset_id': upload_result.get('dataset_id'),
+                            'document_id': upload_result.get('document_id')
+                        })
+                        logger.info(f"上传成功: {arxiv_id} - {title}")
+                    else:
+                        error = upload_result.get('error', '未知错误')
+                        failed_papers.append({
+                            'arxiv_id': arxiv_id,
+                            'title': title,
+                            'task_name': paper.get('task_name'),
+                            'error': error,
+                            'error_type': self._classify_error_type(error)
+                        })
+                        
+                        # 统计失败原因
+                        error_type = self._classify_error_type(error)
+                        failure_summary[error_type] = failure_summary.get(error_type, 0) + 1
+                        
+                        logger.warning(f"上传失败: {arxiv_id} - {error}")
+                
+                except Exception as e:
+                    error_msg = str(e)
+                    failed_papers.append({
+                        'arxiv_id': arxiv_id,
+                        'title': title,
+                        'task_name': paper.get('task_name'),
+                        'error': f'上传异常: {error_msg}',
+                        'error_type': 'system_error'
+                    })
+                    
+                    failure_summary['system_error'] = failure_summary.get('system_error', 0) + 1
+                    logger.error(f"上传异常: {arxiv_id} - {error_msg}")
+                
+                # 可以在这里添加进度回调
+                progress = int((i + 1) / total_eligible * 100)
+                if (i + 1) % 5 == 0 or i == total_eligible - 1:
+                    logger.info(f"上传进度: {i + 1}/{total_eligible} ({progress}%)")
+            
+            # 生成建议
+            suggestions = self._generate_upload_suggestions(failed_papers, failure_summary)
+            
+            # 汇总结果
+            result = {
+                "success": True,
+                "total_eligible": total_eligible,
+                "total_attempted": total_eligible,
+                "success_count": len(successful_papers),
+                "failed_count": len(failed_papers),
+                "skipped_count": len(skipped_papers),
+                "progress": 100,
+                "message": f"批量上传完成：成功 {len(successful_papers)} 篇，失败 {len(failed_papers)} 篇",
+                "successful_papers": successful_papers,
+                "failed_papers": failed_papers,
+                "skipped_papers": skipped_papers,
+                "failure_summary": failure_summary,
+                "suggestions": suggestions
+            }
+            
+            logger.info(f"批量上传完成: {result['message']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"批量上传失败: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "total_eligible": 0,
+                "total_attempted": 0,
+                "success_count": 0,
+                "failed_count": 0,
+                "skipped_count": 0,
+                "progress": 0,
+                "message": f"批量上传过程中发生错误: {e}",
+                "successful_papers": [],
+                "failed_papers": [],
+                "skipped_papers": [],
+                "failure_summary": {},
+                "suggestions": []
+            }
+    
+    def _classify_error_type(self, error: str) -> str:
+        """分类错误类型"""
+        error_lower = error.lower()
+        
+        if '任务名称' in error or 'task_name' in error_lower:
+            return 'missing_task_name'
+        elif '已上传' in error or 'already uploaded' in error_lower:
+            return 'already_uploaded'
+        elif 'pdf' in error_lower or '下载' in error:
+            return 'pdf_download_error'
+        elif '连接' in error or 'connection' in error_lower or 'network' in error_lower:
+            return 'network_error'
+        elif '服务' in error or 'service' in error_lower:
+            return 'service_error'
+        elif '权限' in error or 'permission' in error_lower or 'unauthorized' in error_lower:
+            return 'permission_error'
+        elif '知识库' in error or 'dataset' in error_lower:
+            return 'dataset_error'
+        else:
+            return 'other_error'
+    
+    def _generate_upload_suggestions(self, failed_papers: List[Dict], failure_summary: Dict) -> List[Dict]:
+        """生成上传建议"""
+        suggestions = []
+        
+        # 分析失败原因并生成对应建议
+        if failure_summary.get('missing_task_name', 0) > 0:
+            suggestions.append({
+                'type': 'missing_task_name',
+                'count': failure_summary['missing_task_name'],
+                'title': '缺少任务名称',
+                'description': f'有 {failure_summary["missing_task_name"]} 篇论文缺少任务名称',
+                'action': '为这些论文分配任务名称后重新上传',
+                'severity': 'warning'
+            })
+        
+        if failure_summary.get('pdf_download_error', 0) > 0:
+            suggestions.append({
+                'type': 'pdf_download_error',
+                'count': failure_summary['pdf_download_error'],
+                'title': 'PDF下载失败',
+                'description': f'有 {failure_summary["pdf_download_error"]} 篇论文的PDF下载失败',
+                'action': '检查网络连接或手动下载PDF文件',
+                'severity': 'error'
+            })
+        
+        if failure_summary.get('network_error', 0) > 0:
+            suggestions.append({
+                'type': 'network_error',
+                'count': failure_summary['network_error'],
+                'title': '网络连接问题',
+                'description': f'有 {failure_summary["network_error"]} 篇论文因网络问题上传失败',
+                'action': '检查网络连接后重试上传',
+                'severity': 'error'
+            })
+        
+        if failure_summary.get('already_uploaded', 0) > 0:
+            suggestions.append({
+                'type': 'already_uploaded',
+                'count': failure_summary['already_uploaded'],
+                'title': '论文已上传',
+                'description': f'有 {failure_summary["already_uploaded"]} 篇论文已经上传过',
+                'action': '这些论文可以跳过或通过验证功能检查状态',
+                'severity': 'info'
+            })
+        
+        return suggestions
+    
+    def generate_failed_papers_download(self, failed_papers: List[Dict], download_type: str = 'links') -> Dict[str, Any]:
+        """
+        为失败的论文生成下载链接或压缩包
+        
+        Args:
+            failed_papers: 失败的论文列表
+            download_type: 下载类型 ('links', 'csv', 'zip')
+        
+        Returns:
+            下载数据字典
+        """
+        try:
+            if not failed_papers:
+                return {
+                    "success": False,
+                    "error": "没有失败的论文数据"
+                }
+            
+            download_links = []
+            
+            # 为每篇失败论文生成下载信息
+            for paper in failed_papers:
+                arxiv_id = paper.get('arxiv_id', '')
+                title = paper.get('title', 'Unknown Title')
+                error = paper.get('error', 'Unknown Error')
+                
+                if arxiv_id:
+                    download_links.append({
+                        'arxiv_id': arxiv_id,
+                        'title': title,
+                        'error': error,
+                        'pdf_url': f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+                        'abs_url': f"https://arxiv.org/abs/{arxiv_id}",
+                        'download_filename': sanitize_filename(f"{arxiv_id}_{title}.pdf")
+                    })
+            
+            if download_type == 'links':
+                # 返回链接列表
+                return {
+                    "success": True,
+                    "download_type": "links",
+                    "count": len(download_links),
+                    "links": download_links
+                }
+            
+            elif download_type == 'csv':
+                # 生成CSV内容
+                import csv
+                import io
+                
+                output = io.StringIO()
+                writer = csv.writer(output)
+                
+                # 写入标题行
+                writer.writerow(['ArXiv ID', 'Title', 'Error', 'PDF URL', 'Abstract URL'])
+                
+                # 写入数据行
+                for link in download_links:
+                    writer.writerow([
+                        link['arxiv_id'],
+                        link['title'],
+                        link['error'],
+                        link['pdf_url'],
+                        link['abs_url']
+                    ])
+                
+                csv_content = output.getvalue()
+                output.close()
+                
+                return {
+                    "success": True,
+                    "download_type": "csv",
+                    "count": len(download_links),
+                    "csv_content": csv_content,
+                    "filename": f"failed_papers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                }
+            
+            elif download_type == 'zip':
+                # 生成包含CSV和说明的压缩包信息
+                import csv
+                import io
+                
+                # 生成CSV内容
+                csv_output = io.StringIO()
+                writer = csv.writer(csv_output)
+                writer.writerow(['ArXiv ID', 'Title', 'Error', 'PDF URL', 'Abstract URL', 'Suggested Filename'])
+                
+                for link in download_links:
+                    writer.writerow([
+                        link['arxiv_id'],
+                        link['title'],
+                        link['error'],
+                        link['pdf_url'],
+                        link['abs_url'],
+                        link['download_filename']
+                    ])
+                
+                csv_content = csv_output.getvalue()
+                csv_output.close()
+                
+                # 生成说明文件
+                readme_content = f"""# 失败论文下载说明
+
+## 统计信息
+- 失败论文总数: {len(download_links)}
+- 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## 使用方法
+1. 打开 failed_papers.csv 文件查看所有失败论文的详细信息
+2. 点击 PDF URL 列中的链接直接下载对应论文的PDF文件
+3. 建议的文件名在 Suggested Filename 列中提供
+
+## 批量下载建议
+您可以使用下载管理器或脚本工具批量下载所有PDF文件。
+
+## 错误类型说明
+请查看 Error 列了解每篇论文的具体失败原因，并根据错误类型采取相应的解决措施。
+"""
+                
+                return {
+                    "success": True,
+                    "download_type": "zip",
+                    "count": len(download_links),
+                    "files": {
+                        "failed_papers.csv": csv_content,
+                        "README.md": readme_content
+                    },
+                    "filename": f"failed_papers_download_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+                }
+            
+            else:
+                return {
+                    "success": False,
+                    "error": f"不支持的下载类型: {download_type}"
+                }
+                
+        except Exception as e:
+            logger.error(f"生成失败论文下载失败: {e}")
+            return {
+                "success": False,
+                "error": str(e)
             }

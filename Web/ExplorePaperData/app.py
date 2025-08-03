@@ -892,6 +892,113 @@ def api_dify_batch_verify():
             }
         }), 500
 
+@app.route('/api/dify_upload_all_eligible', methods=['POST'])
+def api_dify_upload_all_eligible():
+    """API接口 - 一键上传所有符合条件的论文到 Dify 知识库"""
+    import time
+    
+    start_time = time.time()
+    app.logger.info("开始一键上传操作")
+    
+    try:
+        # 详细的服务可用性检查
+        if not dify_service.is_available():
+            error_details = {
+                'error_type': 'service_unavailable',
+                'details': 'Dify 服务连接失败',
+                'suggestions': [
+                    '检查 Dify 服务是否正在运行',
+                    '验证网络连接到 Dify 服务器',
+                    '确认 API 密钥和端点配置正确',
+                    '查看应用日志获取更多信息'
+                ]
+            }
+            app.logger.error(f"Dify 服务不可用: {error_details}")
+            return jsonify({
+                'success': False, 
+                'error': 'Dify 服务不可用，请检查服务配置和连接状态',
+                'error_details': error_details
+            }), 503
+        
+        # 获取可选的过滤参数
+        data = request.get_json() if request.get_json() else {}
+        
+        # 支持的过滤选项
+        filters = {
+            'task_name': data.get('task_name'),
+            'category': data.get('category'),
+            'exclude_already_uploaded': data.get('exclude_already_uploaded', True),
+            'require_task_name': data.get('require_task_name', True),
+            'max_papers': data.get('max_papers')  # 可选择限制数量
+        }
+        
+        app.logger.info(f"一键上传过滤条件: {filters}")
+        
+        # 执行智能批量上传
+        result = dify_service.upload_all_eligible_papers_with_summary(filters)
+        
+        processing_time = time.time() - start_time
+        app.logger.info(f"一键上传完成，耗时: {processing_time:.2f}秒，结果: {result.get('success_count', 0)}/{result.get('total_eligible', 0)}")
+        
+        return jsonify({
+            'success': True,
+            'data': result,
+            'processing_time': processing_time
+        })
+    
+    except Exception as e:
+        processing_time = time.time() - start_time
+        app.logger.error(f"一键上传失败 (耗时{processing_time:.2f}秒): {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'error_details': {
+                'error_type': 'upload_error',
+                'details': str(e),
+                'processing_time': processing_time
+            },
+            'data': {
+                'total_eligible': 0,
+                'total_attempted': 0,
+                'success_count': 0,
+                'failed_count': 0,
+                'skipped_count': 0,
+                'progress': 0,
+                'message': f'一键上传过程中发生错误: {e}',
+                'successful_papers': [],
+                'failed_papers': [],
+                'skipped_papers': [],
+                'failure_summary': {},
+                'suggestions': []
+            }
+        }), 500
+
+@app.route('/api/generate_failed_papers_download', methods=['POST'])
+def api_generate_failed_papers_download():
+    """API接口 - 为失败的论文生成下载链接或压缩包"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        failed_papers = data.get('failed_papers', [])
+        download_type = data.get('download_type', 'links')  # 'links', 'csv', 'zip'
+        
+        if not failed_papers:
+            return jsonify({'success': False, 'error': '没有提供失败论文数据'}), 400
+        
+        # 生成下载内容
+        result = dify_service.generate_failed_papers_download(failed_papers, download_type)
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    
+    except Exception as e:
+        logger.error(f"生成失败论文下载失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/migration_preview', methods=['POST'])
 def api_migration_preview():
     """API接口 - 获取迁移预览信息"""

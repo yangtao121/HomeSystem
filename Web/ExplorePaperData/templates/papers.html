@@ -116,6 +116,9 @@
                     显示第 {{ (pagination.page - 1) * pagination.per_page + 1 }} - 
                     {{ [(pagination.page * pagination.per_page), pagination.total]|min }} 条
                 </small>
+                <button type="button" class="btn btn-warning btn-sm me-2" onclick="oneClickUploadAll()" title="智能筛选并上传所有符合条件的论文到Dify知识库">
+                    <i class="bi bi-cloud-upload"></i> 一键上传全部
+                </button>
                 <button type="button" class="btn btn-outline-warning btn-sm" onclick="batchVerifyDifyDocuments()" title="验证所有已上传到知识库的文档状态">
                     <i class="bi bi-shield-check"></i> 一键验证知识库
                 </button>
@@ -1906,6 +1909,118 @@
     </div>
 </div>
 
+<!-- 一键上传总结模态框 -->
+<div class="modal fade" id="uploadSummaryModal" tabindex="-1" aria-labelledby="uploadSummaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadSummaryModalLabel">
+                    <i class="bi bi-cloud-upload"></i> 上传总结报告
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 总体统计 -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-primary" id="summaryTotalCount">0</h3>
+                                <p class="card-text">总计论文</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-success" id="summarySuccessCount">0</h3>
+                                <p class="card-text">上传成功</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-danger" id="summaryFailedCount">0</h3>
+                                <p class="card-text">上传失败</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-warning">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-warning" id="summarySkippedCount">0</h3>
+                                <p class="card-text">已跳过</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 失败原因统计 -->
+                <div id="failureAnalysisSection" style="display: none;" class="mb-4">
+                    <h6><i class="bi bi-exclamation-triangle"></i> 失败原因分析</h6>
+                    <div class="row" id="failureStatsContainer">
+                        <!-- 失败原因统计将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 失败论文列表 -->
+                <div id="failedPapersSection" style="display: none;">
+                    <h6><i class="bi bi-list-ul"></i> 失败论文详情</h6>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>失败论文列表</span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-danger" onclick="filterFailedPapers('all')">全部</button>
+                                <button type="button" class="btn btn-outline-warning" onclick="filterFailedPapers('task_missing')">缺少任务</button>
+                                <button type="button" class="btn btn-outline-info" onclick="filterFailedPapers('already_uploaded')">已上传</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="filterFailedPapers('other')">其他</button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                            <div id="failedPapersList">
+                                <!-- 失败论文列表将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下载建议和操作 -->
+                <div id="downloadSuggestionsSection" style="display: none;" class="mt-4">
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-lightbulb"></i> 处理建议</h6>
+                        <p class="mb-2">对于上传失败的论文，您可以:</p>
+                        <ul class="mb-3">
+                            <li><strong>修复问题后重新上传</strong>: 为缺少任务名称的论文分配任务，然后重新尝试上传</li>
+                            <li><strong>手动下载处理</strong>: 下载失败论文的PDF文件，进行手动处理</li>
+                            <li><strong>导出详细报告</strong>: 获取包含所有失败信息的CSV报告进行分析</li>
+                        </ul>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                            <button type="button" class="btn btn-warning" id="retryFailedUploadBtn">
+                                <i class="bi bi-arrow-clockwise"></i> 重新上传可修复的论文
+                            </button>
+                            <button type="button" class="btn btn-info" id="downloadFailedPapersBtn">
+                                <i class="bi bi-download"></i> 下载失败论文PDF
+                            </button>
+                            <button type="button" class="btn btn-outline-info" id="exportFailedReportBtn">
+                                <i class="bi bi-file-earmark-csv"></i> 导出失败报告
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="refreshPageBtn" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新页面
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // 增强的批量上传功能
     function batchUploadToDify() {
@@ -2684,6 +2799,621 @@
         if (confirm(`确定要重新上传论文 ${arxivId} 到知识库吗？`)) {
             uploadPaperToDifyList(arxivId);
         }
+    }
+    
+    // ========== 一键上传功能 ==========
+    
+    function oneClickUploadAll() {
+        // 确认操作
+        const confirmMessage = `确定要一键上传所有符合条件的论文到Dify知识库吗？\n\n此操作将：\n• 自动筛选未上传且有任务名称的论文\n• 批量上传到对应的知识库\n• 提供详细的上传总结和失败报告\n\n上传过程可能需要较长时间，请耐心等待。`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // 初始化并显示上传进度模态框
+        initOneClickUploadModal();
+        const modal = new bootstrap.Modal(document.getElementById('difyUploadProgressModal'));
+        modal.show();
+        
+        // 开始一键上传
+        startOneClickUpload();
+    }
+    
+    function initOneClickUploadModal() {
+        // 重置进度信息
+        document.getElementById('overallProgress').textContent = '0/0';
+        document.getElementById('overallProgressBar').style.width = '0%';
+        document.getElementById('overallProgressBar').textContent = '0%';
+        document.getElementById('successCount').textContent = '0';
+        document.getElementById('failedCount').textContent = '0';
+        document.getElementById('totalCount').textContent = '0';
+        
+        // 清空详细进度列表
+        const progressList = document.getElementById('uploadProgressList');
+        if (progressList) {
+            progressList.innerHTML = '';
+        }
+        
+        // 隐藏完成操作按钮
+        document.getElementById('uploadCompleteActions').style.display = 'none';
+        document.getElementById('uploadModalCloseBtn').disabled = true;
+    }
+    
+    function startOneClickUpload() {
+        // 调用后端API开始一键上传
+        fetch('/api/dify_upload_all_eligible', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                exclude_already_uploaded: true,
+                require_task_name: true
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                handleOneClickUploadResult(data.data);
+            } else {
+                console.error('一键上传失败:', data);
+                let errorMessage = data.error || '未知错误';
+                let detailedError = '';
+                
+                // 处理详细错误信息
+                if (data.error_details) {
+                    const details = data.error_details;
+                    switch (details.error_type) {
+                        case 'service_unavailable':
+                            detailedError = '\n建议：\n' + details.suggestions.join('\n');
+                            break;
+                        case 'timeout':
+                            detailedError = `\n操作超时 (${details.timeout_seconds}秒)\n建议：\n` + details.suggestions.join('\n');
+                            break;
+                        case 'upload_error':
+                            detailedError = `\n错误详情：${details.details}`;
+                            break;
+                    }
+                }
+                
+                showToast(`一键上传失败: ${errorMessage}${detailedError}`, 'error');
+                handleOneClickUploadError(data.error, data.error_details);
+            }
+        })
+        .catch(error => {
+            console.error('一键上传网络错误:', error);
+            let errorMessage = '网络连接失败';
+            
+            if (error.message.includes('HTTP 503')) {
+                errorMessage = 'Dify 服务不可用，请检查服务状态';
+            } else if (error.message.includes('HTTP 408')) {
+                errorMessage = '上传操作超时，请稍后重试';
+            } else if (error.message.includes('HTTP 500')) {
+                errorMessage = '服务器内部错误，请查看日志';
+            }
+            
+            showToast(`一键上传失败: ${errorMessage}`, 'error');
+            handleOneClickUploadError(error.toString());
+        });
+    }
+    
+    function handleOneClickUploadResult(result) {
+        const {
+            total_eligible,
+            success_count,
+            failed_count,
+            successful_papers,
+            failed_papers,
+            failure_summary,
+            suggestions,
+            message
+        } = result;
+        
+        // 更新进度显示
+        document.getElementById('overallProgress').textContent = `${total_eligible}/${total_eligible}`;
+        document.getElementById('overallProgressBar').style.width = '100%';
+        document.getElementById('overallProgressBar').textContent = '100%';
+        document.getElementById('overallProgressBar').classList.remove('progress-bar-animated');
+        
+        document.getElementById('successCount').textContent = success_count;
+        document.getElementById('failedCount').textContent = failed_count;
+        document.getElementById('totalCount').textContent = total_eligible;
+        
+        // 显示完成提示
+        showToast(message, success_count > failed_count ? 'success' : 'warning');
+        
+        // 启用关闭按钮
+        document.getElementById('uploadModalCloseBtn').disabled = false;
+        
+        // 显示总结按钮
+        const completeActions = document.getElementById('uploadCompleteActions');
+        if (completeActions) {
+            completeActions.style.display = 'block';
+            
+            // 绑定总结按钮事件
+            const summaryBtn = document.getElementById('showUploadSummaryBtn');
+            if (summaryBtn) {
+                summaryBtn.onclick = () => showUploadSummary(result);
+            }
+        }
+        
+        // 如果有失败的论文，自动显示总结
+        if (failed_count > 0) {
+            setTimeout(() => {
+                showUploadSummary(result);
+            }, 2000);
+        }
+    }
+    
+    function handleOneClickUploadError(error, errorDetails = null) {
+        // 更新进度显示为错误状态
+        const progressBar = document.getElementById('overallProgressBar');
+        progressBar.classList.remove('progress-bar-animated');
+        progressBar.classList.add('bg-danger');
+        progressBar.textContent = '错误';
+        progressBar.style.width = '100%';
+        
+        // 更新错误统计
+        document.getElementById('failedCount').textContent = '1';
+        document.getElementById('overallProgress').textContent = '错误';
+        
+        // 显示错误详情
+        const progressList = document.getElementById('uploadProgressList');
+        if (progressList) {
+            const errorItem = document.createElement('div');
+            errorItem.className = 'list-group-item border-danger bg-light';
+            
+            let errorContent = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1 text-danger">
+                            <i class="bi bi-exclamation-circle"></i> 上传失败
+                        </h6>
+                        <p class="mb-1 text-muted">${error}</p>
+            `;
+            
+            // 添加详细错误信息
+            if (errorDetails && errorDetails.suggestions) {
+                errorContent += `
+                        <div class="mt-2">
+                            <small class="text-muted">建议解决方案：</small>
+                            <ul class="small text-muted mt-1">
+                `;
+                errorDetails.suggestions.forEach(suggestion => {
+                    errorContent += `<li>${suggestion}</li>`;
+                });
+                errorContent += `</ul></div>`;
+            }
+            
+            errorContent += `
+                    </div>
+                    <span class="badge bg-danger">错误</span>
+                </div>
+            `;
+            
+            errorItem.innerHTML = errorContent;
+            progressList.appendChild(errorItem);
+        }
+        
+        // 启用关闭按钮和完成操作按钮
+        document.getElementById('uploadModalCloseBtn').disabled = false;
+        const completeActions = document.getElementById('uploadCompleteActions');
+        if (completeActions) {
+            completeActions.style.display = 'block';
+        }
+    }
+    
+    // ========== 上传总结功能 ==========
+    
+    function showUploadSummary(uploadResult) {
+        // 隐藏上传进度模态框
+        const uploadModal = bootstrap.Modal.getInstance(document.getElementById('difyUploadProgressModal'));
+        if (uploadModal) {
+            uploadModal.hide();
+        }
+        
+        // 填充总结数据
+        populateUploadSummary(uploadResult);
+        
+        // 显示总结模态框
+        const summaryModal = new bootstrap.Modal(document.getElementById('uploadSummaryModal'));
+        summaryModal.show();
+    }
+    
+    function populateUploadSummary(result) {
+        const {
+            total_eligible,
+            success_count,
+            failed_count,
+            skipped_count,
+            successful_papers,
+            failed_papers,
+            failure_summary,
+            suggestions
+        } = result;
+        
+        // 更新统计卡片
+        document.getElementById('summaryTotalCount').textContent = total_eligible || 0;
+        document.getElementById('summarySuccessCount').textContent = success_count || 0;
+        document.getElementById('summaryFailedCount').textContent = failed_count || 0;
+        document.getElementById('summarySkippedCount').textContent = skipped_count || 0;
+        
+        // 显示/隐藏失败分析部分
+        const failureSection = document.getElementById('failureAnalysisSection');
+        const failedPapersSection = document.getElementById('failedPapersSection');
+        const downloadSection = document.getElementById('downloadSuggestionsSection');
+        
+        if (failed_count > 0) {
+            // 生成失败原因统计
+            generateFailureStats(failure_summary);
+            
+            // 生成失败论文列表
+            generateFailedPapersList(failed_papers);
+            
+            // 绑定下载按钮事件
+            bindDownloadEvents(failed_papers);
+            
+            // 显示相关部分
+            failureSection.style.display = 'block';
+            failedPapersSection.style.display = 'block';
+            downloadSection.style.display = 'block';
+        } else {
+            // 隐藏失败相关部分
+            failureSection.style.display = 'none';
+            failedPapersSection.style.display = 'none';
+            downloadSection.style.display = 'none';
+        }
+    }
+    
+    function generateFailureStats(failureSummary) {
+        const container = document.getElementById('failureStatsContainer');
+        container.innerHTML = '';
+        
+        const errorTypeNames = {
+            'missing_task_name': '缺少任务名称',
+            'already_uploaded': '已上传',
+            'pdf_download_error': 'PDF下载失败',
+            'network_error': '网络错误',
+            'service_error': '服务错误',
+            'permission_error': '权限错误',
+            'dataset_error': '知识库错误',
+            'system_error': '系统错误',
+            'other_error': '其他错误'
+        };
+        
+        const errorTypeColors = {
+            'missing_task_name': 'warning',
+            'already_uploaded': 'info',
+            'pdf_download_error': 'danger',
+            'network_error': 'danger',
+            'service_error': 'danger',
+            'permission_error': 'danger',
+            'dataset_error': 'warning',
+            'system_error': 'danger',
+            'other_error': 'secondary'
+        };
+        
+        Object.entries(failureSummary).forEach(([errorType, count]) => {
+            const col = document.createElement('div');
+            col.className = 'col-md-3 col-sm-6 mb-2';
+            
+            const name = errorTypeNames[errorType] || errorType;
+            const color = errorTypeColors[errorType] || 'secondary';
+            
+            col.innerHTML = `
+                <div class="card border-${color}">
+                    <div class="card-body text-center py-2">
+                        <h6 class="card-title text-${color} mb-1">${count}</h6>
+                        <small class="card-text">${name}</small>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(col);
+        });
+    }
+    
+    function generateFailedPapersList(failedPapers) {
+        const container = document.getElementById('failedPapersList');
+        container.innerHTML = '';
+        
+        if (failedPapers.length === 0) {
+            container.innerHTML = '<p class="text-muted">没有失败的论文。</p>';
+            return;
+        }
+        
+        failedPapers.forEach(paper => {
+            const item = document.createElement('div');
+            item.className = 'mb-3 p-3 border rounded failed-paper-item';
+            item.dataset.errorType = paper.error_type || 'other_error';
+            
+            const errorTypeClass = getErrorTypeClass(paper.error_type);
+            
+            item.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">
+                            <strong>${paper.arxiv_id}</strong>
+                            <span class="badge bg-${errorTypeClass} ms-2">${getErrorTypeName(paper.error_type)}</span>
+                        </h6>
+                        <p class="mb-1 text-muted">${paper.title}</p>
+                        <p class="mb-1">
+                            <small class="text-info">任务: ${paper.task_name || '未分配'}</small>
+                        </p>
+                        <p class="mb-0">
+                            <small class="text-danger">错误: ${paper.error}</small>
+                        </p>
+                    </div>
+                    <div class="flex-shrink-0 ms-3">
+                        <button type="button" class="btn btn-outline-primary btn-sm mb-1" 
+                                onclick="window.open('https://arxiv.org/abs/${paper.arxiv_id}', '_blank')"
+                                title="查看论文摘要">
+                            <i class="bi bi-file-text"></i>
+                        </button>
+                        <br>
+                        <button type="button" class="btn btn-outline-info btn-sm" 
+                                onclick="window.open('https://arxiv.org/pdf/${paper.arxiv_id}.pdf', '_blank')"
+                                title="下载PDF">
+                            <i class="bi bi-download"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(item);
+        });
+    }
+    
+    function getErrorTypeClass(errorType) {
+        const classMap = {
+            'missing_task_name': 'warning',
+            'already_uploaded': 'info',
+            'pdf_download_error': 'danger',
+            'network_error': 'danger',
+            'service_error': 'danger',
+            'permission_error': 'danger',
+            'dataset_error': 'warning',
+            'system_error': 'danger',
+            'other_error': 'secondary'
+        };
+        return classMap[errorType] || 'secondary';
+    }
+    
+    function getErrorTypeName(errorType) {
+        const nameMap = {
+            'missing_task_name': '缺少任务',
+            'already_uploaded': '已上传',
+            'pdf_download_error': 'PDF错误',
+            'network_error': '网络错误',
+            'service_error': '服务错误',
+            'permission_error': '权限错误',
+            'dataset_error': '知识库错误',
+            'system_error': '系统错误',
+            'other_error': '其他错误'
+        };
+        return nameMap[errorType] || '未知错误';
+    }
+    
+    function filterFailedPapers(filterType) {
+        const items = document.querySelectorAll('.failed-paper-item');
+        
+        items.forEach(item => {
+            const errorType = item.dataset.errorType;
+            let shouldShow = false;
+            
+            switch (filterType) {
+                case 'all':
+                    shouldShow = true;
+                    break;
+                case 'task_missing':
+                    shouldShow = errorType === 'missing_task_name';
+                    break;
+                case 'already_uploaded':
+                    shouldShow = errorType === 'already_uploaded';
+                    break;
+                case 'other':
+                    shouldShow = !['missing_task_name', 'already_uploaded'].includes(errorType);
+                    break;
+            }
+            
+            item.style.display = shouldShow ? 'block' : 'none';
+        });
+    }
+    
+    // ========== 下载功能 ==========
+    
+    function bindDownloadEvents(failedPapers) {
+        // 绑定下载失败论文PDF按钮
+        const downloadBtn = document.getElementById('downloadFailedPapersBtn');
+        if (downloadBtn) {
+            downloadBtn.onclick = () => downloadFailedPapersPDF(failedPapers);
+        }
+        
+        // 绑定导出失败报告按钮
+        const exportBtn = document.getElementById('exportFailedReportBtn');
+        if (exportBtn) {
+            exportBtn.onclick = () => exportFailedReport(failedPapers);
+        }
+        
+        // 绑定重试上传按钮
+        const retryBtn = document.getElementById('retryFailedUploadBtn');
+        if (retryBtn) {
+            retryBtn.onclick = () => retryFailedUpload(failedPapers);
+        }
+    }
+    
+    function downloadFailedPapersPDF(failedPapers) {
+        // 生成批量下载链接
+        fetch('/api/generate_failed_papers_download', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                failed_papers: failedPapers,
+                download_type: 'links'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 在新窗口中打开批量下载页面
+                const links = data.data.links;
+                let downloadHtml = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>批量下载失败论文PDF</title>
+                        <meta charset="utf-8">
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 20px; }
+                            .download-item { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+                            .download-btn { background: #007bff; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px; }
+                            .download-btn:hover { background: #0056b3; }
+                            .error { color: #dc3545; font-size: 0.9em; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>失败论文PDF下载</h1>
+                        <p>共 ${links.length} 篇论文需要下载。点击下载按钮开始下载对应的PDF文件。</p>
+                        <hr>
+                `;
+                
+                links.forEach(link => {
+                    downloadHtml += `
+                        <div class="download-item">
+                            <h3>${link.arxiv_id} - ${link.title}</h3>
+                            <p class="error">失败原因: ${link.error}</p>
+                            <a href="${link.pdf_url}" class="download-btn" target="_blank" download="${link.download_filename}">
+                                下载PDF
+                            </a>
+                            <a href="${link.abs_url}" target="_blank" style="margin-left: 10px;">查看摘要</a>
+                        </div>
+                    `;
+                });
+                
+                downloadHtml += `
+                    </body>
+                    </html>
+                `;
+                
+                // 打开新窗口显示下载页面
+                const newWindow = window.open('', '_blank');
+                newWindow.document.write(downloadHtml);
+                newWindow.document.close();
+                
+                showToast('批量下载页面已打开，请在新窗口中下载PDF文件', 'success');
+            } else {
+                showToast(`生成下载链接失败: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('生成下载链接失败:', error);
+            showToast('生成下载链接时发生网络错误', 'error');
+        });
+    }
+    
+    function exportFailedReport(failedPapers) {
+        // 导出CSV报告
+        fetch('/api/generate_failed_papers_download', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                failed_papers: failedPapers,
+                download_type: 'csv'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 创建并下载CSV文件
+                const blob = new Blob([data.data.csv_content], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', data.data.filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showToast('失败报告已导出', 'success');
+            } else {
+                showToast(`导出失败报告失败: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('导出失败报告失败:', error);
+            showToast('导出失败报告时发生网络错误', 'error');
+        });
+    }
+    
+    function retryFailedUpload(failedPapers) {
+        // 筛选可重试的论文（排除已上传的）
+        const retryablePapers = failedPapers.filter(paper => 
+            paper.error_type !== 'already_uploaded' && 
+            paper.arxiv_id
+        );
+        
+        if (retryablePapers.length === 0) {
+            showToast('没有可重试的论文', 'warning');
+            return;
+        }
+        
+        const confirmMessage = `确定要重新上传 ${retryablePapers.length} 篇失败的论文吗？\n\n注意：只会重试非"已上传"状态的论文。`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // 关闭总结模态框
+        const summaryModal = bootstrap.Modal.getInstance(document.getElementById('uploadSummaryModal'));
+        if (summaryModal) {
+            summaryModal.hide();
+        }
+        
+        // 模拟批量上传流程
+        const arxivIds = retryablePapers.map(paper => paper.arxiv_id);
+        const papers = retryablePapers.map(paper => ({
+            arxiv_id: paper.arxiv_id,
+            title: paper.title
+        }));
+        
+        // 重用现有的批量上传功能
+        initUploadProgressModal(papers);
+        const modal = new bootstrap.Modal(document.getElementById('difyUploadProgressModal'));
+        modal.show();
+        
+        // 调用现有的批量上传API
+        fetch('/api/dify_batch_upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                arxiv_ids: arxivIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                handleBatchUploadResult(data.data);
+            } else {
+                showToast(`重试上传失败: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('重试上传失败:', error);
+            showToast('重试上传过程中发生网络错误', 'error');
+        });
     }
     
     function exportVerificationResults() {
