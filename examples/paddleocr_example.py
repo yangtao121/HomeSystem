@@ -20,11 +20,11 @@ def main():
     
     # 搜索一篇论文进行测试
     print("\n🔍 搜索测试论文...")
-    results = arxiv_tool.arxivSearch(query="machine learning", num_results=3)
+    results = arxiv_tool.arxivSearch(query="VLA robotic", num_results=3)
     
     if results.num_results > 0:
         # 选择第一篇论文
-        paper = results.results[1]
+        paper = results.results[2]
         print(f"📄 选择论文: {paper.title[:80]}...")
         
         try:

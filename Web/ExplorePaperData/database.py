@@ -1290,8 +1290,117 @@ class DifyService:
             logger.error(f"获取或创建知识库失败: {e}")
             return None
     
+    def validate_upload_preconditions(self, arxiv_id: str) -> Dict[str, Any]:
+        """验证上传前置条件"""
+        validation_result = {
+            "success": True,
+            "errors": [],
+            "warnings": []
+        }
+        
+        try:
+            # 检查 Dify 客户端状态
+            if not self.dify_client:
+                validation_result["errors"].append("Dify 客户端未初始化")
+                validation_result["success"] = False
+                return validation_result
+            
+            # 检查 Dify 服务连接
+            if not self.is_available():
+                validation_result["errors"].append("无法连接到 Dify 服务，请检查网络连接和服务状态")
+                validation_result["success"] = False
+            
+            # 从数据库获取论文信息并验证
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("""
+                    SELECT arxiv_id, title, authors, abstract, categories, pdf_url, task_name,
+                           dify_dataset_id, dify_document_id
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                paper = cursor.fetchone()
+                if not paper:
+                    validation_result["errors"].append("论文不存在")
+                    validation_result["success"] = False
+                    return validation_result
+                
+                paper_dict = dict(paper)
+                
+                # 检查论文是否已上传
+                if paper_dict.get('dify_document_id'):
+                    validation_result["errors"].append("论文已上传到 Dify")
+                    validation_result["success"] = False
+                
+                # 检查任务名称
+                task_name = paper_dict.get('task_name')
+                if not task_name:
+                    validation_result["errors"].append("论文未分配任务名称，无法确定目标知识库")
+                    validation_result["success"] = False
+                elif len(task_name.strip()) < 2:
+                    validation_result["errors"].append("任务名称过短，无法创建有效的知识库")
+                    validation_result["success"] = False
+                
+                # 检查论文基本信息完整性
+                if not paper_dict.get('title'):
+                    validation_result["errors"].append("论文标题缺失")
+                    validation_result["success"] = False
+                elif len(paper_dict['title'].strip()) < 10:
+                    validation_result["warnings"].append("论文标题过短，可能影响上传质量")
+                
+                if not paper_dict.get('abstract'):
+                    validation_result["warnings"].append("论文摘要缺失，可能影响知识库检索效果")
+                elif len(paper_dict['abstract'].strip()) < 100:
+                    validation_result["warnings"].append("论文摘要过短，可能影响知识库检索效果")
+                
+                if not paper_dict.get('authors'):
+                    validation_result["warnings"].append("论文作者信息缺失")
+                
+                # 检查PDF下载可能性（简单验证）
+                if paper_dict.get('pdf_url'):
+                    if not paper_dict['pdf_url'].startswith('http'):
+                        validation_result["warnings"].append("PDF链接格式异常，可能无法下载")
+                else:
+                    validation_result["warnings"].append("缺少PDF链接，系统将尝试从ArXiv下载")
+                
+                # 预估文档大小（基于摘要长度）
+                abstract_length = len(paper_dict.get('abstract', ''))
+                if abstract_length > 10000:
+                    validation_result["warnings"].append("论文摘要过长，上传可能需要较长时间")
+            
+            # 检查知识库配置
+            if validation_result["success"]:  # 只有在基本验证通过时才检查
+                try:
+                    # 测试知识库操作权限
+                    datasets = self.dify_client.list_datasets(limit=1)
+                    if datasets is None:
+                        validation_result["warnings"].append("无法获取知识库列表，可能影响自动创建知识库")
+                except Exception as e:
+                    validation_result["warnings"].append(f"知识库权限检查失败: {str(e)}")
+            
+        except Exception as e:
+            validation_result["errors"].append(f"验证过程中发生错误: {str(e)}")
+            validation_result["success"] = False
+        
+        return validation_result
+    
     def upload_paper_to_dify(self, arxiv_id: str) -> Dict[str, Any]:
         """上传论文到 Dify 知识库"""
+        # 首先进行预上传验证
+        validation = self.validate_upload_preconditions(arxiv_id)
+        if not validation["success"]:
+            return {
+                "success": False, 
+                "error": "; ".join(validation["errors"]),
+                "validation_errors": validation["errors"],
+                "validation_warnings": validation["warnings"]
+            }
+        
+        # 如果有警告，记录到日志
+        if validation["warnings"]:
+            logger.warning(f"论文 {arxiv_id} 上传前警告: {'; '.join(validation['warnings'])}")
+        
         if not self.dify_client:
             return {"success": False, "error": "Dify 客户端未初始化"}
         
@@ -1430,7 +1539,19 @@ class DifyService:
                 
         except Exception as e:
             logger.error(f"上传论文到 Dify 失败: {e}")
-            return {"success": False, "error": str(e)}
+            # 如果是 Dify 知识库异常，提供详细的错误信息
+            if hasattr(e, 'to_dict'):
+                error_info = e.to_dict()
+                return {
+                    "success": False, 
+                    "error": error_info["user_friendly_message"],
+                    "error_details": error_info,
+                    "is_retryable": error_info["is_retryable"],
+                    "retry_delay": error_info["retry_delay"],
+                    "suggested_actions": error_info["suggested_actions"]
+                }
+            else:
+                return {"success": False, "error": str(e)}
     
     def batch_upload_papers_to_dify(self, arxiv_ids: List[str]) -> Dict[str, Any]:
         """批量上传论文到 Dify"""
@@ -1441,7 +1562,18 @@ class DifyService:
             "success_count": 0,
             "failed_count": 0,
             "results": [],
-            "errors": []
+            "errors": [],
+            "error_summary": {
+                "authentication": 0,
+                "network": 0,
+                "upload": 0,
+                "processing": 0,
+                "configuration": 0,
+                "rate_limit": 0,
+                "other": 0
+            },
+            "retryable_errors": [],
+            "manual_intervention_required": []
         }
         
         for arxiv_id in arxiv_ids:
@@ -1457,19 +1589,95 @@ class DifyService:
                     })
                 else:
                     results["failed_count"] += 1
-                    results["errors"].append({
+                    
+                    # 获取错误详情和分类
+                    error_info = {
                         "arxiv_id": arxiv_id,
                         "error": result["error"]
-                    })
+                    }
+                    
+                    # 如果有详细错误信息，添加更多上下文
+                    if "error_details" in result:
+                        error_details = result["error_details"]
+                        error_category = error_details.get("category", "other")
+                        
+                        # 更新错误分类统计
+                        results["error_summary"][error_category] += 1
+                        
+                        # 添加详细错误信息
+                        error_info.update({
+                            "category": error_category,
+                            "is_retryable": result.get("is_retryable", False),
+                            "retry_delay": result.get("retry_delay", 0),
+                            "suggested_actions": result.get("suggested_actions", [])
+                        })
+                        
+                        # 分类到可重试或需要手动处理
+                        if result.get("is_retryable", False):
+                            results["retryable_errors"].append(error_info)
+                        else:
+                            results["manual_intervention_required"].append(error_info)
+                    else:
+                        # 没有详细错误信息的情况
+                        results["error_summary"]["other"] += 1
+                        results["manual_intervention_required"].append(error_info)
+                    
+                    results["errors"].append(error_info)
                     
             except Exception as e:
                 results["failed_count"] += 1
-                results["errors"].append({
+                results["error_summary"]["other"] += 1
+                
+                error_info = {
                     "arxiv_id": arxiv_id,
-                    "error": str(e)
-                })
+                    "error": str(e),
+                    "category": "other",
+                    "is_retryable": False
+                }
+                
+                results["errors"].append(error_info)
+                results["manual_intervention_required"].append(error_info)
+        
+        # 添加整体统计和建议
+        total_papers = len(arxiv_ids)
+        results["total_papers"] = total_papers
+        results["success_rate"] = (results["success_count"] / total_papers * 100) if total_papers > 0 else 0
+        
+        # 生成批量操作建议
+        results["recommendations"] = self._generate_batch_recommendations(results)
         
         return results
+    
+    def _generate_batch_recommendations(self, results: Dict[str, Any]) -> List[str]:
+        """生成批量操作建议"""
+        recommendations = []
+        
+        error_summary = results["error_summary"]
+        retryable_count = len(results["retryable_errors"])
+        manual_count = len(results["manual_intervention_required"])
+        
+        if retryable_count > 0:
+            recommendations.append(f"有 {retryable_count} 个错误可以重试，建议稍后批量重试")
+        
+        if manual_count > 0:
+            recommendations.append(f"有 {manual_count} 个错误需要手动处理")
+        
+        if error_summary["authentication"] > 0:
+            recommendations.append("检查 API 密钥配置")
+        
+        if error_summary["network"] > 0:
+            recommendations.append("检查网络连接和 Dify 服务可用性")
+        
+        if error_summary["rate_limit"] > 0:
+            recommendations.append("降低并发上传数量或增加延迟")
+        
+        if error_summary["configuration"] > 0:
+            recommendations.append("检查知识库配置和权限设置")
+        
+        if results["success_rate"] < 50:
+            recommendations.append("成功率较低，建议检查系统配置后再次尝试")
+        
+        return recommendations
     
     def remove_paper_from_dify(self, arxiv_id: str) -> Dict[str, Any]:
         """从 Dify 知识库移除论文"""

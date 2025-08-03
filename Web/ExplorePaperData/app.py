@@ -740,6 +740,115 @@ def api_dify_statistics():
         logger.error(f"获取 Dify 统计信息失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/dify_validate_upload/<arxiv_id>')
+def api_dify_validate_upload(arxiv_id):
+    """API接口 - 验证论文上传前置条件"""
+    try:
+        validation_result = dify_service.validate_upload_preconditions(arxiv_id)
+        return jsonify({'success': True, 'data': validation_result})
+    
+    except Exception as e:
+        logger.error(f"验证论文上传条件失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/dify_batch_validate', methods=['POST'])
+def api_dify_batch_validate():
+    """API接口 - 批量验证论文上传前置条件"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        if not arxiv_ids:
+            return jsonify({'success': False, 'error': '没有提供论文ID'}), 400
+        
+        if not isinstance(arxiv_ids, list):
+            return jsonify({'success': False, 'error': 'arxiv_ids必须是数组'}), 400
+        
+        results = {
+            "total_papers": len(arxiv_ids),
+            "valid_papers": 0,
+            "invalid_papers": 0,
+            "papers_with_warnings": 0,
+            "results": [],
+            "error_summary": {
+                "missing_task_name": 0,
+                "already_uploaded": 0,
+                "missing_data": 0,
+                "service_unavailable": 0,
+                "other": 0
+            },
+            "warnings_summary": {
+                "short_abstract": 0,
+                "missing_authors": 0,
+                "pdf_issues": 0,
+                "other": 0
+            }
+        }
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                validation = dify_service.validate_upload_preconditions(arxiv_id)
+                
+                result_item = {
+                    "arxiv_id": arxiv_id,
+                    "valid": validation["success"],
+                    "errors": validation["errors"],
+                    "warnings": validation["warnings"]
+                }
+                
+                results["results"].append(result_item)
+                
+                if validation["success"]:
+                    results["valid_papers"] += 1
+                else:
+                    results["invalid_papers"] += 1
+                    
+                    # 分类错误
+                    for error in validation["errors"]:
+                        if "任务名称" in error:
+                            results["error_summary"]["missing_task_name"] += 1
+                        elif "已上传" in error:
+                            results["error_summary"]["already_uploaded"] += 1
+                        elif "不存在" in error or "缺失" in error:
+                            results["error_summary"]["missing_data"] += 1
+                        elif "连接" in error or "服务" in error:
+                            results["error_summary"]["service_unavailable"] += 1
+                        else:
+                            results["error_summary"]["other"] += 1
+                
+                if validation["warnings"]:
+                    results["papers_with_warnings"] += 1
+                    
+                    # 分类警告
+                    for warning in validation["warnings"]:
+                        if "摘要" in warning:
+                            results["warnings_summary"]["short_abstract"] += 1
+                        elif "作者" in warning:
+                            results["warnings_summary"]["missing_authors"] += 1
+                        elif "PDF" in warning or "链接" in warning:
+                            results["warnings_summary"]["pdf_issues"] += 1
+                        else:
+                            results["warnings_summary"]["other"] += 1
+                            
+            except Exception as e:
+                logger.error(f"验证论文 {arxiv_id} 失败: {e}")
+                results["invalid_papers"] += 1
+                results["results"].append({
+                    "arxiv_id": arxiv_id,
+                    "valid": False,
+                    "errors": [f"验证过程发生错误: {str(e)}"],
+                    "warnings": []
+                })
+                results["error_summary"]["other"] += 1
+        
+        return jsonify({'success': True, 'data': results})
+    
+    except Exception as e:
+        logger.error(f"批量验证失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/migration_preview', methods=['POST'])
 def api_migration_preview():
     """API接口 - 获取迁移预览信息"""

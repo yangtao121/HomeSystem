@@ -115,6 +115,61 @@ class DifyKnowledgeBaseError(Exception):
         if self.status_code:
             base_msg += f" (HTTP: {self.status_code})"
         return base_msg
+    
+    def get_error_category(self) -> str:
+        """获取错误类别"""
+        error_categories = {
+            "AUTH_FAILED": "authentication",
+            "DATASET_NOT_FOUND": "configuration", 
+            "DATASET_CREATION_FAILED": "configuration",
+            "DOCUMENT_UPLOAD_FAILED": "upload",
+            "DOCUMENT_NOT_FOUND": "data",
+            "QUERY_FAILED": "operation",
+            "RATE_LIMIT_EXCEEDED": "rate_limit",
+            "INVALID_PARAMETER": "validation",
+            "NETWORK_ERROR": "network",
+            "PROCESSING_FAILED": "processing",
+            "SEGMENT_FAILED": "processing"
+        }
+        return error_categories.get(self.error_code, "unknown")
+    
+    def get_user_friendly_message(self) -> str:
+        """获取用户友好的错误消息"""
+        return self.message
+    
+    def get_suggested_actions(self) -> List[str]:
+        """获取建议的解决方案"""
+        return ["请联系管理员或查看详细错误信息"]
+    
+    def is_retryable(self) -> bool:
+        """判断是否可以重试"""
+        retryable_codes = ["RATE_LIMIT_EXCEEDED", "NETWORK_ERROR", "PROCESSING_FAILED"]
+        return self.error_code in retryable_codes
+    
+    def get_retry_delay(self) -> int:
+        """获取建议的重试延迟（秒）"""
+        if self.error_code == "RATE_LIMIT_EXCEEDED":
+            return getattr(self, 'retry_after', 60)
+        elif self.error_code == "NETWORK_ERROR":
+            return 5
+        elif self.error_code == "PROCESSING_FAILED":
+            return 10
+        return 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式，用于API响应"""
+        return {
+            "error": True,
+            "error_code": self.error_code,
+            "message": self.message,
+            "user_friendly_message": self.get_user_friendly_message(),
+            "category": self.get_error_category(),
+            "suggested_actions": self.get_suggested_actions(),
+            "is_retryable": self.is_retryable(),
+            "retry_delay": self.get_retry_delay(),
+            "status_code": self.status_code,
+            "details": self.details
+        }
 
 
 class AuthenticationError(DifyKnowledgeBaseError):
@@ -122,6 +177,17 @@ class AuthenticationError(DifyKnowledgeBaseError):
     
     def __init__(self, message: str = "Authentication failed", **kwargs):
         super().__init__(message, error_code="AUTH_FAILED", **kwargs)
+    
+    def get_user_friendly_message(self) -> str:
+        return "API密钥认证失败，请检查您的Dify API密钥配置"
+    
+    def get_suggested_actions(self) -> List[str]:
+        return [
+            "检查Dify API密钥是否正确",
+            "确认API密钥是否已过期",
+            "验证API密钥的权限范围",
+            "联系管理员更新API密钥配置"
+        ]
 
 
 class DatasetNotFoundError(DifyKnowledgeBaseError):
@@ -131,6 +197,17 @@ class DatasetNotFoundError(DifyKnowledgeBaseError):
         message = f"Dataset not found: {dataset_id}"
         super().__init__(message, error_code="DATASET_NOT_FOUND", **kwargs)
         self.dataset_id = dataset_id
+    
+    def get_user_friendly_message(self) -> str:
+        return f"知识库 '{self.dataset_id}' 不存在或无法访问"
+    
+    def get_suggested_actions(self) -> List[str]:
+        return [
+            "检查知识库ID是否正确",
+            "确认知识库是否已创建",
+            "验证您是否有该知识库的访问权限",
+            "可能需要创建新的知识库"
+        ]
 
 
 class DatasetCreationError(DifyKnowledgeBaseError):
@@ -153,6 +230,43 @@ class DocumentUploadError(DifyKnowledgeBaseError):
             message += f": {reason}"
         super().__init__(message, error_code="DOCUMENT_UPLOAD_FAILED", **kwargs)
         self.document_name = document_name
+        self.reason = reason
+    
+    def get_user_friendly_message(self) -> str:
+        base_msg = f"文档 '{self.document_name}' 上传失败"
+        if self.reason:
+            base_msg += f"：{self.reason}"
+        return base_msg
+    
+    def get_suggested_actions(self) -> List[str]:
+        actions = ["重试上传操作"]
+        
+        if "size" in (self.reason or "").lower():
+            actions.extend([
+                "检查文档大小是否超过限制",
+                "尝试压缩文档内容",
+                "分割大文档为较小部分"
+            ])
+        elif "format" in (self.reason or "").lower():
+            actions.extend([
+                "检查文档格式是否支持",
+                "转换为支持的文档格式",
+                "检查文档是否损坏"
+            ])
+        elif "network" in (self.reason or "").lower():
+            actions.extend([
+                "检查网络连接",
+                "稍后重试",
+                "尝试较小的批量上传"
+            ])
+        else:
+            actions.extend([
+                "检查文档内容是否完整",
+                "验证网络连接稳定性",
+                "确认知识库存储空间充足"
+            ])
+        
+        return actions
 
 
 class DocumentNotFoundError(DifyKnowledgeBaseError):
@@ -187,6 +301,21 @@ class RateLimitError(DifyKnowledgeBaseError):
             message += f". Retry after {retry_after} seconds"
         super().__init__(message, error_code="RATE_LIMIT_EXCEEDED", **kwargs)
         self.retry_after = retry_after
+    
+    def get_user_friendly_message(self) -> str:
+        if self.retry_after:
+            return f"API调用频率超限，请等待 {self.retry_after} 秒后重试"
+        return "API调用频率超限，请稍后重试"
+    
+    def get_suggested_actions(self) -> List[str]:
+        actions = [
+            "等待一段时间后重试",
+            "减少并发请求数量",
+            "使用批量操作减少API调用频率"
+        ]
+        if self.retry_after:
+            actions.insert(0, f"等待 {self.retry_after} 秒后自动重试")
+        return actions
 
 
 class InvalidParameterError(DifyKnowledgeBaseError):
@@ -205,6 +334,18 @@ class NetworkError(DifyKnowledgeBaseError):
     
     def __init__(self, message: str = "Network connection failed", **kwargs):
         super().__init__(message, error_code="NETWORK_ERROR", **kwargs)
+    
+    def get_user_friendly_message(self) -> str:
+        return "网络连接失败，无法连接到Dify服务"
+    
+    def get_suggested_actions(self) -> List[str]:
+        return [
+            "检查网络连接是否正常",
+            "确认Dify服务是否可访问",
+            "尝试使用VPN或更换网络",
+            "稍后重试操作",
+            "联系网络管理员检查防火墙设置"
+        ]
 
 
 class ProcessingError(DifyKnowledgeBaseError):
@@ -216,6 +357,22 @@ class ProcessingError(DifyKnowledgeBaseError):
             message += f": {reason}"
         super().__init__(message, error_code="PROCESSING_FAILED", **kwargs)
         self.document_name = document_name
+        self.reason = reason
+    
+    def get_user_friendly_message(self) -> str:
+        base_msg = f"文档 '{self.document_name}' 处理失败"
+        if self.reason:
+            base_msg += f"：{self.reason}"
+        return base_msg
+    
+    def get_suggested_actions(self) -> List[str]:
+        return [
+            "稍后重试处理",
+            "检查文档内容是否完整",
+            "确认文档格式是否正确",
+            "尝试重新上传文档",
+            "联系技术支持获取帮助"
+        ]
 
 
 class SegmentError(DifyKnowledgeBaseError):
@@ -1327,6 +1484,16 @@ class DifyKnowledgeBaseClient:
             )
         
         try:
+            # 验证上传前的配置和权限
+            validation_result = self._validate_upload_requirements(dataset_id)
+            if validation_result['has_issues']:
+                logger.warning("发现配置问题:")
+                for issue in validation_result['issues']:
+                    logger.warning(f"  - {issue}")
+                logger.warning("建议:")
+                for suggestion in validation_result['suggestions']:
+                    logger.warning(f"  - {suggestion}")
+            
             config = upload_config or self.config.default_upload_config
             
             # 清理文档名称，避免特殊字符导致上传失败
@@ -1362,45 +1529,124 @@ class DifyKnowledgeBaseClient:
             # 获取用户ID
             user_id = self.config.user_id
             
-            with open(file_path, 'rb') as f:
-                # 根据Dify API文档，正确构造multipart/form-data参数
-                files = {
-                    'file': (file_path.name, f, mime_type),
-                    'data': (None, json.dumps(upload_config_data)),
-                    # 'user': (None, user_id, 'text/plain')
+            # 尝试多种格式，以兼容不同版本的API
+            upload_attempts = [
+                {
+                    'name': '标准格式(data+user分离)',
+                    'files_func': lambda f: {'file': (file_path.name, f, mime_type)},
+                    'data_func': lambda: {'data': json.dumps(upload_config_data), 'user': user_id}
+                },
+                {
+                    'name': '旧格式(全部在files中)',
+                    'files_func': lambda f: {
+                        'file': (file_path.name, f, mime_type),
+                        'data': (None, json.dumps(upload_config_data)),
+                        'user': (None, user_id)
+                    },
+                    'data_func': lambda: None
+                },
+                {
+                    'name': '无user字段格式',
+                    'files_func': lambda f: {'file': (file_path.name, f, mime_type)},
+                    'data_func': lambda: {'data': json.dumps(upload_config_data)}
                 }
+            ]
+            
+            # 尝试不同的上传格式，直到成功或全部失败
+            last_exception = None
+            response_data = None
+            
+            for attempt_idx, attempt in enumerate(upload_attempts, 1):
+                logger.info(f"第 {attempt_idx} 次尝试上传: {attempt['name']}")
                 
-                logger.info(f"发送文件上传请求到: {url}")
-                logger.info(f"用户ID: {user_id}")
-                logger.debug(f"multipart字段: file={file_path.name}, data={json.dumps(upload_config_data)}, user={user_id}")
-                
-                response = requests.post(
-                    url=url,
-                    headers=headers,
-                    files=files,
-                    timeout=self.config.timeout_config.upload_timeout
-                )
-                
-                # 检查响应状态
-                if not response.ok:
-                    logger.error(f"文件上传失败，状态码: {response.status_code}")
-                    logger.error(f"响应内容: {response.text}")
-                    logger.error(f"请求URL: {url}")
-                    logger.error(f"请求头: {headers}")
-                    logger.error(f"文件信息: 名称={file_path.name}, 大小={file_path.stat().st_size}, MIME={mime_type}")
-                    logger.error(f"上传配置: {upload_config_data}")
-                    logger.error(f"用户ID: {user_id}")
-                    raise handle_api_error(response)
-                
-                # 解析响应
                 try:
-                    response_data = response.json()
-                    logger.info(f"文件上传成功，响应: {response_data}")
-                except json.JSONDecodeError:
-                    raise DifyKnowledgeBaseError(
-                        f"Invalid JSON response: {response.text}",
-                        response=response
-                    )
+                    with open(file_path, 'rb') as f:
+                        files = attempt['files_func'](f)
+                        data = attempt['data_func']()
+                        
+                        logger.info(f"发送文件上传请求到: {url}")
+                        logger.info(f"用户ID: {user_id}")
+                        logger.info(f"文件信息: 名称={file_path.name}, 大小={file_path.stat().st_size}, MIME={mime_type}")
+                        logger.info(f"尝试格式: {attempt['name']}")
+                        if data:
+                            logger.info(f"表单数据: {data}")
+                        logger.debug(f"上传配置详情: {upload_config_data}")
+                        
+                        response = requests.post(
+                            url=url,
+                            headers=headers,
+                            files=files,
+                            data=data,
+                            timeout=self.config.timeout_config.upload_timeout
+                        )
+                        
+                        # 检查响应状态
+                        if response.ok:
+                            # 成功上传，解析响应
+                            try:
+                                response_data = response.json()
+                                logger.info(f"文件上传成功，使用格式: {attempt['name']}")
+                                logger.info(f"响应: {response_data}")
+                                break  # 成功，跳出尝试循环
+                            except json.JSONDecodeError:
+                                raise DifyKnowledgeBaseError(
+                                    f"Invalid JSON response: {response.text}",
+                                    response=response
+                                )
+                        else:
+                            # 上传失败，记录错误并尝试下一种格式
+                            logger.warning(f"尝试 {attempt['name']} 失败，状态码: {response.status_code}")
+                            logger.warning(f"响应内容: {response.text}")
+                            
+                            # 尝试解析错误响应以获取更详细的信息
+                            try:
+                                error_detail = response.json()
+                                logger.warning(f"API错误详情: {error_detail}")
+                            except Exception:
+                                logger.warning("无法解析错误响应详情")
+                            
+                            # 保存异常以备最后抛出
+                            last_exception = handle_api_error(response)
+                            
+                            # 如果不是最后一次尝试，继续下一种格式
+                            if attempt_idx < len(upload_attempts):
+                                logger.info(f"将尝试下一种格式...")
+                                continue
+                            else:
+                                # 所有格式都失败了，详细记录最后的错误
+                                logger.error("所有上传格式都失败了，详细错误信息:")
+                                logger.error(f"文件信息: 名称={file_path.name}, 大小={file_path.stat().st_size}, MIME={mime_type}")
+                                if data:
+                                    logger.error(f"最后尝试的表单数据: {data}")
+                                logger.error(f"上传配置详情: {upload_config_data}")
+                                logger.error(f"用户ID: {user_id}")
+                                logger.error("可能的问题:")
+                                logger.error("1. 用户ID不存在或无权限")
+                                logger.error("2. 数据集ID无效")
+                                logger.error("3. 文件格式不支持")
+                                logger.error("4. 配置参数格式错误")
+                                logger.error("5. API密钥权限不足")
+                                raise last_exception
+                
+                except Exception as e:
+                    if isinstance(e, DifyKnowledgeBaseError):
+                        # 如果不是最后一次尝试，记录错误并继续
+                        if attempt_idx < len(upload_attempts):
+                            logger.warning(f"尝试 {attempt['name']} 出现异常: {e}")
+                            last_exception = e
+                            continue
+                        else:
+                            raise e
+                    else:
+                        # 非预期错误，立即抛出
+                        raise e
+            
+            # 如果到这里还没有response_data，说明所有尝试都失败了
+            if response_data is None:
+                if last_exception:
+                    raise last_exception
+                else:
+                    raise DocumentUploadError(str(file_path), "所有上传格式都失败了")
             
             # 创建文档模型
             document = DifyDocumentModel(
@@ -1797,6 +2043,44 @@ class DifyKnowledgeBaseClient:
             return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         except Exception:
             return None
+    
+    def _validate_upload_requirements(self, dataset_id: str) -> Dict[str, Any]:
+        """
+        验证上传所需的参数和权限
+        
+        Args:
+            dataset_id: 数据集ID
+            
+        Returns:
+            验证结果和建议
+        """
+        issues = []
+        suggestions = []
+        
+        # 检查API密钥
+        if not self.config.api_key:
+            issues.append("API密钥未设置")
+            suggestions.append("设置环境变量 DIFY_KB_API_KEY")
+        
+        # 检查数据集ID格式
+        if not dataset_id or len(dataset_id) < 10:
+            issues.append("数据集ID格式可能不正确")
+            suggestions.append("确认数据集ID是有效的UUID格式")
+        
+        # 检查用户ID
+        if not self.config.user_id or self.config.user_id == "homesystem-default-user":
+            issues.append("使用默认用户ID，可能导致权限问题")
+            suggestions.append("设置环境变量 DIFY_KB_USER_ID 为有效的用户ID")
+        
+        # 检查基础URL
+        if 'localhost' in self.config.base_url or '127.0.0.1' in self.config.base_url:
+            suggestions.append("使用本地URL，确保Dify服务正在运行")
+        
+        return {
+            'has_issues': len(issues) > 0,
+            'issues': issues,
+            'suggestions': suggestions
+        }
     
     def _sanitize_document_name(self, name: str) -> str:
         """
