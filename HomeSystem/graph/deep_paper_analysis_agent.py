@@ -39,8 +39,8 @@ class DeepPaperAnalysisState(TypedDict):
     # LangGraph消息历史
     messages: Annotated[list, add_messages]         # 对话历史
     
-    # 简化的分析结果
-    chinese_analysis: Optional[str]                 # 中文分析结果
+    # 分析结果
+    analysis_result: Optional[str]                  # 最终分析结果
     
     # 执行状态
     is_complete: bool                               # 是否完成分析
@@ -129,7 +129,6 @@ class DeepPaperAnalysisAgent(BaseGraph):
         # 添加 tool_node
         self.tool_node = ToolNode([image_tool])
         graph.add_node("call_tools", self.tool_node)
-        graph.add_node("chinese_analysis", self._chinese_analysis_node)
         
         # 构建简化流程
         graph.add_edge(START, "initialize")
@@ -142,15 +141,12 @@ class DeepPaperAnalysisAgent(BaseGraph):
             {
                 "call_tools": "call_tools",  # 调用工具
                 "continue": "analysis_with_tools",  # 继续分析
-                "chinese_analysis": "chinese_analysis",  # 进入中文分析
+                "end": END,  # 分析完成，直接结束
             }
         )
         
         # 工具调用后回到分析节点
         graph.add_edge("call_tools", "analysis_with_tools")
-        
-        # 中文分析结束
-        graph.add_edge("chinese_analysis", END)
         
         # 编译图
         try:
@@ -227,6 +223,18 @@ class DeepPaperAnalysisAgent(BaseGraph):
                         logger.warning(f"      无法解析工具调用 {i+1}: {e}")
             else:
                 logger.info("🚫 LLM未调用任何工具")
+                
+                # 检查是否是完整的分析结果
+                if hasattr(response, 'content') and response.content:
+                    content = str(response.content)
+                    # 如果内容较长且不是工具调用，可能是最终分析结果
+                    if len(content) > 1000:
+                        logger.info(f"✅ 检测到完整分析结果 ({len(content)} 字符)")
+                        return {
+                            "messages": [response],
+                            "analysis_result": content,
+                            "is_complete": True
+                        }
             
             return {"messages": [response]}
             
@@ -267,13 +275,13 @@ class DeepPaperAnalysisAgent(BaseGraph):
                         "analysis is complete", "finished analyzing"
                     ]
                     if any(keyword in content_lower for keyword in completion_keywords):
-                        logger.info(f"✅ LLM表示分析完成 → chinese_analysis")
-                        return "chinese_analysis"
+                        logger.info(f"✅ LLM表示分析完成 → end")
+                        return "end"
                     
                     # 检查内容长度，如果较长可能是完整分析
                     if len(content) > 2000:  # 内容较长，可能已经完成了分析
-                        logger.info(f"📝 内容较长 ({len(content)} 字符)，可能已完成分析 → chinese_analysis")
-                        return "chinese_analysis"
+                        logger.info(f"📝 内容较长 ({len(content)} 字符)，可能已完成分析 → end")
+                        return "end"
             
             # 如果是工具消息，让LLM继续处理工具结果
             elif isinstance(last_message, ToolMessage):
@@ -282,8 +290,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         # 防止无限循环：检查消息数量
         if len(messages) > 15:  # 增加上限，给更多机会进行工具调用
-            logger.warning(f"⚠️ 消息数量超过限制 ({len(messages)}) → chinese_analysis")
-            return "chinese_analysis"
+            logger.warning(f"⚠️ 消息数量超过限制 ({len(messages)}) → end")
+            return "end"
         
         # 统计工具调用次数
         tool_call_count = 0
@@ -300,42 +308,16 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         # 如果已经进行了足够的工具调用，考虑结束
         if tool_call_count >= 3:  # 已经进行了多次工具调用
-            logger.info(f"🔄 已进行 {tool_call_count} 次工具调用，考虑结束分析 → chinese_analysis")
-            return "chinese_analysis"
+            logger.info(f"🔄 已进行 {tool_call_count} 次工具调用，考虑结束分析 → end")
+            return "end"
         
         # 默认继续分析
         logger.info(f"🔄 继续分析 → continue")
         return "continue"
     
-    def _chinese_analysis_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """中文分析节点 - 直接输出中文分析结果"""
-        logger.info("开始生成中文分析结果...")
-        
-        try:
-            # 准备中文分析的提示词
-            chinese_prompt = self._generate_chinese_analysis_prompt(state)
-            
-            # 使用主分析LLM直接生成中文结果
-            response = self.analysis_llm.invoke(chinese_prompt)
-            chinese_content = response.content if hasattr(response, 'content') else str(response)
-            
-            logger.info("中文分析结果生成完成")
-            
-            return {
-                "chinese_analysis": chinese_content,
-                "is_complete": True
-            }
-            
-        except Exception as e:
-            logger.error(f"中文分析失败: {e}")
-            return {"messages": [AIMessage(content=f"中文分析失败: {str(e)}")]}
-    
-    # 移除了翻译相关的方法
-    
-    # 移除了翻译节点，直接输出中文
     
     def _generate_initial_analysis_prompt(self, state: DeepPaperAnalysisState) -> str:
-        """生成初始分析提示词"""
+        """生成初始分析提示词 - 要求标准Markdown输出格式"""
         available_images = state.get('available_images', [])
         image_list = "\n".join([f"  - {img}" for img in available_images[:10]])  # 显示前10个图片
         if len(available_images) > 10:
@@ -344,116 +326,69 @@ class DeepPaperAnalysisAgent(BaseGraph):
         return f"""
 你是一位专业的学术论文分析专家。你有一个图片分析工具，可以帮助你理解论文中的图表、架构图和实验结果。
 
+**重要: 所有分析结果必须以标准Markdown格式输出，包含完整的结构、公式和图片引用。**
+
 **可用工具:**
-- `analyze_image`: 用于分析论文中的任何图片/图表/图表/示意图
+- `analyze_image`: 用于分析论文中的任何图片/图表/表格/示意图
   - 当你需要理解文本中引用的视觉内容时调用此工具
   - 始终分析关键图表、架构图、实验图表和重要表格
   - 提供具体的分析查询，如"分析这个架构图并识别主要组件"或"从这个实验图表中提取性能指标"
 
-**本论文中可用的图片:**
-{image_list}
-
 **论文内容:**
-{state['paper_text'][:15000]}...
+{state['paper_text']}...
 
-**你的任务:**
-对这篇学术论文进行全面分析。**重要**: 当你遇到对图表、图表、架构图或实验结果的引用时，使用图片分析工具来获得更深入的见解。
+**Markdown输出格式要求:**
 
-**分析指导原则:**
-1. **研究目标和贡献**: 识别主要研究目标和关键贡献
-2. **技术方法与创新**: 分析技术方法和新颖方面
-3. **实验设计与结果**: 检查实验设置和性能结果
-4. **视觉内容分析**: 对于任何提到的图表/图表/示意图，使用图片分析工具
+1. **文档结构**: 使用标准Markdown标题层级（#, ##, ###等）
+2. **数学公式**: 
+   - 行间公式使用 `$$...$$` 
+   - 行内公式使用 `$...$`
+   - 保留论文中的所有重要数学表达式
+3. **图片引用**: 
+   - 使用 `![图片描述](图片路径)` 语法
+   - 在分析重要图表后，在适当位置插入图片引用
+   - 图片描述应该准确反映图片内容和重要性
+4. **表格**: 使用Markdown表格语法展示数据
+5. **列表**: 使用`-`或数字列表组织信息
+6. **代码**: 如有算法或代码，使用```代码块
 
-**何时使用图片分析工具:**
-- 当文本提到"图X"、"表Y"、"架构"、"示意图"等时
-- 当分析可能有视觉表示的实验结果时
-- 当理解系统架构或模型设计时
-- 当从图表或性能比较中提取特定数据时
+**Markdown输出模板结构:**
+```markdown
+# xx论文分析
 
-**如何使用工具:**
-调用 `analyze_image` 时需要:
-- `analysis_query`: 对你要分析内容的清晰中文描述（如"分析这个系统架构并识别主要组件"）
-- `image_path`: 来自可用图片列表的相对路径（如"imgs/img_in_image_box_253_178_967_593.jpg"）
+## 1. 研究背景与目标
 
-现在开始你的分析。记住，每当视觉内容可以提供额外见解时，就使用图片分析工具。
+## 2. 主要贡献
 
-**注意**: 请用中文进行所有分析和说明。
+## 3. 技术方法
+### 3.1 核心算法
+（保留重要数学公式，如：$$f(x) = \\sum_{{i=1}}^n w_i x_i$$）
+
+### 3.2 架构设计
+（插入重要架构图：![系统架构图](imgs/architecture.jpg)）
+
+## 4. 实验结果
+### 4.1 数据集与设置
+### 4.2 性能分析
+（插入实验结果图表）
+
+## 5. 关键发现
+
+## 6. 总结与评价
+```
+
+**执行指南:**
+1. 仔细阅读论文内容，识别关键信息
+2. 对重要图表使用analyze_image工具进行深入分析
+3. 将分析结果组织成标准Markdown格式
+4. 确保保留原文中的重要公式和数据
+5. 在适当位置引用分析过的图片
+
+现在开始你的分析，记住输出必须是完整的、结构化的Markdown文档，包含所有重要的视觉元素和数学表达式。
+
+**注意**: 请用中文进行所有分析和说明，但遵循标准Markdown语法格式。
 """
     
-    def _generate_chinese_analysis_prompt(self, state: DeepPaperAnalysisState) -> str:
-        """生成中文分析提示词"""
-        
-        # 收集所有分析信息
-        paper_text = state["paper_text"]
-        messages = state["messages"]
-        
-        # 提取图片分析结果
-        image_analysis_results = []
-        tool_call_count = 0
-        for msg in messages:
-            if isinstance(msg, ToolMessage):
-                image_analysis_results.append(msg.content)
-            elif isinstance(msg, AIMessage):
-                tool_calls = getattr(msg, 'tool_calls', None)
-                if tool_calls:
-                    tool_call_count += len(tool_calls)
-        
-        image_insights = "\n\n".join(image_analysis_results) if image_analysis_results else "未进行图片分析"
-        
-        logger.info(f"中文分析: 发现 {tool_call_count} 次工具调用, {len(image_analysis_results)} 个图片分析结果")
-        
-        return f"""
-请基于之前的分析和图片理解，用中文生成这篇论文的全面分析报告。
-
-**论文内容:**
-{paper_text[:15000]}
-
-**图片分析结果:**
-{image_insights}
-
-**要求:**
-请用中文提供详细的分析，包括以下内容：
-
-# 论文深度分析报告
-
-## 1. 研究目标与动机
-- 论文要解决的主要问题
-- 研究动机和重要性
-- 与现有研究的关系
-
-## 2. 主要贡献与创新点
-- 列出3-6个关键贡献
-- 每个贡献的具体描述和创新性
-- 与现有方法的区别和优势
-
-## 3. 技术方法分析
-- 主要技术方法和算法
-- 关键技术细节和创新点
-- 方法的优势和限制
-
-## 4. 实验设计与结果
-- 实验设置和数据集
-- 主要性能指标和结果
-- 与基准方法的比较
-
-## 5. 图表分析与见解
-{'基于图片分析结果的深入解读' if image_analysis_results else '未提供图表分析'}
-
-## 6. 关键发现与启示
-- 3-5个最重要的发现
-- 对领域的影响和意义
-- 未来研究方向
-
-## 7. 整体评价与总结
-- 论文的技术质量和深度
-- 实用价值和应用前景
-- 不足之处和改进建议
-
-请用专业、准确的中文进行分析，确保内容全面且深入。
-"""
-    
-    # 移除了翻译提示词生成方法
     
     def analyze_paper_folder(self, folder_path: str, thread_id: str = "1") -> Dict[str, Any]:
         """
@@ -496,7 +431,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
                 "image_mappings": folder_data["image_mappings"],
                 
                 "messages": [],
-                "chinese_analysis": None,
+                "analysis_result": None,
                 "is_complete": False
             }
             

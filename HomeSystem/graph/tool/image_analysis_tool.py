@@ -1,7 +1,7 @@
 """
 图片分析工具 - 专门用于论文中的图表、架构图、实验结果等视觉内容分析
 
-支持英文交互和智能路径处理，集成本地VLM进行专业的学术图片分析。
+支持中文交互和智能路径处理，集成本地VLM进行专业的学术图片分析。
 """
 
 import os
@@ -17,18 +17,18 @@ from ..vision_agent import create_academic_vision_agent
 class ImageAnalysisToolInput(BaseModel):
     """图片分析工具输入模型"""
     analysis_query: str = Field(
-        description="Analysis request in English, e.g. 'Analyze the architecture diagram and identify main components'"
+        description="中文分析请求，例如：'分析这个架构图并识别主要组件'"
     )
     image_path: str = Field(
-        description="Relative path to image, e.g. 'imgs/img_in_image_box_253_178_967_593.jpg'"
+        description="图片相对路径，例如：'imgs/img_in_image_box_253_178_967_593.jpg'"
     )
 
 
 class ImageAnalysisTool(BaseTool):
-    """专业图片分析工具 - 全英文交互，专注学术论文图片理解"""
+    """专业图片分析工具 - 中文交互，专注学术论文图片理解"""
     
     name: str = "analyze_image"
-    description: str = "Analyze academic paper images including architecture diagrams, experimental charts, tables, and example figures using vision language model"
+    description: str = "使用视觉语言模型分析学术论文中的图片，包括架构图、实验图表、表格和示例图片"
     args_schema: Type[BaseModel] = ImageAnalysisToolInput
     return_direct: bool = False
     
@@ -45,7 +45,7 @@ class ImageAnalysisTool(BaseTool):
         
         Args:
             base_folder_path: 论文文件夹基础路径，用于路径补全
-            vision_model: 视觉模型名称，默认使用本地llava
+            vision_model: 视觉模型名称，默认使用本地Qwen2_5_VL_7B
         """
         super().__init__(**kwargs)
         
@@ -99,7 +99,7 @@ class ImageAnalysisTool(BaseTool):
     
     def _generate_professional_prompt(self, analysis_query: str) -> str:
         """
-        生成专业的英文分析提示词
+        生成专业的中文分析提示词
         
         Args:
             analysis_query: 用户的分析要求
@@ -108,38 +108,9 @@ class ImageAnalysisTool(BaseTool):
             str: 完整的专业分析提示词
         """
         return f"""
-You are analyzing an academic paper image with expertise in computer science and machine learning. {analysis_query}
+你是一位专业的学术论文图片分析专家，在计算机科学和机器学习领域具有专业知识。{analysis_query}
 
-Please provide a detailed analysis focusing on:
-
-1. **If Architecture Diagram:**
-   - Identify main components and their names
-   - Describe connections and data flow directions
-   - Explain the overall system design and relationships
-
-2. **If Experimental Chart/Graph:**
-   - Extract key data trends and patterns
-   - Identify performance metrics and comparison results
-   - Note significant numerical values and improvements
-
-3. **If Table:**
-   - Extract specific data values and comparisons
-   - Identify performance indicators and metrics
-   - Describe what is being compared and key findings
-
-4. **If Example Figure:**
-   - Describe the specific content and context
-   - Identify key features and elements
-   - Explain what the example demonstrates
-
-**Requirements:**
-- Provide accurate, detailed descriptions in professional English
-- Focus on technical accuracy and academic rigor
-- Include specific details that would be useful for understanding the research
-- Use precise technical terminology where appropriate
-
-**Response Format:**
-Provide a comprehensive analysis in clear, structured English paragraphs.
+请提供详细的分析，用中文进行回答。
 """
     
     def _run(self, analysis_query: str, image_path: str) -> str:
@@ -147,11 +118,11 @@ Provide a comprehensive analysis in clear, structured English paragraphs.
         执行图片分析
         
         Args:
-            analysis_query: 英文分析要求
+            analysis_query: 中文分析要求
             image_path: 图片相对路径
             
         Returns:
-            str: 英文分析结果
+            str: 中文分析结果
         """
         try:
             # 1. 解析图片路径
@@ -167,7 +138,7 @@ Provide a comprehensive analysis in clear, structured English paragraphs.
                        f"Format: {image_info.get('format', 'unknown')}, "
                        f"Size: {image_info.get('width', 0)}x{image_info.get('height', 0)}")
             
-            # 4. 准备分析查询（VisionAgent内部会生成专业提示词）
+            # 4. 准备中文分析查询（VisionAgent内部会生成专业提示词）
             
             # 5. 创建VisionAgent并进行分析
             logger.info(f"Starting VisionAgent analysis for image: {os.path.basename(full_image_path)}")
@@ -280,7 +251,7 @@ if __name__ == "__main__":
         if validation["is_valid"]:
             # 测试分析
             result = tool._run(
-                analysis_query="Analyze this architecture diagram and describe the main components and their relationships",
+                analysis_query="分析这个架构图并描述主要组件及其关系",
                 image_path=test_image_path
             )
             print(f"Analysis result length: {len(result)}")

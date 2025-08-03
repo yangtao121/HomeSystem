@@ -22,7 +22,7 @@ def test_deep_paper_analysis():
     # 配置参数
     paper_folder = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2502.13508"
     vision_model = "ollama.Qwen2_5_VL_7B" 
-    analysis_model = "moonshot.Kimi_K2"
+    analysis_model = "siliconflow.Qwen3_235B_A22B"
     
     logger.info(f"开始测试深度论文分析智能体")
     logger.info(f"论文文件夹: {paper_folder}")
@@ -63,23 +63,26 @@ def test_deep_paper_analysis():
             return False
         
         # 检查关键结果字段
-        required_fields = ["chinese_analysis", "messages", "is_complete"]
+        required_fields = ["analysis_result", "messages", "is_complete"]
         missing_fields = [field for field in required_fields if field not in analysis_result]
         
         if missing_fields:
             logger.warning(f"⚠️ 缺少字段: {missing_fields}")
         
-        # 检查中文分析结果
-        if analysis_result.get("chinese_analysis"):
-            logger.info("✅ 中文分析结果已生成")
-            chinese_content = analysis_result["chinese_analysis"]
+        # 检查分析结果
+        if analysis_result.get("analysis_result"):
+            logger.info("✅ 分析结果已生成")
+            content = analysis_result["analysis_result"]
             
             # 显示分析结果预览
-            content_preview = chinese_content[:500] if len(chinese_content) > 500 else chinese_content
-            logger.info(f"分析结果预览: {content_preview}...")
-            logger.info(f"分析结果长度: {len(chinese_content)} 字符")
+            content_preview = content[:500] if len(content) > 500 else content
+            logger.info(f"分析结果预览: {content}...")
+            logger.info(f"分析结果长度: {len(content)} 字符")
+
+            logger.info("total content:")
+            logger.info(content)
         else:
-            logger.warning("⚠️ 未生成中文分析结果")
+            logger.warning("⚠️ 未生成分析结果")
         
         # 检查消息历史和工具调用情况
         messages = analysis_result.get("messages", [])
@@ -125,8 +128,8 @@ def test_deep_paper_analysis():
                 "vision_model": vision_model
             },
             "results": {
-                "has_chinese_analysis": analysis_result.get("chinese_analysis") is not None,
-                "chinese_analysis_length": len(analysis_result.get("chinese_analysis", "")),
+                "has_analysis_result": analysis_result.get("analysis_result") is not None,
+                "analysis_result_length": len(analysis_result.get("analysis_result", "")),
                 "message_count": len(messages),
                 "ai_messages_count": ai_messages_count,
                 "tool_calls_made": tool_calls_count,
