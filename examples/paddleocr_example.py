@@ -28,18 +28,20 @@ def main():
         print(f"📄 选择论文: {paper.title[:80]}...")
         
         try:
-            # 下载 PDF
-            print("\n📥 下载 PDF...")
-            paper.downloadPdf()
+            # 下载 PDF 到标准目录
+            print("\n📥 下载 PDF 到标准目录...")
+            paper.downloadPdf(use_standard_path=True, check_existing=True)
             print("✅ PDF 下载完成")
             
-            # 方法1: 使用默认的 PyMuPDF (快速但简单)
-            print("\n🔍 方法1: PyMuPDF 快速文本提取")
-            text_result, text_status = paper.performOCR(use_paddleocr=False)
+            # 方法1: 使用默认的 PyMuPDF (快速但简单) 并自动保存
+            print("\n🔍 方法1: PyMuPDF 快速文本提取并自动保存")
+            text_result, text_status = paper.performOCR(use_paddleocr=False, auto_save=True)
             
             if text_result:
                 print(f"✅ PyMuPDF 完成: {len(text_result)} 字符")
                 print(f"📊 状态: 处理 {text_status['processed_pages']}/{text_status['total_pages']} 页")
+                if 'saved_files' in text_status:
+                    print(f"💾 保存文件: {text_status['saved_files']}")
                 print(f"📝 预览: {text_result[:200]}...")
             
             # 方法2: 使用 PaddleOCR 3.0 (结构化但较慢)
@@ -68,22 +70,36 @@ def main():
                     for img_path in list(paddle_images.keys())[:3]:  # 显示前3张图片路径
                         print(f"     - {img_path}")
                 
-                # 保存结果到文件
-                output_path = "./paddleocr_output"
-                if paper.savePaddleOcrToFile(output_path):
-                    print(f"   ✓ 结果已保存到: {output_path}")
+                # 保存结果到标准目录
+                if paper.savePaddleOcrToFile(use_standard_path=True):
+                    print(f"   ✓ 结果已保存到标准目录: {paper.get_paper_directory()}")
             
             else:
                 print("❌ PaddleOCR 未提取到内容")
+        
+        except Exception as e:
+            print(f"❌ 处理失败: {str(e)}")
+        
+        finally:
+            # 显示生成的文件结构 (不管成功与否都显示)
+            print(f"\n📁 论文目录: {paper.get_paper_directory()}")
+            try:
+                import os
+                paper_dir = paper.get_paper_directory()
+                if paper_dir.exists():
+                    print("📂 生成的文件:")
+                    for file_path in sorted(paper_dir.rglob("*")):
+                        if file_path.is_file():
+                            size = file_path.stat().st_size
+                            print(f"   {file_path.relative_to(paper_dir)} ({size:,} bytes)")
+            except Exception as e:
+                print(f"❌ 无法列出文件: {e}")
             
             # 清理内存
             print("\n🧹 清理内存...")
             paper.clearPaddleOcrResult()
             paper.clearPdf()
             print("✅ 清理完成")
-            
-        except Exception as e:
-            print(f"❌ 处理失败: {str(e)}")
     
     else:
         print("❌ 未找到测试论文")

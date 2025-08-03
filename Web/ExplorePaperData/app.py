@@ -849,6 +849,49 @@ def api_dify_batch_validate():
         logger.error(f"批量验证失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/dify_batch_verify', methods=['POST'])
+def api_dify_batch_verify():
+    """API接口 - 批量验证所有已上传文档的状态"""
+    try:
+        # 检查 Dify 服务是否可用
+        if not dify_service.is_available():
+            return jsonify({
+                'success': False, 
+                'error': 'Dify 服务不可用，请检查服务配置和连接状态'
+            }), 503
+        
+        # 执行批量验证
+        result = dify_service.batch_verify_all_documents()
+        
+        if result['success']:
+            return jsonify({
+                'success': True, 
+                'data': result
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': result.get('error', '批量验证失败'),
+                'data': result
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"批量验证文档失败: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'data': {
+                'total': 0,
+                'verified': 0,
+                'failed': 0,
+                'missing': 0,
+                'progress': 0,
+                'message': f'批量验证过程中发生错误: {e}',
+                'failed_papers': [],
+                'missing_papers': []
+            }
+        }), 500
+
 @app.route('/api/migration_preview', methods=['POST'])
 def api_migration_preview():
     """API接口 - 获取迁移预览信息"""

@@ -1692,12 +1692,12 @@ class DifyKnowledgeBaseClient:
             
             logger.debug(f"文档信息响应: {response}")
             
-            # 检查响应结构
-            if 'document' not in response:
-                logger.error(f"响应中缺少document字段: {response}")
-                raise DifyKnowledgeBaseError(f"Invalid response format: missing 'document' field")
+            # 检查响应结构 - API 直接返回文档数据，不嵌套在 document 字段下
+            if 'id' not in response:
+                logger.error(f"响应中缺少id字段: {response}")
+                raise DifyKnowledgeBaseError(f"Invalid response format: missing 'id' field")
             
-            doc_data = response['document']
+            doc_data = response
             document = DifyDocumentModel(
                 dify_document_id=doc_data['id'],
                 dify_dataset_id=dataset_id,
@@ -1706,12 +1706,12 @@ class DifyKnowledgeBaseClient:
                 character_count=doc_data.get('character_count', 0),
                 word_count=doc_data.get('word_count', 0),
                 tokens=doc_data.get('tokens', 0),
-                status=doc_data.get('status', ''),
+                status=doc_data.get('display_status', ''),  # 使用 display_status 字段
                 indexing_status=doc_data.get('indexing_status', ''),
                 segment_count=doc_data.get('segment_count', 0),
                 hit_count=doc_data.get('hit_count', 0),
-                processing_started_at=self._parse_timestamp(doc_data.get('processing_started_at')),
-                processing_completed_at=self._parse_timestamp(doc_data.get('processing_completed_at'))
+                processing_started_at=self._parse_timestamp(doc_data.get('created_at')),  # 使用 created_at
+                processing_completed_at=self._parse_timestamp(doc_data.get('completed_at'))  # 使用 completed_at
             )
             
             logger.info(f"成功获取文档信息: {document.name}")

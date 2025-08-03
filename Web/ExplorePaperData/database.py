@@ -1964,3 +1964,130 @@ class DifyService:
                 "by_task": [],
                 "upload_trend": []
             }
+    
+    def batch_verify_all_documents(self) -> Dict[str, Any]:
+        """
+        批量验证所有已上传文档的状态
+        
+        Returns:
+            验证结果统计
+        """
+        try:
+            # 获取所有已上传的论文
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("""
+                    SELECT arxiv_id, title, dify_document_id, dify_dataset_id
+                    FROM arxiv_papers 
+                    WHERE dify_document_id IS NOT NULL 
+                      AND dify_document_id != ''
+                    ORDER BY dify_upload_time DESC
+                """)
+                
+                papers_to_verify = [dict(row) for row in cursor.fetchall()]
+            
+            if not papers_to_verify:
+                return {
+                    "success": True,
+                    "total": 0,
+                    "verified": 0,
+                    "failed": 0,
+                    "missing": 0,
+                    "progress": 100,
+                    "message": "没有需要验证的论文",
+                    "failed_papers": [],
+                    "missing_papers": []
+                }
+            
+            total = len(papers_to_verify)
+            verified_count = 0
+            failed_count = 0
+            missing_count = 0
+            failed_papers = []
+            missing_papers = []
+            
+            logger.info(f"开始批量验证 {total} 篇论文的 Dify 文档状态")
+            
+            # 逐个验证每篇论文
+            for i, paper in enumerate(papers_to_verify):
+                arxiv_id = paper['arxiv_id']
+                title = paper['title']
+                
+                try:
+                    # 调用单篇验证方法
+                    verify_result = self.verify_dify_document(arxiv_id)
+                    
+                    if verify_result.get('success'):
+                        if verify_result.get('verified'):
+                            verified_count += 1
+                            logger.debug(f"验证成功: {arxiv_id}")
+                        elif verify_result.get('status') == 'missing':
+                            missing_count += 1
+                            missing_papers.append({
+                                'arxiv_id': arxiv_id,
+                                'title': title,
+                                'error': '文档在 Dify 服务器上不存在'
+                            })
+                            logger.warning(f"文档丢失: {arxiv_id}")
+                        else:
+                            failed_count += 1
+                            failed_papers.append({
+                                'arxiv_id': arxiv_id,
+                                'title': title,
+                                'error': verify_result.get('error', '验证失败')
+                            })
+                            logger.warning(f"验证失败: {arxiv_id} - {verify_result.get('error')}")
+                    else:
+                        failed_count += 1
+                        failed_papers.append({
+                            'arxiv_id': arxiv_id,
+                            'title': title,
+                            'error': verify_result.get('error', '验证过程出错')
+                        })
+                        logger.error(f"验证出错: {arxiv_id} - {verify_result.get('error')}")
+                        
+                except Exception as e:
+                    failed_count += 1
+                    error_msg = str(e)
+                    failed_papers.append({
+                        'arxiv_id': arxiv_id,
+                        'title': title,
+                        'error': f'验证异常: {error_msg}'
+                    })
+                    logger.error(f"验证异常: {arxiv_id} - {error_msg}")
+                
+                # 可以在这里添加进度回调或日志
+                progress = int((i + 1) / total * 100)
+                if (i + 1) % 10 == 0 or i == total - 1:
+                    logger.info(f"验证进度: {i + 1}/{total} ({progress}%)")
+            
+            # 汇总结果
+            result = {
+                "success": True,
+                "total": total,
+                "verified": verified_count,
+                "failed": failed_count,
+                "missing": missing_count,
+                "progress": 100,
+                "message": f"批量验证完成：{verified_count} 个成功，{failed_count} 个失败，{missing_count} 个丢失",
+                "failed_papers": failed_papers,
+                "missing_papers": missing_papers
+            }
+            
+            logger.info(f"批量验证完成: {result['message']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"批量验证文档失败: {e}")
+            return {
+                "success": False,
+                "total": 0,
+                "verified": 0,
+                "failed": 0,
+                "missing": 0,
+                "progress": 0,
+                "error": str(e),
+                "message": f"批量验证过程中发生错误: {e}",
+                "failed_papers": [],
+                "missing_papers": []
+            }

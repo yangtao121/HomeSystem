@@ -62,7 +62,7 @@ class ArxivData:
             setattr(self, key, value)
 
         # 获取pdf链接
-        self.pdf_link = self.link.replace("abs", "pdf")
+        self.pdf_link = self.link.replace("abs", "pdf") if self.link else ""
 
         self.pdf = None
 
@@ -122,13 +122,13 @@ class ArxivData:
         从链接中提取ArXiv ID
         """
         if not self.link:
-            return None
+            return ""
         
         # ArXiv链接格式: http://arxiv.org/abs/1909.03550v1
         match = re.search(r'arxiv\.org/abs/([0-9]{4}\.[0-9]{4,5})', self.link)
         if match:
             return match.group(1)
-        return None
+        return ""
 
     def _extract_published_date(self) -> str:
         """
@@ -173,12 +173,14 @@ class ArxivData:
         """
         return f"标题: {self.title}\n发布时间: {self.published_date}\n链接: {self.link}\n摘要: {self.snippet}"
 
-    def downloadPdf(self, save_path: str = None):
+    def downloadPdf(self, save_path: Optional[str] = None, use_standard_path: bool = False, check_existing: bool = False):
         """
         下载PDF并保存到指定路径
 
         Args:
-            save_path: PDF保存路径
+            save_path: PDF保存路径（优先级最高）
+            use_standard_path: 是否使用标准目录结构（当save_path为None时生效）
+            check_existing: 是否检查文件已存在（避免重复下载）
         Returns:
             bytes: PDF内容
         Raises:
@@ -187,6 +189,47 @@ class ArxivData:
         """
         if not self.pdf_link:
             raise ValueError("PDF链接不能为空")
+
+        # 决定实际的保存路径
+        actual_save_path = None
+        pdf_path = None
+        
+        if save_path is not None:
+            # 优先使用用户指定的路径（保持原有行为）
+            actual_save_path = save_path
+            # 去除标题中的非法字符
+            pdf_title = (self.title or '无标题').replace("/", "_")
+            pdf_title = pdf_title.replace(":", "_")
+            pdf_title = pdf_title.replace("*", "_")
+            pdf_title = pdf_title.replace("?", "_")
+            pdf_title = pdf_title.replace("\\", "_")
+            pdf_title = pdf_title.replace("<", "_")
+            pdf_title = pdf_title.replace(">", "_")
+            pdf_title = pdf_title.replace("|", "_")
+            pdf_path = os.path.join(actual_save_path, pdf_title + ".pdf")
+        elif use_standard_path:
+            # 使用标准目录结构
+            try:
+                pdf_path = self.get_default_pdf_path()
+                actual_save_path = pdf_path.parent
+                # 确保目录存在
+                actual_save_path.mkdir(parents=True, exist_ok=True)
+                pdf_path = str(pdf_path)  # 转换为字符串路径
+            except ValueError as e:
+                logger.error(f"无法使用标准路径: {e}")
+                actual_save_path = None
+        
+        # 检查文件是否已存在
+        if check_existing and pdf_path and os.path.exists(pdf_path):
+            logger.info(f"PDF文件已存在，跳过下载: {pdf_path}")
+            # 读取现有文件并返回内容
+            try:
+                with open(pdf_path, 'rb') as f:
+                    self.pdf = f.read()
+                    self.pdf_path = pdf_path
+                    return self.pdf
+            except Exception as e:
+                logger.warning(f"读取现有PDF文件失败: {e}，将重新下载")
 
         try:
             # 发送HEAD请求获取文件大小
@@ -203,21 +246,8 @@ class ArxivData:
 
             content = bytearray()
 
-            # 同时下载到内存和保存到文件
-            # 去除标题中的非法字符
-            pdf_title = (self.title or '无标题').replace("/", "_")
-            pdf_title = pdf_title.replace(":", "_")
-            pdf_title = pdf_title.replace("*", "_")
-            pdf_title = pdf_title.replace("?", "_")
-            pdf_title = pdf_title.replace("\\", "_")
-            pdf_title = pdf_title.replace("<", "_")
-            pdf_title = pdf_title.replace(">", "_")
-            pdf_title = pdf_title.replace("|", "_")
-
-            # pdf_title = pdf_title.replace(" ", "_")
-
-            # 如果没有指定保存路径，则不保存
-            if save_path is None:
+            # 如果没有保存路径，则只下载到内存
+            if actual_save_path is None:
                 with tqdm(total=total_size, desc="Downloading PDF", unit='B', unit_scale=True) as pbar:
                     for chunk in response.iter_content(chunk_size=chunk_size):
                         if chunk:
@@ -225,20 +255,20 @@ class ArxivData:
                             progress += len(chunk)
                             pbar.update(len(chunk))
             else:
-                pdf_path = os.path.join(save_path, pdf_title + ".pdf")
-
+                # 同时下载到内存和保存到文件
                 self.pdf_path = pdf_path
 
-                with open(pdf_path, 'wb') as f, \
-                        tqdm(total=total_size, desc="Downloading PDF", unit='B', unit_scale=True) as pbar:
-                    for chunk in response.iter_content(chunk_size=chunk_size):
-                        if chunk:
-                            content.extend(chunk)
-                            f.write(chunk)
-                            progress += len(chunk)
-                            pbar.update(len(chunk))
+                if pdf_path:
+                    with open(pdf_path, 'wb') as f, \
+                            tqdm(total=total_size, desc="Downloading PDF", unit='B', unit_scale=True) as pbar:
+                        for chunk in response.iter_content(chunk_size=chunk_size):
+                            if chunk:
+                                content.extend(chunk)
+                                f.write(chunk)
+                                progress += len(chunk)
+                                pbar.update(len(chunk))
 
-                logger.info(f"PDF已保存到: {pdf_path}")
+                    logger.info(f"PDF已保存到: {pdf_path}")
 
             self.pdf = bytes(content)
 
@@ -255,13 +285,15 @@ class ArxivData:
         """
         self.pdf = None
     
-    def performOCR(self, max_pages: int = 25, use_paddleocr: bool = False) -> tuple[Optional[str], dict]:
+    def performOCR(self, max_pages: int = 25, use_paddleocr: bool = False, auto_save: bool = False, save_path: Optional[str] = None) -> tuple[Optional[str], dict]:
         """
         对PDF进行OCR文字识别，默认使用PyMuPDF快速提取，可选使用PaddleOCR结构化识别
         
         Args:
             max_pages: 最大处理页数，默认25页（涵盖大部分正常论文）
             use_paddleocr: 是否使用PaddleOCR进行结构化识别，默认False使用PyMuPDF
+            auto_save: 是否自动保存OCR结果到标准目录（当save_path为None时生效）
+            save_path: 指定OCR结果保存目录（优先级高于auto_save）
             
         Returns:
             tuple: (OCR识别结果文本, 状态信息字典)
@@ -272,6 +304,7 @@ class ArxivData:
                     - 'is_oversized': 是否超过页数限制（可能是毕业论文等长文档）
                     - 'char_count': 实际提取的字符数
                     - 'method': 使用的OCR方法 ('pymupdf' 或 'paddleocr')
+                    - 'saved_files': 保存的文件路径列表（当启用保存时）
             
         Raises:
             ValueError: 当PDF内容为空时抛出
@@ -280,15 +313,70 @@ class ArxivData:
         if self.pdf is None:
             raise ValueError("PDF内容为空，请先调用downloadPdf方法下载PDF")
         
+        # 决定保存目录
+        ocr_save_path = None
+        if save_path is not None:
+            # 用户指定了保存路径
+            ocr_save_path = save_path
+        elif auto_save:
+            # 自动保存到标准目录
+            try:
+                paper_dir = self.get_paper_directory()
+                paper_dir.mkdir(parents=True, exist_ok=True)
+                ocr_save_path = str(paper_dir)
+            except ValueError as e:
+                logger.warning(f"无法使用标准保存路径: {e}")
+        
         # 如果明确要求使用PaddleOCR，或者PyMuPDF方法失败时回退
         if use_paddleocr:
-            return self._performOCR_paddleocr(max_pages)
+            ocr_result, status_info = self._performOCR_paddleocr(max_pages, ocr_save_path)
         else:
             try:
-                return self._performOCR_pymupdf(max_pages)
+                ocr_result, status_info = self._performOCR_pymupdf(max_pages)
+                # 如果需要保存PyMuPDF结果
+                if ocr_save_path and ocr_result:
+                    saved_files = self._save_pymupdf_result(ocr_result, ocr_save_path)
+                    status_info['saved_files'] = saved_files
             except Exception as e:
                 logger.warning(f"PyMuPDF OCR失败: {str(e)}，回退到PaddleOCR")
-                return self._performOCR_paddleocr(max_pages)
+                ocr_result, status_info = self._performOCR_paddleocr(max_pages, ocr_save_path)
+        
+        return ocr_result, status_info
+    
+    def _save_pymupdf_result(self, ocr_result: str, save_path: str) -> list:
+        """
+        保存PyMuPDF OCR结果到文件
+        
+        Args:
+            ocr_result: OCR识别结果文本
+            save_path: 保存目录路径
+            
+        Returns:
+            list: 保存的文件路径列表
+        """
+        saved_files = []
+        try:
+            if not self.arxiv_id or self.arxiv_id == "":
+                logger.warning("ArXiv ID为空，无法生成标准文件名")
+                return saved_files
+            
+            save_dir = Path(save_path)
+            save_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 生成文件名
+            text_file = save_dir / f"{self.arxiv_id}_ocr.txt"
+            
+            # 保存文本文件
+            with open(text_file, 'w', encoding='utf-8') as f:
+                f.write(ocr_result)
+            
+            saved_files.append(str(text_file))
+            logger.info(f"PyMuPDF OCR结果已保存到: {text_file}")
+            
+        except Exception as e:
+            logger.error(f"保存PyMuPDF OCR结果失败: {e}")
+        
+        return saved_files
     
     def _performOCR_pymupdf(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
         """
@@ -327,7 +415,13 @@ class ArxivData:
                 for page_num in range(pages_to_process):
                     try:
                         page = pdf_document[page_num]
-                        text = page.get_text()
+                        # 兼容不同版本的PyMuPDF
+                        if hasattr(page, 'get_text'):
+                            text = page.get_text()
+                        elif hasattr(page, 'getText'):
+                            text = page.getText()
+                        else:
+                            text = ""
                         
                         if text.strip():
                             # 清理文本
@@ -373,7 +467,7 @@ class ArxivData:
             logger.error(error_msg)
             raise Exception(error_msg)
     
-    def _performOCR_paddleocr(self, max_pages: int = 25, output_path: str = None) -> tuple[Optional[str], dict]:
+    def _performOCR_paddleocr(self, max_pages: int = 25, output_path: Optional[str] = None) -> tuple[Optional[str], dict]:
         """
         使用PaddleOCR 3.0 PPStructureV3进行结构化文档解析
         
@@ -464,18 +558,26 @@ class ArxivData:
                         if item:
                             self.paddle_ocr_images.update(item)
                 else:
-                    # 保存到指定目录
-                    mkd_file_path = output_md_dir / f"{Path(tmp_pdf_path).stem}.md"
+                    # 保存到指定目录，使用标准化文件名
+                    saved_files = []
+                    
+                    # 使用 arxiv_id 作为文件名（如果可用）
+                    base_filename = self.arxiv_id if (self.arxiv_id and self.arxiv_id != "") else Path(tmp_pdf_path).stem
+                    mkd_file_path = output_md_dir / f"{base_filename}_paddleocr.md"
+                    
                     with open(mkd_file_path, "w", encoding="utf-8") as f:
                         f.write(markdown_texts)
+                    saved_files.append(str(mkd_file_path))
                     
-                    # 保存图片
+                    # 保存图片到标准化的图片目录
+                    images_dir = output_md_dir / "images"
                     for item in markdown_images:
                         if item:
                             for path, image in item.items():
-                                file_path = output_md_dir / path
+                                file_path = images_dir / path
                                 file_path.parent.mkdir(parents=True, exist_ok=True)
                                 image.save(file_path)
+                                saved_files.append(str(file_path))
                     
                     logger.info(f"Markdown文件和图片已保存到: {output_md_dir}")
                 
@@ -489,6 +591,10 @@ class ArxivData:
                     'method': 'paddleocr',
                     'images_count': len(self.paddle_ocr_images) if hasattr(self, 'paddle_ocr_images') else 0
                 }
+                
+                # 添加保存文件列表（如果保存了文件）
+                if output_path is not None and 'saved_files' in locals():
+                    status_info['saved_files'] = saved_files
                 
                 if markdown_texts:
                     self.ocr_result = markdown_texts
@@ -552,12 +658,13 @@ class ArxivData:
         if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
             self.paddle_ocr_images.clear()
     
-    def savePaddleOcrToFile(self, output_path: str) -> bool:
+    def savePaddleOcrToFile(self, output_path: Optional[str] = None, use_standard_path: bool = False) -> bool:
         """
         将PaddleOCR结果保存到文件
         
         Args:
-            output_path: 输出目录路径
+            output_path: 输出目录路径（优先级高于use_standard_path）
+            use_standard_path: 是否使用标准目录结构（当output_path为None时生效）
             
         Returns:
             bool: 保存是否成功
@@ -567,18 +674,35 @@ class ArxivData:
                 logger.warning("没有PaddleOCR结果可以保存")
                 return False
             
-            output_dir = Path(output_path)
+            # 确定输出目录
+            if output_path is not None:
+                # 用户指定了保存路径
+                output_dir = Path(output_path)
+            elif use_standard_path:
+                # 使用标准目录结构
+                try:
+                    output_dir = self.get_paper_directory()
+                except ValueError as e:
+                    logger.error(f"无法使用标准路径: {e}")
+                    return False
+            else:
+                # 没有指定路径且不使用标准路径
+                logger.error("必须指定output_path或设置use_standard_path=True")
+                return False
+            
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # 保存markdown文件
-            markdown_file = output_dir / f"{self.arxiv_id or 'unknown'}.md"
+            # 保存markdown文件，使用标准化文件名
+            filename = f"{self.arxiv_id}_paddleocr.md" if (self.arxiv_id and self.arxiv_id != "") else "unknown_paddleocr.md"
+            markdown_file = output_dir / filename
             with open(markdown_file, 'w', encoding='utf-8') as f:
                 f.write(self.paddle_ocr_result)
             
-            # 保存图片
+            # 保存图片到标准化的图片目录
             if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
+                images_dir = output_dir / "images"
                 for path, image in self.paddle_ocr_images.items():
-                    image_path = output_dir / path
+                    image_path = images_dir / path
                     image_path.parent.mkdir(parents=True, exist_ok=True)
                     image.save(image_path)
             
@@ -588,6 +712,121 @@ class ArxivData:
         except Exception as e:
             logger.error(f"保存PaddleOCR结果失败: {e}")
             return False
+
+    def get_paper_directory(self) -> Path:
+        """
+        获取论文的标准目录路径
+        
+        Returns:
+            Path: 论文目录路径 - /mnt/nfs_share/code/homesystem/data/paper_analyze/{arxiv_id}/
+        """
+        if not self.arxiv_id or self.arxiv_id == "":
+            raise ValueError("无法创建目录：ArXiv ID 为空")
+        
+        base_dir = Path("/mnt/nfs_share/code/homesystem/data/paper_analyze")
+        paper_dir = base_dir / self.arxiv_id
+        
+        return paper_dir
+    
+    def get_default_pdf_path(self) -> Path:
+        """
+        获取 PDF 文件的默认保存路径
+        
+        Returns:
+            Path: PDF 文件路径 - {paper_directory}/{arxiv_id}.pdf
+        """
+        if not self.arxiv_id or self.arxiv_id == "":
+            raise ValueError("无法生成 PDF 路径：ArXiv ID 为空")
+        
+        paper_dir = self.get_paper_directory()
+        return paper_dir / f"{self.arxiv_id}.pdf"
+    
+    def get_default_ocr_paths(self) -> dict:
+        """
+        获取 OCR 结果文件的默认保存路径
+        
+        Returns:
+            dict: 包含各种 OCR 文件路径的字典
+                - 'pymupdf_text': PyMuPDF 文本结果路径
+                - 'paddleocr_markdown': PaddleOCR Markdown 结果路径
+                - 'paddleocr_images_dir': PaddleOCR 图片目录路径
+        """
+        if not self.arxiv_id or self.arxiv_id == "":
+            raise ValueError("无法生成 OCR 路径：ArXiv ID 为空")
+        
+        paper_dir = self.get_paper_directory()
+        
+        return {
+            'pymupdf_text': paper_dir / f"{self.arxiv_id}_ocr.txt",
+            'paddleocr_markdown': paper_dir / f"{self.arxiv_id}_paddleocr.md",
+            'paddleocr_images_dir': paper_dir / "images"
+        }
+    
+    def save_ocr_to_standard_path(self) -> dict:
+        """
+        将所有OCR结果保存到标准目录的便捷方法
+        
+        Returns:
+            dict: 保存操作的结果信息
+                - 'success': bool - 是否成功
+                - 'saved_files': list - 保存的文件路径列表
+                - 'errors': list - 错误信息列表
+        """
+        result = {
+            'success': False,
+            'saved_files': [],
+            'errors': []
+        }
+        
+        try:
+            if not self.arxiv_id or self.arxiv_id == "":
+                result['errors'].append("ArXiv ID为空，无法保存到标准路径")
+                return result
+            
+            # 确保标准目录存在
+            paper_dir = self.get_paper_directory()
+            paper_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 保存PyMuPDF OCR结果
+            if self.ocr_result:
+                try:
+                    saved_files = self._save_pymupdf_result(self.ocr_result, str(paper_dir))
+                    result['saved_files'].extend(saved_files)
+                except Exception as e:
+                    result['errors'].append(f"保存PyMuPDF结果失败: {e}")
+            
+            # 保存PaddleOCR结果
+            if hasattr(self, 'paddle_ocr_result') and self.paddle_ocr_result:
+                try:
+                    success = self.savePaddleOcrToFile(use_standard_path=True)
+                    if success:
+                        # 添加预期的文件路径到结果中
+                        paddle_paths = self.get_default_ocr_paths()
+                        result['saved_files'].append(str(paddle_paths['paddleocr_markdown']))
+                        
+                        # 如果有图片，添加图片目录
+                        if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
+                            result['saved_files'].append(str(paddle_paths['paddleocr_images_dir']))
+                    else:
+                        result['errors'].append("PaddleOCR结果保存失败")
+                except Exception as e:
+                    result['errors'].append(f"保存PaddleOCR结果失败: {e}")
+            
+            # 判断整体成功状态
+            result['success'] = len(result['saved_files']) > 0 and len(result['errors']) == 0
+            
+            if result['success']:
+                logger.info(f"OCR结果已保存到标准路径: {paper_dir}")
+            elif result['saved_files']:
+                logger.warning(f"部分OCR结果保存成功，但有错误: {result['errors']}")
+            else:
+                logger.error(f"OCR结果保存失败: {result['errors']}")
+                
+        except Exception as e:
+            result['errors'].append(f"保存操作失败: {e}")
+            logger.error(f"保存OCR结果到标准路径失败: {e}")
+        
+        return result
 
     def cleanup(self):
         """

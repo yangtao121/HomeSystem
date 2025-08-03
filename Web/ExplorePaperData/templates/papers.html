@@ -111,11 +111,14 @@
                     {% endif %}
                 </small>
             </div>
-            <div>
-                <small class="text-muted">
+            <div class="d-flex align-items-center">
+                <small class="text-muted me-3">
                     显示第 {{ (pagination.page - 1) * pagination.per_page + 1 }} - 
                     {{ [(pagination.page * pagination.per_page), pagination.total]|min }} 条
                 </small>
+                <button type="button" class="btn btn-outline-warning btn-sm" onclick="batchVerifyDifyDocuments()" title="验证所有已上传到知识库的文档状态">
+                    <i class="bi bi-shield-check"></i> 一键验证知识库
+                </button>
             </div>
         </div>
     </div>
@@ -159,6 +162,9 @@
                             </button>
                             <button type="button" class="btn btn-warning btn-sm me-1" onclick="batchUploadToDify()">
                                 <i class="bi bi-cloud-upload"></i> 批量上传到Dify
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-sm me-1" onclick="batchVerifyDifyDocuments()">
+                                <i class="bi bi-shield-check"></i> 一键验证知识库
                             </button>
                             <button type="button" class="btn btn-info btn-sm me-1" onclick="batchEditRelevance()">
                                 <i class="bi bi-star"></i> 批量评分
@@ -1800,6 +1806,106 @@
     </div>
 </div>
 
+<!-- Dify 批量验证进度模态框 -->
+<div class="modal fade" id="difyVerifyProgressModal" tabindex="-1" aria-labelledby="difyVerifyProgressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="difyVerifyProgressModalLabel">
+                    <i class="bi bi-shield-check"></i> 批量验证知识库文档状态
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="verifyModalCloseBtn"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 总体进度 -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">验证进度</span>
+                        <span id="verifyOverallProgress">0/0</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                             role="progressbar" style="width: 0%" 
+                             id="verifyOverallProgressBar">0%</div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <small class="text-success">
+                                <i class="bi bi-check-circle"></i> 
+                                已验证: <span id="verifySuccessCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-danger">
+                                <i class="bi bi-x-circle"></i> 
+                                验证失败: <span id="verifyFailedCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                文档丢失: <span id="verifyMissingCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> 
+                                总计: <span id="verifyTotalCount">0</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 验证状态信息 -->
+                <div class="alert alert-info" id="verifyStatusMessage">
+                    <i class="bi bi-info-circle"></i> 
+                    <span id="verifyStatusText">正在初始化验证...</span>
+                </div>
+
+                <!-- 验证结果详情 -->
+                <div id="verifyResultsSection" style="display: none;">
+                    <!-- 失败和丢失的文档列表 -->
+                    <div id="verifyFailedSection" style="display: none;" class="mb-3">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <i class="bi bi-exclamation-triangle"></i> 验证失败的文档
+                            </div>
+                            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                                <div id="verifyFailedList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="verifyMissingSection" style="display: none;" class="mb-3">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <i class="bi bi-exclamation-triangle"></i> 服务器上丢失的文档
+                            </div>
+                            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                                <div id="verifyMissingList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="verifySuccessBtn" style="display: none;">
+                    <i class="bi bi-check-circle"></i> 验证完成
+                </button>
+                <button type="button" class="btn btn-warning" id="batchReuploadBtn" style="display: none;">
+                    <i class="bi bi-upload"></i> 重新上传丢失文档
+                </button>
+                <button type="button" class="btn btn-info" id="exportVerifyResultBtn" style="display: none;">
+                    <i class="bi bi-download"></i> 导出验证结果
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="verifyModalDoneBtn" style="display: none;">
+                    完成
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // 增强的批量上传功能
     function batchUploadToDify() {
@@ -2359,6 +2465,291 @@
             row.style.display = show ? 'flex' : 'none';
         });
     }
+
+    // =================批量验证知识库功能================
+    
+    function batchVerifyDifyDocuments() {
+        // 确认操作
+        const confirmMessage = `确定要验证所有已上传到知识库的文档吗？\n\n此操作将：\n• 检查所有已标记为上传的文档在 Dify 服务器上的真实状态\n• 识别已丢失或无法访问的文档\n• 更新本地数据库的状态记录\n\n验证过程可能需要一些时间，请耐心等待。`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // 初始化并显示验证进度模态框
+        initVerifyProgressModal();
+        const modal = new bootstrap.Modal(document.getElementById('difyVerifyProgressModal'));
+        modal.show();
+        
+        // 开始验证
+        startBatchVerification();
+    }
+    
+    function initVerifyProgressModal() {
+        // 重置所有进度显示
+        document.getElementById('verifyOverallProgress').textContent = '0/0';
+        document.getElementById('verifyOverallProgressBar').style.width = '0%';
+        document.getElementById('verifyOverallProgressBar').textContent = '0%';
+        
+        // 重置计数器
+        document.getElementById('verifySuccessCount').textContent = '0';
+        document.getElementById('verifyFailedCount').textContent = '0';
+        document.getElementById('verifyMissingCount').textContent = '0';
+        document.getElementById('verifyTotalCount').textContent = '0';
+        
+        // 重置状态消息
+        updateVerifyStatusMessage('正在初始化验证...', 'info');
+        
+        // 隐藏结果部分和按钮
+        document.getElementById('verifyResultsSection').style.display = 'none';
+        document.getElementById('verifyFailedSection').style.display = 'none';
+        document.getElementById('verifyMissingSection').style.display = 'none';
+        
+        document.getElementById('verifySuccessBtn').style.display = 'none';
+        document.getElementById('batchReuploadBtn').style.display = 'none';
+        document.getElementById('exportVerifyResultBtn').style.display = 'none';
+        document.getElementById('verifyModalDoneBtn').style.display = 'none';
+        
+        // 禁用关闭按钮
+        document.getElementById('verifyModalCloseBtn').disabled = true;
+    }
+    
+    function updateVerifyStatusMessage(message, type = 'info') {
+        const statusMessage = document.getElementById('verifyStatusMessage');
+        const statusText = document.getElementById('verifyStatusText');
+        
+        // 移除旧的类
+        statusMessage.className = 'alert';
+        
+        // 添加新的类
+        switch (type) {
+            case 'success':
+                statusMessage.classList.add('alert-success');
+                break;
+            case 'warning':
+                statusMessage.classList.add('alert-warning');
+                break;
+            case 'danger':
+                statusMessage.classList.add('alert-danger');
+                break;
+            default:
+                statusMessage.classList.add('alert-info');
+        }
+        
+        statusText.textContent = message;
+    }
+    
+    function startBatchVerification() {
+        updateVerifyStatusMessage('正在向服务器发送验证请求...', 'info');
+        
+        fetch('/api/dify_batch_verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                handleVerificationResult(data.data);
+            } else {
+                updateVerifyStatusMessage(`验证失败: ${data.error}`, 'danger');
+                finalizeBatchVerification(false);
+            }
+        })
+        .catch(error => {
+            console.error('验证失败:', error);
+            updateVerifyStatusMessage('验证过程中发生网络错误', 'danger');
+            finalizeBatchVerification(false);
+        });
+    }
+    
+    function handleVerificationResult(verifyData) {
+        const { total, verified, failed, missing, message, failed_papers, missing_papers } = verifyData;
+        
+        // 更新进度条
+        document.getElementById('verifyOverallProgress').textContent = `${total}/${total}`;
+        document.getElementById('verifyOverallProgressBar').style.width = '100%';
+        document.getElementById('verifyOverallProgressBar').textContent = '100%';
+        document.getElementById('verifyOverallProgressBar').classList.remove('progress-bar-animated');
+        
+        // 更新计数器
+        document.getElementById('verifySuccessCount').textContent = verified;
+        document.getElementById('verifyFailedCount').textContent = failed;
+        document.getElementById('verifyMissingCount').textContent = missing;
+        document.getElementById('verifyTotalCount').textContent = total;
+        
+        // 更新状态消息
+        if (failed === 0 && missing === 0) {
+            updateVerifyStatusMessage(`✅ ${message}`, 'success');
+        } else if (failed > 0 || missing > 0) {
+            updateVerifyStatusMessage(`⚠️ ${message}`, 'warning');
+        } else {
+            updateVerifyStatusMessage(message, 'info');
+        }
+        
+        // 显示失败和丢失的文档
+        if (failed > 0 || missing > 0) {
+            showVerificationFailures(failed_papers, missing_papers);
+        }
+        
+        // 更新页面中的 Dify 状态徽章
+        updateDifyStatusBadgesAfterVerification(verifyData);
+        
+        finalizeBatchVerification(true);
+    }
+    
+    function showVerificationFailures(failedPapers, missingPapers) {
+        document.getElementById('verifyResultsSection').style.display = 'block';
+        
+        // 显示验证失败的文档
+        if (failedPapers && failedPapers.length > 0) {
+            document.getElementById('verifyFailedSection').style.display = 'block';
+            const failedList = document.getElementById('verifyFailedList');
+            failedList.innerHTML = failedPapers.map(paper => `
+                <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded">
+                    <div class="flex-grow-1">
+                        <strong>${paper.arxiv_id}</strong><br>
+                        <small class="text-muted">${paper.title || '无标题'}</small><br>
+                        <small class="text-danger">${paper.error}</small>
+                    </div>
+                    <a href="/paper/${paper.arxiv_id}" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <i class="bi bi-eye"></i> 查看
+                    </a>
+                </div>
+            `).join('');
+        }
+        
+        // 显示丢失的文档
+        if (missingPapers && missingPapers.length > 0) {
+            document.getElementById('verifyMissingSection').style.display = 'block';
+            const missingList = document.getElementById('verifyMissingList');
+            missingList.innerHTML = missingPapers.map(paper => `
+                <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded">
+                    <div class="flex-grow-1">
+                        <strong>${paper.arxiv_id}</strong><br>
+                        <small class="text-muted">${paper.title || '无标题'}</small><br>
+                        <small class="text-warning">${paper.error}</small>
+                    </div>
+                    <div class="btn-group" role="group">
+                        <a href="/paper/${paper.arxiv_id}" class="btn btn-sm btn-outline-primary" target="_blank">
+                            <i class="bi bi-eye"></i> 查看
+                        </a>
+                        <button class="btn btn-sm btn-outline-success" onclick="reuploadSinglePaper('${paper.arxiv_id}')" title="重新上传">
+                            <i class="bi bi-upload"></i> 重传
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+    
+    function updateDifyStatusBadgesAfterVerification(verifyData) {
+        const { failed_papers, missing_papers } = verifyData;
+        
+        // 更新失败的文档状态
+        if (failed_papers) {
+            failed_papers.forEach(paper => {
+                updateDifyStatusBadge(paper.arxiv_id, false);
+            });
+        }
+        
+        // 更新丢失的文档状态  
+        if (missing_papers) {
+            missing_papers.forEach(paper => {
+                updateDifyStatusBadge(paper.arxiv_id, false);
+            });
+        }
+    }
+    
+    function finalizeBatchVerification(success) {
+        // 启用关闭按钮
+        document.getElementById('verifyModalCloseBtn').disabled = false;
+        
+        if (success) {
+            document.getElementById('verifySuccessBtn').style.display = 'inline-block';
+            document.getElementById('exportVerifyResultBtn').style.display = 'inline-block';
+            
+            // 如果有丢失的文档，显示重新上传按钮
+            const missingCount = parseInt(document.getElementById('verifyMissingCount').textContent);
+            if (missingCount > 0) {
+                document.getElementById('batchReuploadBtn').style.display = 'inline-block';
+            }
+        }
+        
+        document.getElementById('verifyModalDoneBtn').style.display = 'inline-block';
+    }
+    
+    function reuploadSinglePaper(arxivId) {
+        if (confirm(`确定要重新上传论文 ${arxivId} 到知识库吗？`)) {
+            uploadPaperToDifyList(arxivId);
+        }
+    }
+    
+    function exportVerificationResults() {
+        const failedPapers = document.querySelectorAll('#verifyFailedList .d-flex');
+        const missingPapers = document.querySelectorAll('#verifyMissingList .d-flex');
+        
+        const allIssues = [];
+        
+        // 收集失败的文档
+        failedPapers.forEach(item => {
+            const arxivId = item.querySelector('strong').textContent;
+            const title = item.querySelector('.text-muted').textContent;
+            const error = item.querySelector('.text-danger').textContent;
+            allIssues.push({
+                arxiv_id: arxivId,
+                title: title,
+                status: '验证失败',
+                error: error
+            });
+        });
+        
+        // 收集丢失的文档
+        missingPapers.forEach(item => {
+            const arxivId = item.querySelector('strong').textContent;
+            const title = item.querySelector('.text-muted').textContent;
+            const error = item.querySelector('.text-warning').textContent;
+            allIssues.push({
+                arxiv_id: arxivId,
+                title: title,
+                status: '文档丢失',
+                error: error
+            });
+        });
+        
+        if (allIssues.length === 0) {
+            showToast('没有需要导出的问题文档', 'info');
+            return;
+        }
+        
+        // 生成CSV内容
+        const csvContent = [
+            ['ArXiv ID', '标题', '状态', '错误信息'].join(','),
+            ...allIssues.map(issue => [
+                issue.arxiv_id,
+                `"${issue.title}"`,
+                issue.status,
+                `"${issue.error}"`
+            ].join(','))
+        ].join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `dify_verification_issues_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        
+        showToast('验证结果已导出', 'success');
+    }
+    
+    // 绑定验证结果导出事件
+    document.addEventListener('DOMContentLoaded', function() {
+        const exportBtn = document.getElementById('exportVerifyResultBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', exportVerificationResults);
+        }
+    });
 </script>
 
 {% endblock %}
