@@ -1437,6 +1437,416 @@ window.ExplorePaperData = {
     selectAllVisible
 };
 
+// ========== Dify 知识库操作功能 ==========
+
+/**
+ * 上传论文到 Dify 知识库
+ */
+function uploadPaperToDify(arxivId) {
+    console.log(`[Dify] 开始上传论文: ${arxivId}`);
+    
+    const uploadSection = document.getElementById('dify-upload-section');
+    if (!uploadSection) {
+        console.error('[Dify] 找不到dify-upload-section元素');
+        showAlert('页面元素异常，请刷新页面重试', 'error');
+        return;
+    }
+    
+    const originalContent = uploadSection.innerHTML;
+    
+    // 显示上传状态
+    uploadSection.innerHTML = `
+        <button class="btn btn-info" disabled>
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">上传中...</span>
+            </div>
+            正在上传到知识库...
+        </button>
+    `;
+    
+    console.log(`[Dify] 发送上传请求到: /api/dify_upload/${arxivId}`);
+    
+    fetch(`/api/dify_upload/${arxivId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log(`[Dify] 上传响应状态: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Dify] 上传响应数据:', data);
+        
+        if (data.success) {
+            showAlert('论文上传成功！', 'success');
+            // 更新页面显示为已上传状态
+            uploadSection.innerHTML = `
+                <button class="btn btn-success" disabled>
+                    <i class="bi bi-cloud-check"></i> 已上传到知识库
+                </button>
+                <button class="btn btn-outline-info btn-sm" onclick="verifyDifyDocument('${arxivId}')">
+                    <i class="bi bi-shield-check"></i> 验证文档
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="removePaperFromDify('${arxivId}')">
+                    <i class="bi bi-trash"></i> 从知识库移除
+                </button>
+            `;
+            
+            // 自动验证文档是否真正上传成功
+            setTimeout(() => {
+                console.log(`[Dify] 2秒后自动验证文档: ${arxivId}`);
+                verifyDifyDocument(arxivId, true);
+            }, 2000);
+        } else {
+            console.error('[Dify] 上传失败:', data.error);
+            showAlert(`上传失败: ${data.error}`, 'error');
+            // 恢复原始状态
+            uploadSection.innerHTML = originalContent;
+        }
+    })
+    .catch(error => {
+        console.error('[Dify] 上传请求失败:', error);
+        let errorMessage = '上传过程中发生网络错误';
+        if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+            errorMessage = '网络连接错误，请检查网络连接';
+        } else if (error.message.includes('500')) {
+            errorMessage = '服务器内部错误，请稍后重试';
+        }
+        showAlert(errorMessage, 'error');
+        // 恢复原始状态
+        uploadSection.innerHTML = originalContent;
+    });
+}
+
+/**
+ * 从 Dify 知识库移除论文
+ */
+function removePaperFromDify(arxivId) {
+    console.log(`[Dify] 开始移除论文: ${arxivId}`);
+    
+    if (!confirm('确定要从知识库中移除这篇论文吗？此操作不可撤销。')) {
+        console.log('[Dify] 用户取消了移除操作');
+        return;
+    }
+    
+    const uploadSection = document.getElementById('dify-upload-section');
+    if (!uploadSection) {
+        console.error('[Dify] 找不到dify-upload-section元素');
+        showAlert('页面元素异常，请刷新页面重试', 'error');
+        return;
+    }
+    
+    const originalContent = uploadSection.innerHTML;
+    
+    // 显示移除状态
+    uploadSection.innerHTML = `
+        <button class="btn btn-warning" disabled>
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">移除中...</span>
+            </div>
+            正在从知识库移除...
+        </button>
+    `;
+    
+    console.log(`[Dify] 发送移除请求到: /api/dify_remove/${arxivId}`);
+    
+    fetch(`/api/dify_remove/${arxivId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log(`[Dify] 移除响应状态: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Dify] 移除响应数据:', data);
+        
+        if (data.success) {
+            showAlert('论文已从知识库移除', 'success');
+            // 更新页面显示
+            uploadSection.innerHTML = `
+                <button class="btn btn-outline-success" onclick="uploadPaperToDify('${arxivId}')">
+                    <i class="bi bi-cloud-upload"></i> 上传到知识库
+                </button>
+            `;
+        } else {
+            console.error('[Dify] 移除失败:', data.error);
+            showAlert(`移除失败: ${data.error}`, 'error');
+            // 恢复原始状态
+            uploadSection.innerHTML = originalContent;
+        }
+    })
+    .catch(error => {
+        console.error('[Dify] 移除请求失败:', error);
+        let errorMessage = '移除过程中发生网络错误';
+        if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+            errorMessage = '网络连接错误，请检查网络连接';
+        } else if (error.message.includes('500')) {
+            errorMessage = '服务器内部错误，请稍后重试';
+        }
+        showAlert(errorMessage, 'error');
+        // 恢复原始状态
+        uploadSection.innerHTML = originalContent;
+    });
+}
+
+/**
+ * 验证论文是否存在于 Dify 服务器
+ */
+function verifyDifyDocument(arxivId, isAutoVerify = false) {
+    console.log(`[Dify] 开始验证文档: ${arxivId}, 自动验证: ${isAutoVerify}`);
+    
+    if (!isAutoVerify) {
+        // 显示验证说明对话框
+        const confirmMessage = `确定要验证这篇论文在 Dify 服务器上的状态吗？\n\n验证将检查：\n• 文档是否真实存在于 Dify 服务器\n• 文档的索引状态和字符数\n• 本地记录与服务器状态的一致性`;
+        if (!confirm(confirmMessage)) {
+            console.log('[Dify] 用户取消了验证操作');
+            return;
+        }
+    }
+    
+    const uploadSection = document.getElementById('dify-upload-section');
+    if (!uploadSection) {
+        console.error('[Dify] 找不到dify-upload-section元素');
+        showAlert('页面元素异常，请刷新页面重试', 'error');
+        return;
+    }
+    
+    const originalContent = uploadSection.innerHTML;
+    
+    // 显示更清晰的验证状态
+    uploadSection.innerHTML = `
+        <div class="text-center p-3 border rounded bg-light">
+            <div class="spinner-border text-primary mb-2" role="status">
+                <span class="visually-hidden">验证中...</span>
+            </div>
+            <div class="fw-bold text-primary">正在验证文档状态...</div>
+            <small class="text-muted">连接 Dify 服务器验证文档存在性</small>
+        </div>
+    `;
+    
+    console.log(`[Dify] 发送验证请求到: /api/dify_verify/${arxivId}`);
+    
+    fetch(`/api/dify_verify/${arxivId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log(`[Dify] 验证响应状态: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Dify] 验证响应数据:', data);
+        
+        if (data.success) {
+            const result = data.data;
+            console.log('[Dify] 验证结果:', result);
+            
+            if (result.verified) {
+                // 验证成功 - 显示详细的成功信息
+                const info = result.document_info;
+                const successMessage = isAutoVerify ? 
+                    '文档自动验证成功！' : 
+                    `文档验证成功！\n\n验证详情：\n• 文档状态：${info?.status || '正常'}\n• 字符数：${info?.character_count || '未知'}\n• 索引状态：${info?.indexing_status || '未知'}`;
+                
+                showAlert(successMessage, 'success');
+                
+                uploadSection.innerHTML = `
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" disabled>
+                            <i class="bi bi-cloud-check"></i> 已上传到知识库
+                            <span class="badge bg-light text-dark ms-1">✓ 已验证</span>
+                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-info btn-sm" onclick="verifyDifyDocument('${arxivId}')" title="重新验证文档状态">
+                                <i class="bi bi-shield-check"></i> 重新验证
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="removePaperFromDify('${arxivId}')" title="从知识库移除">
+                                <i class="bi bi-trash"></i> 移除
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // 如果不是自动验证，显示详细的验证结果
+                if (!isAutoVerify && info) {
+                    const detailsHtml = `
+                        <div class="alert alert-success mt-2" role="alert">
+                            <h6><i class="bi bi-check-circle"></i> 验证结果详情</h6>
+                            <ul class="mb-0">
+                                <li><strong>文档名称：</strong>${info.dify_name || '未知'}</li>
+                                <li><strong>字符数：</strong>${info.character_count || 0}</li>
+                                <li><strong>文档状态：</strong>${info.status || '未知'}</li>
+                                <li><strong>索引状态：</strong>${info.indexing_status || '未知'}</li>
+                            </ul>
+                        </div>
+                    `;
+                    uploadSection.insertAdjacentHTML('afterend', detailsHtml);
+                    
+                    // 8秒后自动隐藏详情
+                    setTimeout(() => {
+                        const detailsAlert = uploadSection.nextElementSibling;
+                        if (detailsAlert && detailsAlert.classList.contains('alert-success')) {
+                            detailsAlert.remove();
+                        }
+                    }, 8000);
+                }
+                
+            } else if (result.status === 'missing') {
+                // 文档不存在 - 显示警告和解决方案
+                console.warn('[Dify] 文档在Dify服务器上不存在');
+                showAlert('⚠️ 验证失败：文档在 Dify 服务器上不存在！\n\n可能原因：\n• 文档已被手动删除\n• 知识库已被重置\n• 网络传输异常\n\n建议：重新上传或清理本地记录', 'warning');
+                
+                uploadSection.innerHTML = `
+                    <div class="d-grid gap-2">
+                        <div class="alert alert-warning mb-2" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>状态异常：</strong>服务器上不存在此文档
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="uploadPaperToDify('${arxivId}')" title="重新上传到知识库">
+                                <i class="bi bi-cloud-upload"></i> 重新上传
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="cleanMissingDifyRecord('${arxivId}')" title="清理本地错误记录">
+                                <i class="bi bi-eraser"></i> 清理记录
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="verifyDifyDocument('${arxivId}')" title="重新验证">
+                                <i class="bi bi-arrow-repeat"></i> 重试验证
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+            } else if (result.status === 'not_uploaded') {
+                // 未上传状态
+                console.info('[Dify] 文档尚未上传到Dify');
+                showAlert('ℹ️ 验证结果：文档尚未上传到 Dify 知识库', 'info');
+                uploadSection.innerHTML = `
+                    <button class="btn btn-outline-success" onclick="uploadPaperToDify('${arxivId}')">
+                        <i class="bi bi-cloud-upload"></i> 上传到知识库
+                    </button>
+                `;
+            } else {
+                // 未知状态
+                console.warn('[Dify] 未知的验证状态:', result.status);
+                showAlert(`⚠️ 验证遇到未知状态: ${result.status}\n\n建议：稍后重试或联系管理员`, 'warning');
+                uploadSection.innerHTML = originalContent;
+            }
+            
+        } else {
+            console.error('[Dify] 验证失败:', data.error);
+            showAlert(`❌ 验证失败: ${data.error || '未知错误'}\n\n请检查网络连接或稍后重试`, 'error');
+            // 恢复原始状态
+            uploadSection.innerHTML = originalContent;
+        }
+    })
+    .catch(error => {
+        console.error('[Dify] 验证请求失败:', error);
+        let errorMessage;
+        if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+            errorMessage = '❌ 网络连接错误\n\n请检查：\n• 网络连接状态\n• Dify 服务是否正常运行\n• 防火墙设置';
+        } else if (error.message.includes('500')) {
+            errorMessage = '❌ 服务器内部错误\n\n请稍后重试或联系管理员';
+        } else {
+            errorMessage = `❌ 验证过程中发生错误\n\n错误详情：${error.message}`;
+        }
+        showAlert(errorMessage, 'error');
+        // 恢复原始状态
+        uploadSection.innerHTML = originalContent;
+    });
+}
+
+/**
+ * 清理丢失的 Dify 文档记录
+ */
+function cleanMissingDifyRecord(arxivId) {
+    console.log(`[Dify] 开始清理记录: ${arxivId}`);
+    
+    if (!confirm('确定要清理这篇论文的 Dify 记录吗？清理后论文状态将重置为未上传。')) {
+        console.log('[Dify] 用户取消了清理操作');
+        return;
+    }
+    
+    const uploadSection = document.getElementById('dify-upload-section');
+    if (!uploadSection) {
+        console.error('[Dify] 找不到dify-upload-section元素');
+        showAlert('页面元素异常，请刷新页面重试', 'error');
+        return;
+    }
+    
+    const originalContent = uploadSection.innerHTML;
+    
+    // 显示清理状态
+    uploadSection.innerHTML = `
+        <button class="btn btn-warning" disabled>
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">清理中...</span>
+            </div>
+            正在清理记录...
+        </button>
+    `;
+    
+    console.log(`[Dify] 发送清理请求到: /api/dify_clean/${arxivId}`);
+    
+    fetch(`/api/dify_clean/${arxivId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log(`[Dify] 清理响应状态: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Dify] 清理响应数据:', data);
+        
+        if (data.success) {
+            showAlert('记录清理成功！论文状态已重置为未上传', 'success');
+            uploadSection.innerHTML = `
+                <button class="btn btn-outline-success" onclick="uploadPaperToDify('${arxivId}')">
+                    <i class="bi bi-cloud-upload"></i> 上传到知识库
+                </button>
+            `;
+        } else {
+            console.error('[Dify] 清理失败:', data.error);
+            showAlert(`清理失败: ${data.error}`, 'error');
+            // 恢复原始状态
+            uploadSection.innerHTML = originalContent;
+        }
+    })
+    .catch(error => {
+        console.error('[Dify] 清理请求失败:', error);
+        let errorMessage = '清理过程中发生网络错误';
+        if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+            errorMessage = '网络连接错误，请检查网络连接';
+        } else if (error.message.includes('500')) {
+            errorMessage = '服务器内部错误，请稍后重试';
+        }
+        showAlert(errorMessage, 'error');
+        // 恢复原始状态
+        uploadSection.innerHTML = originalContent;
+    });
+}
+
 // 将函数导出到全局作用域以便模板调用
 window.editRelevanceQuick = editRelevanceQuick;
 window.batchEditRelevance = batchEditRelevance;
@@ -1450,3 +1860,9 @@ window.confirmMigration = confirmMigration;
 window.confirmBatchMigration = confirmBatchMigration;
 window.showBatchMigrationPreview = showBatchMigrationPreview;
 window.executeBatchMigrationFromPreview = executeBatchMigrationFromPreview;
+
+// 导出 Dify 相关函数到全局作用域
+window.uploadPaperToDify = uploadPaperToDify;
+window.removePaperFromDify = removePaperFromDify;
+window.verifyDifyDocument = verifyDifyDocument;
+window.cleanMissingDifyRecord = cleanMissingDifyRecord;

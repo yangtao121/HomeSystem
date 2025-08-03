@@ -15,11 +15,20 @@ import urllib.parse
 import time
 import feedparser
 
+# 基础PDF处理导入
+import fitz  # PyMuPDF - 基础包，肯定有的
+
 # OCR 相关导入
-from paddleocr import PPStructureV3
-import fitz  # PyMuPDF
-from PIL import Image
-import numpy as np
+try:
+    from paddleocr import PPStructureV3
+    from PIL import Image
+    import numpy as np
+    OCR_AVAILABLE = True
+except ImportError:
+    # OCR 功能不可用，但不影响基本功能
+    OCR_AVAILABLE = False
+    pass
+
 from pathlib import Path
 
 
@@ -402,6 +411,11 @@ class ArxivData:
                 
                 # 决定处理的页数
                 pages_to_process = min(max_pages, total_pages)
+                
+                # 检查OCR功能是否可用
+                if not OCR_AVAILABLE:
+                    logger.error("OCR功能不可用，缺少必要的依赖包")
+                    raise Exception("OCR功能不可用，请安装 paddleocr 和相关依赖")
                 
                 # 初始化PaddleOCR PPStructureV3
                 try:
