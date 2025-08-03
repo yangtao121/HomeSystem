@@ -157,6 +157,9 @@
                             <button type="button" class="btn btn-primary btn-sm me-1" onclick="batchAssignTasks()">
                                 <i class="bi bi-check-square"></i> 分配新任务
                             </button>
+                            <button type="button" class="btn btn-warning btn-sm me-1" onclick="batchUploadToDify()">
+                                <i class="bi bi-cloud-upload"></i> 批量上传到Dify
+                            </button>
                             <button type="button" class="btn btn-info btn-sm me-1" onclick="batchEditRelevance()">
                                 <i class="bi bi-star"></i> 批量评分
                             </button>
@@ -314,12 +317,43 @@
                     {% endif %}
                 </span>
                 
+                <!-- Dify 知识库状态 -->
+                <div class="mb-2" id="dify-status-{{ paper.arxiv_id }}">
+                    {% if paper.dify_document_id %}
+                        <span class="badge bg-success">
+                            <i class="bi bi-cloud-check"></i> 已上传到Dify
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-cloud-slash"></i> 未上传到Dify
+                        </span>
+                    {% endif %}
+                </div>
+                
                 <!-- 操作按钮 -->
                 <div class="d-grid gap-2">
                     <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
                        class="btn btn-sm btn-primary">
                         <i class="bi bi-eye"></i> 查看详情
                     </a>
+                    
+                    <!-- Dify 知识库操作 -->
+                    <div id="dify-buttons-{{ paper.arxiv_id }}">
+                        {% if paper.dify_document_id %}
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    onclick="removePaperFromDifyList('{{ paper.arxiv_id }}')"
+                                    title="从知识库移除">
+                                <i class="bi bi-trash"></i> 移除
+                            </button>
+                        {% else %}
+                            <button class="btn btn-sm btn-outline-success" 
+                                    onclick="uploadPaperToDifyList('{{ paper.arxiv_id }}')"
+                                    title="上传到知识库">
+                                <i class="bi bi-cloud-upload"></i> 上传
+                            </button>
+                        {% endif %}
+                    </div>
+                    
                     <button class="btn btn-sm btn-outline-success" 
                             onclick="showMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')"
                             title="迁移到其他任务">
@@ -1507,6 +1541,236 @@
                 confirmBtn.innerHTML = '确认';
             });
         }
+    }
+    
+    // Dify 知识库相关函数
+    
+    // 单个论文上传到 Dify（列表页面版本）
+    function uploadPaperToDifyList(arxivId) {
+        const button = event.target;
+        const originalContent = button.innerHTML;
+        
+        // 显示上传状态
+        button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 上传中...';
+        button.disabled = true;
+        
+        fetch(`/api/dify_upload/${arxivId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('论文上传成功！', 'success');
+                
+                // 动态更新状态徽章
+                updateDifyStatusBadge(arxivId, true);
+                
+                // 动态更新操作按钮
+                updateDifyButtons(arxivId, true);
+                
+                // 添加成功动画效果
+                addOperationFeedback(button.closest('.paper-item'), true);
+            } else {
+                showToast(`上传失败: ${data.error}`, 'error');
+                // 恢复按钮
+                button.innerHTML = originalContent;
+                button.disabled = false;
+                
+                // 添加错误动画效果
+                addOperationFeedback(button.closest('.paper-item'), false);
+            }
+        })
+        .catch(error => {
+            console.error('上传失败:', error);
+            showToast('上传过程中发生网络错误', 'error');
+            // 恢复按钮
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            
+            // 添加错误动画效果
+            addOperationFeedback(button.closest('.paper-item'), false);
+        });
+    }
+    
+    // 单个论文从 Dify 移除（列表页面版本）
+    function removePaperFromDifyList(arxivId) {
+        if (!confirm('确定要从知识库中移除这篇论文吗？')) {
+            return;
+        }
+        
+        const button = event.target;
+        const originalContent = button.innerHTML;
+        
+        // 显示移除状态
+        button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 移除中...';
+        button.disabled = true;
+        
+        fetch(`/api/dify_remove/${arxivId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('论文已从知识库移除', 'success');
+                
+                // 动态更新状态徽章
+                updateDifyStatusBadge(arxivId, false);
+                
+                // 动态更新操作按钮
+                updateDifyButtons(arxivId, false);
+                
+                // 添加成功动画效果
+                addOperationFeedback(button.closest('.paper-item'), true);
+            } else {
+                showToast(`移除失败: ${data.error}`, 'error');
+                // 恢复按钮
+                button.innerHTML = originalContent;
+                button.disabled = false;
+                
+                // 添加错误动画效果
+                addOperationFeedback(button.closest('.paper-item'), false);
+            }
+        })
+        .catch(error => {
+            console.error('移除失败:', error);
+            showToast('移除过程中发生网络错误', 'error');
+            // 恢复按钮
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            
+            // 添加错误动画效果
+            addOperationFeedback(button.closest('.paper-item'), false);
+        });
+    }
+    
+    // 辅助函数：更新 Dify 状态徽章
+    function updateDifyStatusBadge(arxivId, isUploaded) {
+        const statusContainer = document.getElementById(`dify-status-${arxivId}`);
+        if (statusContainer) {
+            if (isUploaded) {
+                statusContainer.innerHTML = `
+                    <span class="badge bg-success">
+                        <i class="bi bi-cloud-check"></i> 已上传到Dify
+                    </span>
+                `;
+            } else {
+                statusContainer.innerHTML = `
+                    <span class="badge bg-secondary">
+                        <i class="bi bi-cloud-slash"></i> 未上传到Dify
+                    </span>
+                `;
+            }
+            
+            // 添加更新动画
+            statusContainer.classList.add('operation-success');
+            setTimeout(() => {
+                statusContainer.classList.remove('operation-success');
+            }, 500);
+        }
+    }
+    
+    // 辅助函数：更新 Dify 操作按钮
+    function updateDifyButtons(arxivId, isUploaded) {
+        const buttonsContainer = document.getElementById(`dify-buttons-${arxivId}`);
+        if (buttonsContainer) {
+            if (isUploaded) {
+                buttonsContainer.innerHTML = `
+                    <button class="btn btn-sm btn-outline-danger" 
+                            onclick="removePaperFromDifyList('${arxivId}')"
+                            title="从知识库移除">
+                        <i class="bi bi-trash"></i> 移除
+                    </button>
+                `;
+            } else {
+                buttonsContainer.innerHTML = `
+                    <button class="btn btn-sm btn-outline-success" 
+                            onclick="uploadPaperToDifyList('${arxivId}')"
+                            title="上传到知识库">
+                        <i class="bi bi-cloud-upload"></i> 上传
+                    </button>
+                `;
+            }
+            
+            // 添加更新动画
+            buttonsContainer.classList.add('operation-success');
+            setTimeout(() => {
+                buttonsContainer.classList.remove('operation-success');
+            }, 500);
+        }
+    }
+    
+    // 批量上传到 Dify
+    function batchUploadToDify() {
+        const selectedCheckboxes = document.querySelectorAll('.paper-checkbox:checked');
+        if (selectedCheckboxes.length === 0) {
+            showToast('请至少选择一篇论文', 'warning');
+            return;
+        }
+        
+        // 确认操作
+        if (!confirm(`确定要将选中的 ${selectedCheckboxes.length} 篇论文上传到 Dify 知识库吗？`)) {
+            return;
+        }
+        
+        const arxivIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.arxivId);
+        
+        // 显示上传状态
+        const uploadBtn = event.target;
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 批量上传中...';
+        uploadBtn.disabled = true;
+        
+        fetch('/api/dify_batch_upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                arxiv_ids: arxivIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const { success_count, failed_count } = data.data;
+                showToast(`批量上传完成: 成功 ${success_count} 篇，失败 ${failed_count} 篇`, 'success');
+                
+                // 如果有失败的，显示详细信息
+                if (failed_count > 0 && data.data.errors) {
+                    console.log('上传失败的论文:', data.data.errors);
+                }
+                
+                // 动态更新成功上传的论文状态
+                if (data.data.results) {
+                    data.data.results.forEach(result => {
+                        if (result.status === 'success') {
+                            updateDifyStatusBadge(result.arxiv_id, true);
+                            updateDifyButtons(result.arxiv_id, true);
+                        }
+                    });
+                }
+                
+                // 清除选择
+                clearSelection();
+            } else {
+                showToast(`批量上传失败: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('批量上传失败:', error);
+            showToast('批量上传过程中发生网络错误', 'error');
+        })
+        .finally(() => {
+            // 恢复按钮
+            uploadBtn.innerHTML = originalText;
+            uploadBtn.disabled = false;
+        });
     }
 </script>
 {% endblock %}

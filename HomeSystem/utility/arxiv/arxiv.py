@@ -16,10 +16,11 @@ import time
 import feedparser
 
 # OCR 相关导入
-from pix2text import Pix2Text
+from paddleocr import PPStructureV3
 import fitz  # PyMuPDF
 from PIL import Image
 import numpy as np
+from pathlib import Path
 
 
 class ArxivSearchMode(Enum):
@@ -63,6 +64,10 @@ class ArxivData:
         
         # OCR识别结果
         self.ocr_result: Optional[str] = None
+        
+        # PaddleOCR结构化识别结果
+        self.paddle_ocr_result: Optional[str] = None
+        self.paddle_ocr_images: dict = {}
         
         # 结构化摘要字段
         self.research_background: Optional[str] = None
@@ -241,13 +246,13 @@ class ArxivData:
         """
         self.pdf = None
     
-    def performOCR(self, max_pages: int = 25, use_pix2text: bool = False) -> tuple[Optional[str], dict]:
+    def performOCR(self, max_pages: int = 25, use_paddleocr: bool = False) -> tuple[Optional[str], dict]:
         """
-        对PDF进行OCR文字识别，默认使用PyMuPDF快速提取，可选使用pix2text高精度识别
+        对PDF进行OCR文字识别，默认使用PyMuPDF快速提取，可选使用PaddleOCR结构化识别
         
         Args:
             max_pages: 最大处理页数，默认25页（涵盖大部分正常论文）
-            use_pix2text: 是否使用pix2text进行高精度OCR，默认False使用PyMuPDF
+            use_paddleocr: 是否使用PaddleOCR进行结构化识别，默认False使用PyMuPDF
             
         Returns:
             tuple: (OCR识别结果文本, 状态信息字典)
@@ -257,7 +262,7 @@ class ArxivData:
                     - 'processed_pages': 实际处理页数
                     - 'is_oversized': 是否超过页数限制（可能是毕业论文等长文档）
                     - 'char_count': 实际提取的字符数
-                    - 'method': 使用的OCR方法 ('pymupdf' 或 'pix2text')
+                    - 'method': 使用的OCR方法 ('pymupdf' 或 'paddleocr')
             
         Raises:
             ValueError: 当PDF内容为空时抛出
@@ -266,15 +271,15 @@ class ArxivData:
         if self.pdf is None:
             raise ValueError("PDF内容为空，请先调用downloadPdf方法下载PDF")
         
-        # 如果明确要求使用pix2text，或者PyMuPDF方法失败时回退
-        if use_pix2text:
-            return self._performOCR_pix2text(max_pages)
+        # 如果明确要求使用PaddleOCR，或者PyMuPDF方法失败时回退
+        if use_paddleocr:
+            return self._performOCR_paddleocr(max_pages)
         else:
             try:
                 return self._performOCR_pymupdf(max_pages)
             except Exception as e:
-                logger.warning(f"PyMuPDF OCR失败: {str(e)}，回退到pix2text")
-                return self._performOCR_pix2text(max_pages)
+                logger.warning(f"PyMuPDF OCR失败: {str(e)}，回退到PaddleOCR")
+                return self._performOCR_paddleocr(max_pages)
     
     def _performOCR_pymupdf(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
         """
@@ -359,22 +364,23 @@ class ArxivData:
             logger.error(error_msg)
             raise Exception(error_msg)
     
-    def _performOCR_pix2text(self, max_pages: int = 25) -> tuple[Optional[str], dict]:
+    def _performOCR_paddleocr(self, max_pages: int = 25, output_path: str = None) -> tuple[Optional[str], dict]:
         """
-        使用pix2text进行高精度OCR识别（备用方法）
+        使用PaddleOCR 3.0 PPStructureV3进行结构化文档解析
+        
+        Args:
+            max_pages: 最大处理页数，默认25页
+            output_path: 输出目录路径，默认为临时目录
+            
+        Returns:
+            tuple: (Markdown文本, 状态信息字典)
         """
+        import tempfile
+        import shutil
+        
+        logger.info(f"开始使用PaddleOCR 3.0进行结构化文档解析，最大处理{max_pages}页")
+        
         try:
-            import os
-            import tempfile
-            import shutil
-            
-            # 强制设置CPU模式，避免CUDA相关错误
-            os.environ['CUDA_VISIBLE_DEVICES'] = ''
-            os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-            os.environ['OMP_NUM_THREADS'] = '1'
-            
-            logger.info(f"开始对PDF进行OCR识别，使用pix2text，最大处理{max_pages}页")
-            
             # 创建临时目录
             with tempfile.TemporaryDirectory() as temp_dir:
                 # 保存PDF到临时文件
@@ -389,114 +395,105 @@ class ArxivData:
                 
                 logger.info(f"PDF总页数: {total_pages}")
                 
-                # 检查是否为超长文档（可能是毕业论文或书籍）
+                # 检查是否为超长文档
                 is_oversized = total_pages > max_pages
                 if is_oversized:
-                    logger.warning(f"文档页数({total_pages})超过限制({max_pages})，可能是毕业论文或书籍，将只处理前{max_pages}页")
+                    logger.warning(f"文档页数({total_pages})超过限制({max_pages})，将只处理前{max_pages}页")
                 
                 # 决定处理的页数
                 pages_to_process = min(max_pages, total_pages)
-                page_numbers = list(range(pages_to_process))
                 
-                logger.info(f"将处理页面: {page_numbers} (共{pages_to_process}页)")
-                
-                # 使用官方方法：初始化pix2text并识别PDF
+                # 初始化PaddleOCR PPStructureV3
                 try:
-                    # 禁用可能导致问题的组件，只保留文本OCR
-                    config = {
-                        'text_ocr': {'enabled': True},
-                        'layout': {'enabled': True},  # 禁用布局检测
-                        'formula': {'enabled': True},  # 禁用公式识别
-                        'table': {'enabled': True},   # 禁用表格识别
-                        'mfd': {'enabled': True}       # 禁用数学公式检测
-                    }
-                    p2t = Pix2Text.from_config(config=config)
-                    logger.info("使用简化配置初始化pix2text成功")
+                    pipeline = PPStructureV3()
+                    logger.info("PaddleOCR PPStructureV3初始化成功")
                 except Exception as e:
-                    logger.warning(f"简化配置初始化失败: {e}，尝试默认配置")
-                    try:
-                        # 使用默认配置
-                        p2t = Pix2Text()
-                        logger.info("使用默认配置初始化pix2text成功")
-                    except Exception as e2:
-                        logger.error(f"默认配置也失败: {e2}")
-                        raise Exception(f"pix2text初始化失败: {e2}")
+                    logger.error(f"PaddleOCR初始化失败: {e}")
+                    raise Exception(f"PaddleOCR初始化失败: {e}")
                 
-                doc = p2t.recognize_pdf(tmp_pdf_path, page_numbers=page_numbers)
+                # 执行结构化识别
+                logger.info("开始执行结构化文档识别...")
+                output = pipeline.predict(input=tmp_pdf_path)
                 
-                # 导出markdown到临时目录
-                # output_md_dir = os.path.join(temp_dir, 'output-md')
-
-                # 保存到当前目录下用于debug
-
-                output_md_dir = os.path.join(os.getcwd(), 'output-md')
-                doc.to_markdown(output_md_dir)
+                # 设置输出目录
+                if output_path is None:
+                    output_md_dir = os.path.join(temp_dir, 'output')
+                else:
+                    output_md_dir = Path(output_path)
                 
-                logger.info(f"markdown文件已导出到: {output_md_dir}")
+                output_md_dir = Path(output_md_dir)
+                output_md_dir.mkdir(parents=True, exist_ok=True)
                 
-                # 读取生成的markdown文件，不限制字符数
-                all_content = []
-                total_chars = 0
+                # 处理结果并提取markdown和图片
+                markdown_list = []
+                markdown_images = []
                 
-                if os.path.exists(output_md_dir):
-                    # 遍历所有markdown文件
-                    for root, dirs, files in os.walk(output_md_dir):
-                        # 按文件名排序以保持页面顺序
-                        md_files = sorted([f for f in files if f.endswith('.md')])
-                        
-                        for filename in md_files:
-                            filepath = os.path.join(root, filename)
-                            try:
-                                with open(filepath, 'r', encoding='utf-8') as f:
-                                    content = f.read().strip()
-                                
-                                if content:
-                                    # 清理markdown格式，转换为纯文本
-                                    import re
-                                    clean_content = content
-                                    clean_content = re.sub(r'!\[.*?\]\(.*?\)', '', clean_content)  # 移除图片
-                                    clean_content = re.sub(r'\[([^\]]*)\]\([^\)]*\)', r'\1', clean_content)  # 保留链接文本
-                                    clean_content = re.sub(r'#{1,6}\s*', '', clean_content)  # 移除标题标记
-                                    clean_content = re.sub(r'\*{1,2}(.*?)\*{1,2}', r'\1', clean_content)  # 移除粗体/斜体
-                                    clean_content = re.sub(r'`{1,3}(.*?)`{1,3}', r'\1', clean_content)  # 移除代码标记
-                                    clean_content = re.sub(r'\n\s*\n', '\n\n', clean_content)  # 规范化空行
-                                    clean_content = clean_content.strip()
-                                    
-                                    if clean_content:
-                                        content_chars = len(clean_content)
-                                        all_content.append(f"=== {filename} ===\n{clean_content}")
-                                        total_chars += content_chars
-                                            
-                            except Exception as e:
-                                logger.warning(f"读取文件 {filename} 失败: {e}")
-                                continue
+                for res in output:
+                    if hasattr(res, 'markdown'):
+                        md_info = res.markdown
+                        markdown_list.append(md_info)
+                        markdown_images.append(md_info.get("markdown_images", {}))
                 
-                # 合并所有内容并构建状态信息
+                # 合并markdown页面
+                if hasattr(pipeline, 'concatenate_markdown_pages'):
+                    markdown_texts = pipeline.concatenate_markdown_pages(markdown_list)
+                else:
+                    # 备用方法：手动合并
+                    markdown_texts = "\n\n".join([str(md) for md in markdown_list if md])
+                
+                # 保存markdown文件
+                if output_path is None:
+                    # 临时模式，将结果存储在属性中
+                    self.paddle_ocr_result = markdown_texts
+                    self.paddle_ocr_images = {}
+                    for item in markdown_images:
+                        if item:
+                            self.paddle_ocr_images.update(item)
+                else:
+                    # 保存到指定目录
+                    mkd_file_path = output_md_dir / f"{Path(tmp_pdf_path).stem}.md"
+                    with open(mkd_file_path, "w", encoding="utf-8") as f:
+                        f.write(markdown_texts)
+                    
+                    # 保存图片
+                    for item in markdown_images:
+                        if item:
+                            for path, image in item.items():
+                                file_path = output_md_dir / path
+                                file_path.parent.mkdir(parents=True, exist_ok=True)
+                                image.save(file_path)
+                    
+                    logger.info(f"Markdown文件和图片已保存到: {output_md_dir}")
+                
+                # 构建状态信息
+                total_chars = len(markdown_texts) if markdown_texts else 0
                 status_info = {
                     'total_pages': total_pages,
                     'processed_pages': pages_to_process,
                     'is_oversized': is_oversized,
                     'char_count': total_chars,
-                    'method': 'pix2text'
+                    'method': 'paddleocr',
+                    'images_count': len(self.paddle_ocr_images) if hasattr(self, 'paddle_ocr_images') else 0
                 }
                 
-                if all_content:
-                    self.ocr_result = "\n\n".join(all_content)
+                if markdown_texts:
+                    self.ocr_result = markdown_texts
                     
-                    # 记录详细信息
-                    status_msg = f"pix2text OCR识别完成，处理了 {pages_to_process}/{total_pages} 页，提取文本 {total_chars} 个字符"
+                    status_msg = f"PaddleOCR结构化识别完成，处理了 {pages_to_process}/{total_pages} 页，提取Markdown文本 {total_chars} 个字符"
+                    if status_info['images_count'] > 0:
+                        status_msg += f"，提取图片 {status_info['images_count']} 张"
                     if is_oversized:
                         status_msg += f" (文档超长，可能是毕业论文或书籍)"
                     
                     logger.info(status_msg)
                     return self.ocr_result, status_info
                 else:
-                    logger.warning("pix2text OCR识别未提取到任何文本")
+                    logger.warning("PaddleOCR未提取到任何内容")
                     self.ocr_result = ""
                     return self.ocr_result, status_info
                 
         except Exception as e:
-            error_msg = f"pix2text OCR识别失败: {str(e)}"
+            error_msg = f"PaddleOCR处理失败: {str(e)}"
             logger.error(error_msg)
             raise Exception(error_msg)
     
@@ -514,6 +511,69 @@ class ArxivData:
         清空OCR识别结果，释放内存
         """
         self.ocr_result = None
+    
+    def getPaddleOcrResult(self) -> Optional[str]:
+        """
+        获取PaddleOCR结构化识别的Markdown结果
+        
+        Returns:
+            str: PaddleOCR识别的Markdown文本，如果未进行识别则返回None
+        """
+        return getattr(self, 'paddle_ocr_result', None)
+    
+    def getPaddleOcrImages(self) -> dict:
+        """
+        获取PaddleOCR提取的图片字典
+        
+        Returns:
+            dict: 图片路径到PIL Image对象的映射，如果未进行识别则返回空字典
+        """
+        return getattr(self, 'paddle_ocr_images', {})
+    
+    def clearPaddleOcrResult(self):
+        """
+        清空PaddleOCR识别结果，释放内存
+        """
+        self.paddle_ocr_result = None
+        if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
+            self.paddle_ocr_images.clear()
+    
+    def savePaddleOcrToFile(self, output_path: str) -> bool:
+        """
+        将PaddleOCR结果保存到文件
+        
+        Args:
+            output_path: 输出目录路径
+            
+        Returns:
+            bool: 保存是否成功
+        """
+        try:
+            if not self.paddle_ocr_result:
+                logger.warning("没有PaddleOCR结果可以保存")
+                return False
+            
+            output_dir = Path(output_path)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 保存markdown文件
+            markdown_file = output_dir / f"{self.arxiv_id or 'unknown'}.md"
+            with open(markdown_file, 'w', encoding='utf-8') as f:
+                f.write(self.paddle_ocr_result)
+            
+            # 保存图片
+            if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
+                for path, image in self.paddle_ocr_images.items():
+                    image_path = output_dir / path
+                    image_path.parent.mkdir(parents=True, exist_ok=True)
+                    image.save(image_path)
+            
+            logger.info(f"PaddleOCR结果已保存到: {output_dir}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"保存PaddleOCR结果失败: {e}")
+            return False
 
     def cleanup(self):
         """
@@ -526,6 +586,11 @@ class ArxivData:
         
         # 清理OCR结果
         self.ocr_result = None
+        
+        # 清理PaddleOCR结果
+        self.paddle_ocr_result = None
+        if hasattr(self, 'paddle_ocr_images') and self.paddle_ocr_images:
+            self.paddle_ocr_images.clear()
         
         # 清理结构化摘要字段
         self.research_background = None
@@ -1099,9 +1164,9 @@ if __name__ == "__main__":
     print("\n=== 🎉 ArXiv API 重构完成！现在支持丰富的结构化显示功能 ===")
     
     # OCR 功能测试
-    print("\n" + "="*50)
-    print("🔍 OCR功能测试")
-    print("="*50)
+    print("\n" + "="*60)
+    print("🔍 OCR功能测试 - PyMuPDF + PaddleOCR 3.0")
+    print("="*60)
     
     if results.num_results > 0:
         test_paper = results.results[2]
@@ -1112,28 +1177,65 @@ if __name__ == "__main__":
             print("📥 下载PDF中...")
             test_paper.downloadPdf()
             
-            # 执行OCR（不限制字符数，只限制页数）
-            print("🔍 执行OCR识别...")
-            ocr_result, status_info = test_paper.performOCR()
+            # 测试1: 默认PyMuPDF方法
+            print("\n🔍 测试1: PyMuPDF快速文本提取...")
+            ocr_result, status_info = test_paper.performOCR(use_paddleocr=False)
             
             if ocr_result:
-                print(f"✅ OCR完成，提取文本: {len(ocr_result)} 字符")
+                print(f"✅ PyMuPDF完成，提取文本: {len(ocr_result)} 字符")
                 print(f"📄 处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
                 if status_info['is_oversized']:
                     print("⚠️ 文档超长，可能是毕业论文或书籍")
-                print(f"📝 结果预览: {ocr_result}")
+                print(f"📝 PyMuPDF结果预览: {ocr_result[:200]}..." if len(ocr_result) > 200 else f"📝 PyMuPDF结果: {ocr_result}")
             else:
-                print("❌ OCR未提取到文本")
+                print("❌ PyMuPDF未提取到文本")
+            
+            # 测试2: PaddleOCR结构化识别
+            print("\n🔍 测试2: PaddleOCR 3.0结构化识别...")
+            paddle_result, paddle_status = test_paper.performOCR(use_paddleocr=True)
+            
+            if paddle_result:
+                print(f"✅ PaddleOCR完成，提取Markdown: {len(paddle_result)} 字符")
+                print(f"📄 处理了 {paddle_status['processed_pages']}/{paddle_status['total_pages']} 页")
+                if paddle_status.get('images_count', 0) > 0:
+                    print(f"🖼️ 提取图片: {paddle_status['images_count']} 张")
+                if paddle_status['is_oversized']:
+                    print("⚠️ 文档超长，可能是毕业论文或书籍")
+                print(f"📝 PaddleOCR Markdown预览: {paddle_result[:300]}..." if len(paddle_result) > 300 else f"📝 PaddleOCR结果: {paddle_result}")
+                
+                # 显示PaddleOCR特有功能
+                paddle_markdown = test_paper.getPaddleOcrResult()
+                paddle_images = test_paper.getPaddleOcrImages()
+                print(f"🎯 PaddleOCR特色功能:")
+                print(f"   - 结构化Markdown: {len(paddle_markdown)} 字符" if paddle_markdown else "   - 结构化Markdown: 无")
+                print(f"   - 图片提取: {len(paddle_images)} 张图片")
+                
+            else:
+                print("❌ PaddleOCR未提取到内容")
                 
         except Exception as e:
             print(f"❌ OCR测试失败: {str(e)}")
     
-    print("="*50)
+    print("="*60)
     
     # 使用指南
-    print("\n📖 结构化显示功能使用指南:")
+    print("\n📖 ArXiv工具使用指南:")
+    print("="*40)
+    print("🔍 搜索和显示:")
     print("   results.display_results()           # 完整显示所有结果")
     print("   results.display_results('limited')  # 限制显示前N个") 
     print("   results.display_brief()             # 简洁模式")
     print("   results.display_titles_only()       # 仅显示标题")
     print("   results.get_papers_by_date_range()  # 按年份筛选")
+    print("\n📄 OCR功能:")
+    print("   paper.performOCR()                  # 默认PyMuPDF快速提取")
+    print("   paper.performOCR(use_paddleocr=True) # PaddleOCR结构化识别")
+    print("   paper.getOcrResult()                # 获取OCR文本结果")
+    print("   paper.getPaddleOcrResult()          # 获取PaddleOCR Markdown")
+    print("   paper.getPaddleOcrImages()          # 获取提取的图片")
+    print("   paper.savePaddleOcrToFile(path)     # 保存结果到文件")
+    print("   paper.clearPaddleOcrResult()        # 清理PaddleOCR数据")
+    print("\n💡 依赖要求:")
+    print("   - PaddlePaddle >= 3.0.0 (CUDA 12.6)")
+    print("   - PaddleOCR >= 3.0.0")
+    print("   - PyMuPDF >= 1.20.0")

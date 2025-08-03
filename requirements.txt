@@ -29,8 +29,9 @@ types-redis>=4.5.0
 Flask>=2.3.0
 Flask-Moment>=1.0.6
 
-# OCR 相关依赖 - 使用pix2text替代cnocr
-pix2text>=1.0.0
+# OCR 相关依赖 - 使用PaddleOCR 3.0+替代pix2text (CUDA 12.6)
+paddlepaddle-gpu>=3.0.0
+paddleocr>=3.0.0
 PyMuPDF>=1.20.0
 Pillow>=9.0.0
 

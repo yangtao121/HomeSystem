@@ -19,6 +19,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from loguru import logger
+import json
 
 # 导入基础模型类
 import sys
@@ -285,13 +286,19 @@ class ProcessRule:
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
-        result = {"mode": self.mode.value}
+        # 根据Dify API要求，需要包装在rules字段中
+        rules = {}
         
         if self.pre_processing_rules:
-            result["pre_processing_rules"] = self.pre_processing_rules
+            rules["pre_processing_rules"] = self.pre_processing_rules
             
         if self.segmentation:
-            result["segmentation"] = self.segmentation
+            rules["segmentation"] = self.segmentation
+        
+        result = {
+            "rules": rules,
+            "mode": self.mode.value
+        }
             
         return result
 
@@ -348,6 +355,7 @@ class DifyKnowledgeBaseConfig:
     # 基础连接配置
     base_url: str = "http://localhost:80/v1"  # 默认值，应通过环境变量配置
     api_key: Optional[str] = None  # 必须通过环境变量配置
+    user_id: str = "homesystem-default-user"  # 用户ID，用于API调用标识
     
     # 超时和重试配置
     timeout_config: TimeoutConfig = field(default_factory=TimeoutConfig)
@@ -383,6 +391,7 @@ class DifyKnowledgeBaseConfig:
         # 基础配置
         config.base_url = os.getenv('DIFY_BASE_URL', config.base_url)
         config.api_key = os.getenv('DIFY_KB_API_KEY', config.api_key)
+        config.user_id = os.getenv('DIFY_KB_USER_ID', config.user_id)
         
         # 超时配置
         if os.getenv('DIFY_KB_CONNECT_TIMEOUT'):
@@ -953,7 +962,7 @@ class DifyKnowledgeBaseClient:
         self, 
         method: str, 
         endpoint: str, 
-        data: Optional[Dict] = None,
+        data: Optional[Union[Dict, str]] = None,
         files: Optional[Dict] = None,
         timeout: Optional[int] = None
     ) -> Dict[str, Any]:
@@ -995,22 +1004,51 @@ class DifyKnowledgeBaseClient:
             if data and self.config.enable_detailed_logging:
                 logger.debug(f"Request data: {json.dumps(data, indent=2)}")
         
+        # 总是记录请求URL，以便调试
+        logger.info(f"API请求: {method} {url}")
+        if 'datasets/' in url:
+            logger.info(f"知识库操作URL: {url}")
+        
         try:
             # 发送请求
             headers = self.session.headers.copy()
             if files:
                 # 文件上传时移除Content-Type，让requests自动设置
                 headers.pop('Content-Type', None)
-            
-            response = self.session.request(
-                method=method,
-                url=url,
-                json=data if not files else None,
-                data=data if files else None,
-                files=files,
-                headers=headers,
-                timeout=timeout
-            )
+            logger.debug(f"Request headers: {headers}")
+            logger.debug(f"data: {data}") 
+
+            # 对于文件上传，不应该转换data为JSON字符串
+            if files:
+                # 文件上传时，data应该保持为dict格式或None
+                response = self.session.request(
+                    method=method,
+                    url=url,
+                    data=data,  # 对于multipart，保持原始格式
+                    files=files,
+                    headers=headers,
+                    timeout=timeout
+                )
+            else:
+                # 普通API调用
+                if data is not None and isinstance(data, dict):
+                    # 使用json参数让requests自动处理JSON编码和Content-Type
+                    response = self.session.request(
+                        method=method,
+                        url=url,
+                        json=data,
+                        headers=headers,
+                        timeout=timeout
+                    )
+                else:
+                    # 无数据或字符串数据
+                    response = self.session.request(
+                        method=method,
+                        url=url,
+                        data=data,
+                        headers=headers,
+                        timeout=timeout
+                    )
             
             # 检查响应状态
             if not response.ok:
@@ -1252,7 +1290,7 @@ class DifyKnowledgeBaseClient:
     def upload_document_file(
         self,
         dataset_id: str,
-        file_path: str,
+        file_path: Union[str, Path],
         name: Optional[str] = None,
         upload_config: Optional[UploadConfig] = None
     ) -> DifyDocumentModel:
@@ -1290,42 +1328,83 @@ class DifyKnowledgeBaseClient:
         
         try:
             config = upload_config or self.config.default_upload_config
-            doc_name = name or file_path.stem
+            
+            # 清理文档名称，避免特殊字符导致上传失败
+            if name:
+                doc_name = self._sanitize_document_name(name)
+            else:
+                doc_name = self._sanitize_document_name(file_path.stem)
+            
+            logger.info(f"清理后的文档名称: {doc_name}")
             
             # 准备文件上传
             mime_type = self.config.get_file_mime_type(file_path.suffix)
             
+            # 根据Dify API文档，构造正确的multipart/form-data格式
+            upload_config_data = {
+                'indexing_technique': config.indexing_technique.value,
+                'process_rule': config.process_rule.to_dict()
+            }
+            
+            # 调试信息：打印实际发送的数据
+            logger.info(f"文件上传配置数据: {upload_config_data}")
+            logger.info(f"文件路径: {file_path}, MIME类型: {mime_type}")
+            
+            # 使用requests直接发送multipart/form-data请求
+            # 不能使用_make_request方法，因为它会错误处理multipart数据
+            url = f"{self.config.base_url.rstrip('/')}/v1/datasets/{dataset_id}/document/create-by-file"
+            
+            headers = {
+                'Authorization': f'Bearer {self.config.api_key}',
+                'User-Agent': 'HomeSystem-DifyKB-Client/1.0'
+            }
+            
+            # 获取用户ID
+            user_id = self.config.user_id
+            
             with open(file_path, 'rb') as f:
+                # 根据Dify API文档，正确构造multipart/form-data参数
                 files = {
-                    'file': (file_path.name, f, mime_type)
+                    'file': (file_path.name, f, mime_type),
+                    'data': (None, json.dumps(upload_config_data), 'text/plain'),
+                    'user': (None, user_id, 'text/plain')
                 }
                 
-                data = {
-                    **config.to_dict()
-                }
-                
-                # 移除Content-Type并使用表单数据
-                headers = self.session.headers.copy()
-                headers.pop('Content-Type', None)
-                
-                url = f"{self.config.base_url.rstrip('/')}/datasets/{dataset_id}/document/create-by-file"
+                logger.info(f"发送文件上传请求到: {url}")
+                logger.info(f"用户ID: {user_id}")
+                logger.debug(f"multipart字段: file={file_path.name}, data={json.dumps(upload_config_data)}, user={user_id}")
                 
                 response = requests.post(
-                    url,
+                    url=url,
                     headers=headers,
                     files=files,
-                    data=data,
                     timeout=self.config.timeout_config.upload_timeout
                 )
                 
+                # 检查响应状态
                 if not response.ok:
+                    logger.error(f"文件上传失败，状态码: {response.status_code}")
+                    logger.error(f"响应内容: {response.text}")
+                    logger.error(f"请求URL: {url}")
+                    logger.error(f"请求头: {headers}")
+                    logger.error(f"文件信息: 名称={file_path.name}, 大小={file_path.stat().st_size}, MIME={mime_type}")
+                    logger.error(f"上传配置: {upload_config_data}")
+                    logger.error(f"用户ID: {user_id}")
                     raise handle_api_error(response)
                 
-                result = response.json()
+                # 解析响应
+                try:
+                    response_data = response.json()
+                    logger.info(f"文件上传成功，响应: {response_data}")
+                except json.JSONDecodeError:
+                    raise DifyKnowledgeBaseError(
+                        f"Invalid JSON response: {response.text}",
+                        response=response
+                    )
             
             # 创建文档模型
             document = DifyDocumentModel(
-                dify_document_id=result['document']['id'],
+                dify_document_id=response_data['document']['id'],
                 dify_dataset_id=dataset_id,
                 name=doc_name,
                 data_source_type='upload_file',
@@ -1359,10 +1438,18 @@ class DifyKnowledgeBaseClient:
             文档模型
         """
         try:
+            logger.debug(f"获取文档信息: dataset_id={dataset_id}, document_id={document_id}")
             response = self._make_request(
                 'GET', 
                 f'datasets/{dataset_id}/documents/{document_id}'
             )
+            
+            logger.debug(f"文档信息响应: {response}")
+            
+            # 检查响应结构
+            if 'document' not in response:
+                logger.error(f"响应中缺少document字段: {response}")
+                raise DifyKnowledgeBaseError(f"Invalid response format: missing 'document' field")
             
             doc_data = response['document']
             document = DifyDocumentModel(
@@ -1381,11 +1468,14 @@ class DifyKnowledgeBaseClient:
                 processing_completed_at=self._parse_timestamp(doc_data.get('processing_completed_at'))
             )
             
+            logger.info(f"成功获取文档信息: {document.name}")
             return document
             
+        except DifyKnowledgeBaseError as e:
+            logger.error(f"获取文档失败 - Dify错误: {e}")
+            raise
         except Exception as e:
-            if isinstance(e, DifyKnowledgeBaseError):
-                raise
+            logger.error(f"获取文档失败 - 未知错误: {e}")
             raise DocumentNotFoundError(document_id, dataset_id)
     
     def list_documents(
@@ -1707,6 +1797,62 @@ class DifyKnowledgeBaseClient:
             return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         except Exception:
             return None
+    
+    def _sanitize_document_name(self, name: str) -> str:
+        """
+        清理文档名称，移除可能导致API调用失败的特殊字符
+        
+        Args:
+            name: 原始文档名称
+            
+        Returns:
+            清理后的文档名称
+        """
+        if not name:
+            return 'document'
+        
+        import re
+        
+        # 确保name是字符串并移除换行符和控制字符
+        name = str(name).strip()
+        name = re.sub(r'[\r\n\t\v\f]', ' ', name)  # 替换换行符和控制字符为空格
+        name = re.sub(r'\s+', ' ', name)  # 压缩多个空格为单个空格
+        
+        # 移除或替换可能导致问题的字符
+        # 保留中文字符、英文字符、数字、常见标点符号
+        unsafe_chars = r'[/\\:*?"<>|\x00-\x1f\x7f-\x9f]'
+        clean_name = re.sub(unsafe_chars, '_', name)
+        
+        # 移除开头和结尾的空格、点号和下划线
+        clean_name = clean_name.strip('. _')
+        
+        # 移除连续的下划线并替换为单个下划线
+        clean_name = re.sub(r'_+', '_', clean_name)
+        
+        # 如果清理后为空，使用默认名称
+        if not clean_name or clean_name == '_':
+            clean_name = 'document'
+        
+        # 限制长度（Dify通常限制在255字符内）
+        max_length = 200
+        if len(clean_name.encode('utf-8')) > max_length:
+            # 按字节长度截断，确保不破坏UTF-8字符
+            encoded = clean_name.encode('utf-8')[:max_length]
+            while len(encoded) > 0:
+                try:
+                    clean_name = encoded.decode('utf-8')
+                    break
+                except UnicodeDecodeError:
+                    encoded = encoded[:-1]
+            
+            # 移除末尾的空格、点号和下划线
+            clean_name = clean_name.rstrip('. _')
+        
+        # 最终检查
+        if not clean_name:
+            clean_name = 'document'
+        
+        return clean_name
     
     def get_client_info(self) -> Dict[str, Any]:
         """获取客户端信息"""

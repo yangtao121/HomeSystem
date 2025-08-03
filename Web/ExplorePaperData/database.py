@@ -6,10 +6,19 @@ import psycopg2.extras
 import redis
 import json
 import re
+import sys
+import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from config import DATABASE_CONFIG, REDIS_CONFIG
 import logging
+
+# 添加 HomeSystem 模块路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+# 导入 Dify 和 ArXiv 模块
+from HomeSystem.integrations.dify.dify_knowledge import DifyKnowledgeBaseClient, DifyKnowledgeBaseConfig
+from HomeSystem.utility.arxiv.arxiv import ArxivData
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +40,63 @@ def datetime_deserializer(dct):
             if isinstance(value, dict) and '__datetime__' in value:
                 dct[key] = datetime.fromisoformat(value['__datetime__'])
     return dct
+
+
+def sanitize_filename(filename: str, max_length: int = 200) -> str:
+    """
+    清理文件名，移除或替换不安全的字符
+    
+    Args:
+        filename: 原始文件名
+        max_length: 最大文件名长度
+        
+    Returns:
+        清理后的安全文件名
+    """
+    if not filename:
+        return 'document'
+    
+    # 确保filename是字符串并移除换行符和控制字符
+    filename = str(filename).strip()
+    filename = re.sub(r'[\r\n\t\v\f]', ' ', filename)  # 替换换行符和控制字符为空格
+    filename = re.sub(r'\s+', ' ', filename)  # 压缩多个空格为单个空格
+    
+    # 移除或替换不安全的字符
+    # 在Windows和许多文件系统中不允许的字符: / \ : * ? " < > |
+    # 以及其他可能导致问题的字符
+    unsafe_chars = r'[/\\:*?"<>|\x00-\x1f\x7f-\x9f]'
+    safe_filename = re.sub(unsafe_chars, '_', filename)
+    
+    # 移除开头和结尾的空格、点号和下划线
+    safe_filename = safe_filename.strip('. _')
+    
+    # 移除连续的下划线并替换为单个下划线
+    safe_filename = re.sub(r'_+', '_', safe_filename)
+    
+    # 如果文件名为空或只包含无效字符，使用默认名称
+    if not safe_filename or safe_filename == '_':
+        safe_filename = 'document'
+    
+    # 限制长度（考虑UTF-8编码）
+    if len(safe_filename.encode('utf-8')) > max_length:
+        # 按字节长度截断，确保不破坏UTF-8字符
+        encoded = safe_filename.encode('utf-8')[:max_length]
+        # 找到最后一个完整的UTF-8字符
+        while len(encoded) > 0:
+            try:
+                safe_filename = encoded.decode('utf-8')
+                break
+            except UnicodeDecodeError:
+                encoded = encoded[:-1]
+        
+        # 移除末尾的空格、点号和下划线
+        safe_filename = safe_filename.rstrip('. _')
+    
+    # 最终检查，确保不为空
+    if not safe_filename:
+        safe_filename = 'document'
+    
+    return safe_filename
 
 
 def parse_keywords_string(keywords_string: str) -> List[str]:
@@ -255,7 +321,8 @@ class PaperService:
             data_query = f"""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
                        created_at, research_objectives, keywords, task_name, task_id,
-                       full_paper_relevance_score, full_paper_relevance_justification
+                       full_paper_relevance_score, full_paper_relevance_justification,
+                       dify_document_id
                 FROM arxiv_papers 
                 {where_clause}
                 ORDER BY created_at DESC
@@ -594,7 +661,8 @@ class PaperService:
             cursor.execute("""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
                        created_at, task_name, task_id,
-                       full_paper_relevance_score, full_paper_relevance_justification
+                       full_paper_relevance_score, full_paper_relevance_justification,
+                       dify_document_id
                 FROM arxiv_papers 
                 WHERE task_name = %s
                 ORDER BY created_at DESC
@@ -709,7 +777,8 @@ class PaperService:
             cursor.execute("""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
                        created_at, research_objectives, keywords, task_name, task_id,
-                       full_paper_relevance_score, full_paper_relevance_justification
+                       full_paper_relevance_score, full_paper_relevance_justification,
+                       dify_document_id
                 FROM arxiv_papers 
                 WHERE task_name IS NULL OR task_name = ''
                 ORDER BY created_at DESC
@@ -1162,3 +1231,527 @@ class PaperService:
         except Exception as e:
             logger.error(f"获取迁移预览失败: {e}")
             return {'valid_papers': [], 'invalid_papers': arxiv_ids, 'summary': {}}
+
+
+class DifyService:
+    """Dify 知识库服务"""
+    
+    def __init__(self):
+        self.db_manager = DatabaseManager()
+        self.dify_client = None
+        self._init_dify_client()
+    
+    def _init_dify_client(self):
+        """初始化 Dify 客户端"""
+        try:
+            # 从环境变量创建配置
+            config = DifyKnowledgeBaseConfig.from_environment()
+            config.validate()
+            self.dify_client = DifyKnowledgeBaseClient(config)
+            logger.info("Dify 客户端初始化成功")
+        except Exception as e:
+            logger.error(f"Dify 客户端初始化失败: {e}")
+            self.dify_client = None
+    
+    def is_available(self) -> bool:
+        """检查 Dify 服务是否可用"""
+        return self.dify_client is not None and self.dify_client.health_check()
+    
+    def get_or_create_dataset(self, task_name: str) -> Optional[str]:
+        """获取或创建以 task_name 命名的知识库"""
+        if not self.dify_client:
+            logger.error("Dify 客户端未初始化")
+            return None
+        
+        try:
+            logger.info(f"正在查找或创建知识库: {task_name}")
+            
+            # 查找现有知识库
+            datasets = self.dify_client.list_datasets(limit=100)
+            logger.info(f"找到 {len(datasets)} 个现有知识库")
+            
+            for dataset in datasets:
+                logger.debug(f"检查知识库: {dataset.name} (ID: {dataset.dify_dataset_id})")
+                if dataset.name == task_name:
+                    logger.info(f"找到现有知识库: {task_name} (ID: {dataset.dify_dataset_id})")
+                    return dataset.dify_dataset_id
+            
+            # 创建新知识库
+            logger.info(f"创建新知识库: {task_name}")
+            dataset = self.dify_client.create_dataset(
+                name=task_name,
+                description=f"论文知识库 - {task_name}",
+                permission="only_me"
+            )
+            logger.info(f"成功创建知识库: {task_name} (ID: {dataset.dify_dataset_id})")
+            return dataset.dify_dataset_id
+            
+        except Exception as e:
+            logger.error(f"获取或创建知识库失败: {e}")
+            return None
+    
+    def upload_paper_to_dify(self, arxiv_id: str) -> Dict[str, Any]:
+        """上传论文到 Dify 知识库"""
+        if not self.dify_client:
+            return {"success": False, "error": "Dify 客户端未初始化"}
+        
+        try:
+            # 从数据库获取论文信息
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("""
+                    SELECT arxiv_id, title, authors, abstract, categories, pdf_url, task_name,
+                           dify_dataset_id, dify_document_id
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                paper = cursor.fetchone()
+                if not paper:
+                    return {"success": False, "error": "论文不存在"}
+                
+                paper_dict = dict(paper)
+                task_name = paper_dict.get('task_name')
+                if not task_name:
+                    return {"success": False, "error": "论文未分配任务名称"}
+                
+                # 检查是否已上传
+                if paper_dict.get('dify_document_id'):
+                    return {"success": False, "error": "论文已上传到 Dify"}
+            
+            # 获取或创建知识库
+            dataset_id = self.get_or_create_dataset(task_name)
+            logger.info(f"获取到的知识库ID: {dataset_id}")
+            
+            if not dataset_id:
+                return {"success": False, "error": "无法创建或获取知识库"}
+            
+            # 创建 ArxivData 对象并下载 PDF
+            arxiv_data = ArxivData({
+                'title': paper_dict['title'],
+                'link': f"http://arxiv.org/abs/{arxiv_id}",
+                'snippet': paper_dict['abstract'],
+                'categories': paper_dict['categories'] or ''
+            })
+            
+            try:
+                # 下载 PDF
+                logger.info(f"开始下载论文 PDF: {arxiv_id}")
+                pdf_content = arxiv_data.downloadPdf()
+                
+                if not pdf_content:
+                    return {"success": False, "error": "PDF 下载失败"}
+                
+                # 临时保存 PDF 文件，使用论文标题作为文件名
+                import tempfile
+                
+                # 创建安全的文件名
+                safe_title = sanitize_filename(paper_dict['title'], max_length=150)
+                temp_filename = f"{arxiv_id}_{safe_title}.pdf"
+                
+                # 创建临时目录并使用自定义文件名
+                temp_dir = tempfile.gettempdir()
+                temp_pdf_path = os.path.join(temp_dir, temp_filename)
+                
+                # 写入PDF内容
+                with open(temp_pdf_path, 'wb') as temp_file:
+                    temp_file.write(pdf_content)
+                
+                try:
+                    # 上传到 Dify (with retry for newly created datasets)
+                    logger.info(f"开始上传论文到 Dify: {arxiv_id}, 使用知识库ID: {dataset_id}")
+                    
+                    # 对于新创建的知识库，可能需要等待一下才能上传
+                    import time
+                    for attempt in range(3):
+                        try:
+                            logger.info(f"第 {attempt + 1} 次尝试上传: dataset_id={dataset_id}, file_path={temp_pdf_path}")
+                            document = self.dify_client.upload_document_file(
+                                dataset_id=dataset_id,
+                                file_path=temp_pdf_path,
+                                name=f"{arxiv_id} - {paper_dict['title']}"
+                            )
+                            break  # 成功则退出重试循环
+                        except Exception as upload_error:
+                            logger.warning(f"第 {attempt + 1} 次上传尝试失败: {upload_error}")
+                            if attempt < 2:  # 前两次失败后等待重试
+                                time.sleep(2)  # 等待2秒
+                            else:
+                                raise  # 最后一次失败则抛出异常
+                    
+                    # 更新数据库记录
+                    with self.db_manager.get_db_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE arxiv_papers 
+                            SET dify_dataset_id = %s,
+                                dify_document_id = %s,
+                                dify_upload_time = CURRENT_TIMESTAMP,
+                                dify_document_name = %s,
+                                dify_character_count = %s,
+                                dify_segment_count = 0,
+                                dify_metadata = %s,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE arxiv_id = %s
+                        """, (
+                            dataset_id,
+                            document.dify_document_id,
+                            document.name,
+                            document.character_count or 0,
+                            json.dumps({
+                                "upload_source": "explore_paper_data",
+                                "task_name": task_name,
+                                "upload_method": "pdf_file"
+                            }),
+                            arxiv_id
+                        ))
+                        conn.commit()
+                    
+                    # 清除缓存
+                    self.db_manager.set_cache(f"paper_detail_{arxiv_id}", None)
+                    
+                    return {
+                        "success": True,
+                        "dataset_id": dataset_id,
+                        "document_id": document.dify_document_id,
+                        "document_name": document.name
+                    }
+                
+                finally:
+                    # 清理临时文件
+                    try:
+                        os.unlink(temp_pdf_path)
+                    except:
+                        pass
+                
+            finally:
+                # 清理 ArxivData 对象
+                arxiv_data.cleanup()
+                
+        except Exception as e:
+            logger.error(f"上传论文到 Dify 失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def batch_upload_papers_to_dify(self, arxiv_ids: List[str]) -> Dict[str, Any]:
+        """批量上传论文到 Dify"""
+        if not arxiv_ids:
+            return {"success": False, "error": "没有提供论文ID"}
+        
+        results = {
+            "success_count": 0,
+            "failed_count": 0,
+            "results": [],
+            "errors": []
+        }
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                result = self.upload_paper_to_dify(arxiv_id)
+                if result["success"]:
+                    results["success_count"] += 1
+                    results["results"].append({
+                        "arxiv_id": arxiv_id,
+                        "status": "success",
+                        "dataset_id": result.get("dataset_id"),
+                        "document_id": result.get("document_id")
+                    })
+                else:
+                    results["failed_count"] += 1
+                    results["errors"].append({
+                        "arxiv_id": arxiv_id,
+                        "error": result["error"]
+                    })
+                    
+            except Exception as e:
+                results["failed_count"] += 1
+                results["errors"].append({
+                    "arxiv_id": arxiv_id,
+                    "error": str(e)
+                })
+        
+        return results
+    
+    def remove_paper_from_dify(self, arxiv_id: str) -> Dict[str, Any]:
+        """从 Dify 知识库移除论文"""
+        if not self.dify_client:
+            return {"success": False, "error": "Dify 客户端未初始化"}
+        
+        try:
+            # 获取论文的 Dify 信息
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("""
+                    SELECT dify_dataset_id, dify_document_id
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                paper = cursor.fetchone()
+                if not paper:
+                    return {"success": False, "error": "论文不存在"}
+                
+                dataset_id = paper['dify_dataset_id']
+                document_id = paper['dify_document_id']
+                
+                if not dataset_id or not document_id:
+                    return {"success": False, "error": "论文未上传到 Dify"}
+            
+            # 从 Dify 删除文档
+            success = self.dify_client.delete_document(dataset_id, document_id)
+            
+            if success:
+                # 更新数据库记录
+                with self.db_manager.get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE arxiv_papers 
+                        SET dify_dataset_id = NULL,
+                            dify_document_id = NULL,
+                            dify_upload_time = NULL,
+                            dify_document_name = NULL,
+                            dify_character_count = NULL,
+                            dify_segment_count = NULL,
+                            dify_metadata = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE arxiv_id = %s
+                    """, (arxiv_id,))
+                    conn.commit()
+                
+                # 清除缓存
+                self.db_manager.set_cache(f"paper_detail_{arxiv_id}", None)
+                
+                return {"success": True}
+            else:
+                return {"success": False, "error": "从 Dify 删除文档失败"}
+                
+        except Exception as e:
+            logger.error(f"从 Dify 移除论文失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def get_dify_upload_status(self, arxiv_id: str) -> Dict[str, Any]:
+        """获取论文的 Dify 上传状态"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("""
+                    SELECT dify_dataset_id, dify_document_id, dify_upload_time,
+                           dify_document_name, dify_character_count, dify_segment_count,
+                           task_name
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                paper = cursor.fetchone()
+                if not paper:
+                    return {"success": False, "error": "论文不存在"}
+                
+                paper_dict = dict(paper)
+                is_uploaded = bool(paper_dict.get('dify_document_id'))
+                
+                return {
+                    "success": True,
+                    "is_uploaded": is_uploaded,
+                    "dataset_id": paper_dict.get('dify_dataset_id'),
+                    "document_id": paper_dict.get('dify_document_id'),
+                    "upload_time": paper_dict.get('dify_upload_time'),
+                    "document_name": paper_dict.get('dify_document_name'),
+                    "character_count": paper_dict.get('dify_character_count'),
+                    "segment_count": paper_dict.get('dify_segment_count'),
+                    "task_name": paper_dict.get('task_name')
+                }
+                
+        except Exception as e:
+            logger.error(f"获取 Dify 上传状态失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def verify_dify_document(self, arxiv_id: str) -> Dict[str, Any]:
+        """
+        验证论文是否真正上传到 Dify 服务器
+        
+        Args:
+            arxiv_id: ArXiv ID
+            
+        Returns:
+            验证结果字典
+        """
+        try:
+            # 首先获取本地数据库中的记录
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("""
+                    SELECT dify_dataset_id, dify_document_id, dify_document_name,
+                           title, dify_upload_time
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                paper = cursor.fetchone()
+                if not paper:
+                    return {"success": False, "error": "论文不存在"}
+                
+                paper_dict = dict(paper)
+                dataset_id = paper_dict.get('dify_dataset_id')
+                document_id = paper_dict.get('dify_document_id')
+                
+                if not dataset_id or not document_id:
+                    return {
+                        "success": True,
+                        "verified": False,
+                        "status": "not_uploaded",
+                        "message": "论文尚未上传到 Dify"
+                    }
+                
+                # 尝试从 Dify 服务器获取文档信息
+                try:
+                    dify_client = DifyKnowledgeBaseClient.from_environment()
+                    dify_document = dify_client.get_document(dataset_id, document_id)
+                    
+                    # 验证成功，文档存在于 Dify 服务器
+                    return {
+                        "success": True,
+                        "verified": True,
+                        "status": "verified",
+                        "message": "文档已成功验证存在于 Dify 服务器",
+                        "document_info": {
+                            "dify_name": dify_document.name,
+                            "local_name": paper_dict.get('dify_document_name'),
+                            "character_count": dify_document.character_count,
+                            "status": dify_document.status,
+                            "indexing_status": dify_document.indexing_status
+                        }
+                    }
+                    
+                except Exception as dify_error:
+                    # Dify API 调用失败，可能文档不存在或服务器问题
+                    error_message = str(dify_error)
+                    if "404" in error_message or "not found" in error_message.lower():
+                        # 文档不存在，需要清理本地记录
+                        return {
+                            "success": True,
+                            "verified": False,
+                            "status": "missing",
+                            "message": "文档在 Dify 服务器上不存在，可能已被删除",
+                            "suggestion": "建议重新上传或清理本地记录"
+                        }
+                    else:
+                        # 其他错误，无法确定状态
+                        return {
+                            "success": False,
+                            "verified": False,
+                            "status": "error",
+                            "error": f"验证过程中出现错误: {error_message}",
+                            "message": "无法连接到 Dify 服务器进行验证"
+                        }
+                
+        except Exception as e:
+            logger.error(f"验证 Dify 文档失败 [{arxiv_id}]: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def clean_missing_dify_record(self, arxiv_id: str) -> Dict[str, Any]:
+        """
+        清理本地数据库中已在 Dify 服务器丢失的文档记录
+        
+        Args:
+            arxiv_id: ArXiv ID
+            
+        Returns:
+            清理结果
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET dify_dataset_id = NULL,
+                        dify_document_id = NULL,
+                        dify_upload_time = NULL,
+                        dify_document_name = NULL,
+                        dify_character_count = NULL,
+                        dify_segment_count = NULL,
+                        dify_metadata = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                conn.commit()
+                
+                # 清除缓存
+                self.db_manager.set_cache(f"paper_detail_{arxiv_id}", None)
+                
+                return {
+                    "success": True,
+                    "message": "已清理本地 Dify 记录，论文状态重置为未上传"
+                }
+                
+        except Exception as e:
+            logger.error(f"清理 Dify 记录失败 [{arxiv_id}]: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def get_dify_statistics(self) -> Dict[str, Any]:
+        """获取 Dify 相关统计信息"""
+        cache_key = "dify_statistics"
+        cached_data = self.db_manager.get_cache(cache_key)
+        if cached_data:
+            return cached_data
+        
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 基础统计
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total_papers,
+                        COUNT(CASE WHEN dify_document_id IS NOT NULL THEN 1 END) as uploaded_papers,
+                        COUNT(CASE WHEN dify_document_id IS NULL THEN 1 END) as not_uploaded_papers,
+                        COUNT(DISTINCT dify_dataset_id) as unique_datasets,
+                        SUM(dify_character_count) as total_characters,
+                        AVG(dify_character_count) as avg_characters
+                    FROM arxiv_papers
+                """)
+                basic_stats = dict(cursor.fetchone())
+                
+                # 按任务统计
+                cursor.execute("""
+                    SELECT 
+                        task_name,
+                        COUNT(*) as total_papers,
+                        COUNT(CASE WHEN dify_document_id IS NOT NULL THEN 1 END) as uploaded_papers,
+                        SUM(dify_character_count) as total_characters
+                    FROM arxiv_papers 
+                    WHERE task_name IS NOT NULL AND task_name != ''
+                    GROUP BY task_name
+                    ORDER BY uploaded_papers DESC, total_papers DESC
+                    LIMIT 20
+                """)
+                task_stats = [dict(row) for row in cursor.fetchall()]
+                
+                # 最近上传趋势
+                cursor.execute("""
+                    SELECT 
+                        dify_upload_time::date as upload_date,
+                        COUNT(*) as upload_count
+                    FROM arxiv_papers 
+                    WHERE dify_upload_time IS NOT NULL 
+                      AND dify_upload_time >= NOW() - INTERVAL '30 days'
+                    GROUP BY dify_upload_time::date
+                    ORDER BY upload_date DESC
+                """)
+                upload_trend = [dict(row) for row in cursor.fetchall()]
+                
+                stats = {
+                    "basic": basic_stats,
+                    "by_task": task_stats,
+                    "upload_trend": upload_trend
+                }
+                
+                # 缓存结果
+                self.db_manager.set_cache(cache_key, stats, timeout=900)
+                return stats
+                
+        except Exception as e:
+            logger.error(f"获取 Dify 统计信息失败: {e}")
+            return {
+                "basic": {},
+                "by_task": [],
+                "upload_trend": []
+            }

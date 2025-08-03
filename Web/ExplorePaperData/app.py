@@ -4,7 +4,7 @@ ArXiv论文数据可视化Web应用
 """
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_moment import Moment
-from database import PaperService
+from database import PaperService, DifyService
 from config import Config
 from utils.markdown_utils import markdown_filter, markdown_safe_filter
 import logging
@@ -22,6 +22,7 @@ moment = Moment(app)
 
 # 初始化服务
 paper_service = PaperService()
+dify_service = DifyService()
 
 # 添加模板上下文处理器
 @app.context_processor
@@ -562,6 +563,181 @@ def api_merge_tasks():
     
     except Exception as e:
         logger.error(f"任务合并失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/dify_upload/<arxiv_id>', methods=['POST'])
+def api_dify_upload_paper(arxiv_id):
+    """API接口 - 上传单个论文到 Dify 知识库"""
+    try:
+        # 检查 Dify 服务可用性
+        if not dify_service.is_available():
+            return jsonify({
+                'success': False, 
+                'error': 'Dify 服务不可用，请检查配置和连接'
+            }), 503
+        
+        result = dify_service.upload_paper_to_dify(arxiv_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': '论文上传成功',
+                'data': {
+                    'arxiv_id': arxiv_id,
+                    'dataset_id': result.get('dataset_id'),
+                    'document_id': result.get('document_id'),
+                    'document_name': result.get('document_name')
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"上传论文到 Dify 失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/dify_batch_upload', methods=['POST'])
+def api_dify_batch_upload():
+    """API接口 - 批量上传论文到 Dify 知识库"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        if not arxiv_ids or not isinstance(arxiv_ids, list):
+            return jsonify({'success': False, 'error': '缺少有效的论文ID列表'}), 400
+        
+        # 检查 Dify 服务可用性
+        if not dify_service.is_available():
+            return jsonify({
+                'success': False, 
+                'error': 'Dify 服务不可用，请检查配置和连接'
+            }), 503
+        
+        results = dify_service.batch_upload_papers_to_dify(arxiv_ids)
+        
+        return jsonify({
+            'success': True,
+            'message': f'批量上传完成: 成功 {results["success_count"]} 篇，失败 {results["failed_count"]} 篇',
+            'data': results
+        })
+    
+    except Exception as e:
+        logger.error(f"批量上传论文到 Dify 失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/dify_remove/<arxiv_id>', methods=['DELETE'])
+def api_dify_remove_paper(arxiv_id):
+    """API接口 - 从 Dify 知识库移除论文"""
+    try:
+        # 检查 Dify 服务可用性
+        if not dify_service.is_available():
+            return jsonify({
+                'success': False, 
+                'error': 'Dify 服务不可用，请检查配置和连接'
+            }), 503
+        
+        result = dify_service.remove_paper_from_dify(arxiv_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': '论文从知识库移除成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"从 Dify 移除论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/dify_status/<arxiv_id>')
+def api_dify_status(arxiv_id):
+    """API接口 - 查询论文的 Dify 上传状态"""
+    try:
+        result = dify_service.get_dify_upload_status(arxiv_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 404
+    
+    except Exception as e:
+        logger.error(f"查询 Dify 状态失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/dify_verify/<arxiv_id>', methods=['POST'])
+def api_dify_verify(arxiv_id):
+    """API接口 - 验证论文是否存在于 Dify 服务器"""
+    try:
+        result = dify_service.verify_dify_document(arxiv_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"验证 Dify 文档失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/dify_clean/<arxiv_id>', methods=['POST'])
+def api_dify_clean(arxiv_id):
+    """API接口 - 清理丢失的 Dify 文档记录"""
+    try:
+        result = dify_service.clean_missing_dify_record(arxiv_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error']
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"清理 Dify 记录失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/dify_statistics')
+def api_dify_statistics():
+    """API接口 - 获取 Dify 相关统计信息"""
+    try:
+        stats = dify_service.get_dify_statistics()
+        return jsonify({'success': True, 'data': stats})
+    
+    except Exception as e:
+        logger.error(f"获取 Dify 统计信息失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/migration_preview', methods=['POST'])

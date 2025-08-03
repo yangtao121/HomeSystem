@@ -23,6 +23,16 @@ REDIS_CONFIG = {
     'db': int(os.getenv('REDIS_DB', 0))
 }
 
+# Dify知识库配置
+DIFY_CONFIG = {
+    'base_url': os.getenv('DIFY_BASE_URL', 'http://localhost:80/v1'),
+    'api_key': os.getenv('DIFY_KB_API_KEY', ''),
+    'timeout': int(os.getenv('DIFY_TIMEOUT', 30)),
+    'max_retries': int(os.getenv('DIFY_MAX_RETRIES', 3)),
+    'retry_delay': float(os.getenv('DIFY_RETRY_DELAY', 1.0)),
+    'enabled': os.getenv('DIFY_ENABLED', 'false').lower() == 'true'
+}
+
 # Flask应用配置
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
