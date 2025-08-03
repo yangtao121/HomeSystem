@@ -1366,8 +1366,8 @@ class DifyKnowledgeBaseClient:
                 # 根据Dify API文档，正确构造multipart/form-data参数
                 files = {
                     'file': (file_path.name, f, mime_type),
-                    'data': (None, json.dumps(upload_config_data), 'text/plain'),
-                    'user': (None, user_id, 'text/plain')
+                    'data': (None, json.dumps(upload_config_data)),
+                    # 'user': (None, user_id, 'text/plain')
                 }
                 
                 logger.info(f"发送文件上传请求到: {url}")

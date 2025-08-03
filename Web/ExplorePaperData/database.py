@@ -1603,7 +1603,8 @@ class DifyService:
                 
                 # 尝试从 Dify 服务器获取文档信息
                 try:
-                    dify_client = DifyKnowledgeBaseClient.from_environment()
+                    config = DifyKnowledgeBaseConfig.from_environment()
+                    dify_client = DifyKnowledgeBaseClient(config)
                     dify_document = dify_client.get_document(dataset_id, document_id)
                     
                     # 验证成功，文档存在于 Dify 服务器

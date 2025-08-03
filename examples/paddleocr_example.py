@@ -24,7 +24,7 @@ def main():
     
     if results.num_results > 0:
         # 选择第一篇论文
-        paper = results.results[0]
+        paper = results.results[1]
         print(f"📄 选择论文: {paper.title[:80]}...")
         
         try:
