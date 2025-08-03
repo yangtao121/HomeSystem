@@ -74,6 +74,24 @@ providers:
       supports_vision: false
       context_length: 131072
       description: 通义千问2.5系列最强版本
+    - name: Qwen/QwQ-32B-Preview
+      key: siliconflow.QwQ_32B
+      display_name: 通义千问 QwQ-32B
+      parameters: 32B
+      max_tokens: 32768
+      supports_functions: true
+      supports_vision: false
+      context_length: 32768
+      description: 阿里通义千问推理增强版本
+    - name: Qwen/Qwen3-235B-A22B-Instruct-2507
+      key: siliconflow.Qwen3_235B_A22B
+      display_name: 通义千问 3-235B-A22B
+      parameters: 235B
+      max_tokens: 10240 # 256K上下文
+      supports_functions: true
+      supports_vision: false
+      context_length: 262144
+      description: 通义千问3系列最强版本
   volcano:
     name: Volcano Engine
     description: 火山引擎 - 豆包1.6系列大模型
@@ -117,7 +135,7 @@ providers:
     base_url_env: MOONSHOT_BASE_URL
     base_url: https://api.moonshot.cn/v1
     models:
-    - name: kimi-k2
+    - name: kimi-k2-0711-preview
       key: moonshot.Kimi_K2
       display_name: Kimi K2
       parameters: 1T总参数/32B激活

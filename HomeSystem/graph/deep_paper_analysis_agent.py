@@ -1,63 +1,49 @@
 """
 深度论文分析Agent
 
-基于LangGraph的论文深度分析智能体，实现两阶段工作流：
-1. 英文深度分析阶段 - 迭代式分析，可反复调用工具
-2. 翻译阶段 - 将分析结果翻译成中文并格式化输出
+基于LangGraph的论文深度分析智能体，使用标准工具调用模式：
+1. 云端LLM主导分析，自动决策何时调用图片分析工具
+2. 结构化输出生成完整的分析结果
+3. 支持双语分析结果输出
 
-支持云端LLM文本分析 + 本地VLM图片理解的混合架构。
+采用标准LangGraph工具调用架构，LLM自主决策工具使用。
 """
 
 import json
-import operator
-from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
 from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, BaseMessage
 from loguru import logger
 
 from .base_graph import BaseGraph
 from .llm_factory import get_llm
 from .tool.image_analysis_tool import create_image_analysis_tool
-from .tool.deep_analysis_tools import create_analysis_tools
-from .tool.paper_translation_tool import create_translation_tool
 from .parser.paper_folder_parser import create_paper_folder_parser
 from .formatter.markdown_formatter import create_markdown_formatter
 
 
 class DeepPaperAnalysisState(TypedDict):
-    """深度论文分析状态 - 结构化输出便于markdown生成"""
+    """深度论文分析状态"""
     # 输入数据
     base_folder_path: str                           # 论文文件夹路径
     paper_text: str                                 # 论文markdown文本
     available_images: List[str]                     # 可用图片列表
-    image_mappings: Dict[str, str]                  # 图片路径映射 (相对路径 -> 绝对路径)
+    image_mappings: Dict[str, str]                  # 图片路径映射
     
-    # 深度分析结果（英文）
-    main_contributions: Optional[Dict[str, Any]]     # 主要贡献（逐条列出）
-    background_analysis: Optional[Dict[str, Any]]    # 背景分析
-    methodology_analysis: Optional[Dict[str, Any]]   # 方法分析（支持子标题）
-    experimental_results: Optional[Dict[str, Any]]   # 实验结果分析
+    # LangGraph消息历史
+    messages: Annotated[list, add_messages]         # 对话历史
     
-    # 图片分析结果（英文）
-    analyzed_images: Optional[Dict[str, Any]]        # 已分析的图片内容
-    image_insights: Optional[Dict[str, Any]]         # 图片提供的洞察
+    # 简化的分析结果
+    chinese_analysis: Optional[str]                 # 中文分析结果
     
-    # 翻译结果（中文）
-    translated_contributions: Optional[Dict[str, Any]]    # 翻译后的主要贡献
-    translated_background: Optional[Dict[str, Any]]       # 翻译后的背景
-    translated_methodology: Optional[Dict[str, Any]]      # 翻译后的方法
-    translated_results: Optional[Dict[str, Any]]          # 翻译后的结果
-    
-    # 执行状态跟踪
-    analysis_iteration: Annotated[int, operator.add]      # 分析轮次
-    completed_tasks: List[str]                             # 完成的任务列表
-    is_analysis_complete: bool                             # 深度分析是否完成
-    is_translation_complete: bool                          # 翻译是否完成
-    analysis_errors: Annotated[List[str], operator.add]   # 错误记录
+    # 执行状态
+    is_complete: bool                               # 是否完成分析
 
 
 class DeepPaperAnalysisConfig:
@@ -66,19 +52,11 @@ class DeepPaperAnalysisConfig:
     def __init__(self,
                  analysis_model: str = "deepseek.DeepSeek_V3",
                  vision_model: str = "ollama.llava", 
-                 translation_model: str = "ollama.Qwen3_30B",
-                 max_analysis_iterations: int = 10,
-                 enable_translation: bool = True,
-                 target_language: str = "zh",
                  memory_enabled: bool = True,
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.analysis_model = analysis_model          # 主分析LLM
         self.vision_model = vision_model              # 图片理解VLM
-        self.translation_model = translation_model    # 翻译LLM
-        self.max_analysis_iterations = max_analysis_iterations
-        self.enable_translation = enable_translation
-        self.target_language = target_language
         self.memory_enabled = memory_enabled
         self.custom_settings = custom_settings or {}
     
@@ -98,10 +76,9 @@ class DeepPaperAnalysisAgent(BaseGraph):
     """深度论文分析智能体
     
     功能：
-    1. 两阶段工作流：英文深度分析 → 中文翻译
-    2. 迭代式分析：LLM可反复调用工具直到完成
-    3. 混合架构：云端LLM + 本地VLM
-    4. 结构化输出：便于生成markdown报告
+    1. 使用标准LangGraph工具调用模式
+    2. 云端LLM自主决策工具使用
+    3. 结构化输出和双语支持
     """
     
     def __init__(self,
@@ -122,430 +99,361 @@ class DeepPaperAnalysisAgent(BaseGraph):
         logger.info(f"初始化深度论文分析智能体")
         logger.info(f"分析模型: {self.config.analysis_model}")
         logger.info(f"视觉模型: {self.config.vision_model}")
-        logger.info(f"翻译模型: {self.config.translation_model}")
         
         # 创建主分析LLM
         self.analysis_llm = get_llm(self.config.analysis_model)
         
+        # 移除了结构化输出功能，简化为直接文本输出
+        
         # 设置内存管理
         self.memory = MemorySaver() if self.config.memory_enabled else None
         
-        # 工具实例将在分析时创建（需要文件夹路径）
+        # 图片分析工具将在运行时创建
         self.image_tool = None
-        self.analysis_tools = None
-        self.translation_tool = None
+        self.llm_with_tools = None
+        self.tool_node = None
         
-        # 构建图
-        self._build_graph()
+        # 构建图（将在分析时动态完成）
+        self._graph_template = None
+        self.agent = None
         
         logger.info("深度论文分析智能体初始化完成")
     
-    def _build_graph(self) -> None:
-        """构建两阶段分析工作流图"""
+    def _build_graph_with_tools(self, image_tool) -> None:
+        """使用工具构建简化的LangGraph工作流"""
         graph = StateGraph(DeepPaperAnalysisState)
         
-        # 第一阶段：英文深度分析
-        graph.add_node("initialize_analysis", self._initialize_analysis_node)
-        graph.add_node("iterative_english_analysis", self._iterative_english_analysis_node)
-        graph.add_node("extract_contributions", self._extract_contributions_node)
-        graph.add_node("analyze_methodology", self._analyze_methodology_node)
-        graph.add_node("analyze_results", self._analyze_results_node)
-        graph.add_node("analyze_background", self._analyze_background_node)
+        # 添加节点
+        graph.add_node("initialize", self._initialize_node)
+        graph.add_node("analysis_with_tools", self._analysis_with_tools_node)
+        # 添加 tool_node
+        self.tool_node = ToolNode([image_tool])
+        graph.add_node("call_tools", self.tool_node)
+        graph.add_node("chinese_analysis", self._chinese_analysis_node)
         
-        # 第二阶段：翻译
-        graph.add_node("translate_all_sections", self._translate_all_sections_node)
+        # 构建简化流程
+        graph.add_edge(START, "initialize")
+        graph.add_edge("initialize", "analysis_with_tools")
         
-        # 构建两阶段流程
-        graph.add_edge(START, "initialize_analysis")
-        graph.add_edge("initialize_analysis", "iterative_english_analysis")
-        
-        # 英文分析阶段的条件分支
+        # 分析工具调用的条件分支
         graph.add_conditional_edges(
-            "iterative_english_analysis",
-            self._should_continue_english_analysis,
+            "analysis_with_tools",
+            self._should_continue_analysis,
             {
-                "continue": "iterative_english_analysis",  # 继续迭代
-                "extract_contributions": "extract_contributions",  # 开始提取贡献
+                "call_tools": "call_tools",  # 调用工具
+                "continue": "analysis_with_tools",  # 继续分析
+                "chinese_analysis": "chinese_analysis",  # 进入中文分析
             }
         )
         
-        # 完成英文分析的各个部分
-        graph.add_edge("extract_contributions", "analyze_methodology")
-        graph.add_edge("analyze_methodology", "analyze_results") 
-        graph.add_edge("analyze_results", "analyze_background")
+        # 工具调用后回到分析节点
+        graph.add_edge("call_tools", "analysis_with_tools")
         
-        # 进入翻译阶段
-        graph.add_conditional_edges(
-            "analyze_background",
-            self._should_translate,
-            {
-                "translate": "translate_all_sections",
-                "skip_translation": END
-            }
-        )
-        
-        graph.add_edge("translate_all_sections", END)
+        # 中文分析结束
+        graph.add_edge("chinese_analysis", END)
         
         # 编译图
-        self.agent = graph.compile(checkpointer=self.memory)
-        logger.info("两阶段深度分析工作流图构建完成")
+        try:
+            self.agent = graph.compile(checkpointer=self.memory)
+            logger.info("✅ LangGraph 图编译成功")
+        except Exception as e:
+            logger.error(f"❌ LangGraph 图编译失败: {e}")
+            raise
     
-    def _initialize_analysis_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """初始化分析节点"""
-        logger.info("初始化论文分析...")
+    def _initialize_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
+        """初始化节点"""
+        logger.info("✅ 工具已在分析开始前初始化")
         
-        # 创建工具实例
-        base_folder = state["base_folder_path"]
-        self.image_tool = create_image_analysis_tool(base_folder, self.config.vision_model)
-        self.analysis_tools = create_analysis_tools(self.config.analysis_model)
-        self.translation_tool = create_translation_tool(self.config.translation_model, self.config.target_language)
-        
-        # 按名称索引分析工具
-        self.analysis_tools_dict = {tool.name: tool for tool in self.analysis_tools}
-        
-        logger.info(f"工具初始化完成：图片分析工具，{len(self.analysis_tools)}个分析工具，翻译工具")
-        
-        # 分析可用图片
-        available_images = state.get("available_images", [])
-        logger.info(f"可分析图片数量: {len(available_images)}")
+        # 创建初始分析提示
+        initial_prompt = self._generate_initial_analysis_prompt(state)
         
         return {
-            "analysis_iteration": 1,
-            "completed_tasks": ["tools_initialized"],
-            "is_analysis_complete": False,
-            "is_translation_complete": False,
-            "analyzed_images": {},
-            "image_insights": {}
+            "messages": [SystemMessage(content=initial_prompt)],
+            "is_complete": False
         }
     
-    def _iterative_english_analysis_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """迭代英文分析节点 - 可反复调用工具直到完成"""
-        current_iteration = state.get("analysis_iteration", 0)
-        logger.info(f"开始第 {current_iteration} 轮英文分析...")
+    def _analysis_with_tools_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
+        """带工具调用的分析节点 - 使用标准 LangGraph 模式"""
+        logger.info("开始LLM分析...")
         
-        # 检查是否达到最大迭代次数
-        if current_iteration >= self.config.max_analysis_iterations:
-            logger.warning(f"达到最大迭代次数 {self.config.max_analysis_iterations}，结束迭代分析")
-            return {"is_analysis_complete": True}
-        
-        # 生成决策提示词
-        decision_prompt = self._generate_analysis_decision_prompt(state)
+        messages = state["messages"]
         
         try:
-            # LLM决策下一步行动
-            response = self.analysis_llm.invoke(decision_prompt)
-            decision_content = response.content if hasattr(response, 'content') else str(response)
+            # 确保llm_with_tools已初始化
+            if self.llm_with_tools is None:
+                logger.error("❌ LLM with tools not initialized")
+                return {"messages": [AIMessage(content="LLM工具未初始化")]}
             
-            logger.info(f"LLM分析决策 (第{current_iteration}轮): {decision_content[:200]}...")
+            # 显示输入消息的详细信息
+            logger.info(f"📤 发送消息给 LLM:")
+            logger.info(f"  - 消息数量: {len(messages)}")
+            for i, msg in enumerate(messages[-3:]):  # 只显示最后3条消息
+                msg_type = type(msg).__name__
+                msg_preview = str(msg.content)[:100] if hasattr(msg, 'content') else str(msg)[:100]
+                logger.info(f"  - 消息 {i}: {msg_type} - {msg_preview}...")
             
-            # 解析LLM的决策
-            action_result = self._parse_and_execute_decision(decision_content, state)
+            # LLM自主决策并可能调用工具
+            response = self.llm_with_tools.invoke(messages)
             
-            # 更新状态
-            update_dict = {
-                "analysis_iteration": 1,
-                **action_result
-            }
+            # 详细检查响应
+            logger.info(f"💬 LLM 响应:")
+            logger.info(f"  - 响应类型: {type(response).__name__}")
+            if hasattr(response, 'content'):
+                content_preview = str(response.content)[:200] if response.content else "<empty>"
+                logger.info(f"  - 内容预览: {content_preview}...")
             
-            return update_dict
+            # 检查是否有工具调用
+            tool_calls = getattr(response, 'tool_calls', None)
+            if tool_calls:
+                logger.info(f"🔧 LLM决定调用 {len(tool_calls)} 个工具:")
+                for i, tool_call in enumerate(tool_calls):
+                    try:
+                        if hasattr(tool_call, 'get'):
+                            tool_name = tool_call.get('name', 'unknown')
+                            tool_args = tool_call.get('args', {})
+                        else:
+                            # 处理不同的 tool_call 对象类型
+                            tool_name = getattr(tool_call, 'name', str(tool_call))
+                            tool_args = getattr(tool_call, 'args', {})
+                        
+                        logger.info(f"  [{i+1}] 工具: {tool_name}")
+                        if isinstance(tool_args, dict):
+                            for key, value in tool_args.items():
+                                value_preview = str(value)[:100] if len(str(value)) > 100 else str(value)
+                                logger.info(f"      {key}: {value_preview}")
+                        else:
+                            logger.info(f"      参数: {tool_args}")
+                    except Exception as e:
+                        logger.warning(f"      无法解析工具调用 {i+1}: {e}")
+            else:
+                logger.info("🚫 LLM未调用任何工具")
+            
+            return {"messages": [response]}
             
         except Exception as e:
-            logger.error(f"迭代分析失败 (第{current_iteration}轮): {e}")
-            return {
-                "analysis_errors": [f"第{current_iteration}轮分析失败: {str(e)}"],
-                "analysis_iteration": 1
-            }
+            logger.error(f"❌ 分析节点执行失败: {e}")
+            import traceback
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
+            error_message = AIMessage(content=f"分析过程中出现错误: {str(e)}")
+            return {"messages": [error_message]}
     
-    def _generate_analysis_decision_prompt(self, state: DeepPaperAnalysisState) -> str:
-        """生成分析决策提示词"""
-        return f"""
-You are conducting deep analysis of an academic paper in English. You are an expert researcher who can make intelligent decisions about what to analyze next.
-
-**Current Analysis Status:**
-- Paper text length: {len(state['paper_text'])} characters
-- Available images: {len(state['available_images'])} images
-- Completed tasks: {state.get('completed_tasks', [])}
-- Analysis iteration: {state.get('analysis_iteration', 0)}
-- Already analyzed images: {len(state.get('analyzed_images', {}))} images
-
-**Available Images for Analysis:**
-{', '.join(state['available_images'][:10])}  # Show first 10 images
-
-**Available Actions:**
-1. **analyze_image**: Analyze a specific image from the paper
-   - Use when you need to understand diagrams, charts, tables, or figures
-   - Format: analyze_image|<image_path>|<analysis_query>
-   - Example: analyze_image|imgs/img_in_image_box_253_178_967_593.jpg|Analyze this architecture diagram and describe the main components
-
-2. **deep_text_analysis**: Perform focused analysis on specific sections
-   - Use when you need to extract detailed information from text
-   - Format: deep_text_analysis|<focus_area>
-   - Example: deep_text_analysis|methodology_details
-
-3. **complete_analysis**: Mark the analysis phase as complete
-   - Use when you have sufficient understanding of the paper
-   - Format: complete_analysis
-
-**Your Task:**
-Decide what to do next to gain deep understanding of this academic paper. Consider:
-- What key information is still missing?
-- Which images might provide crucial insights?
-- Have you understood the core methodology and contributions?
-
-**Decision Format:**
-Respond with exactly one action in the specified format. Be specific about what you want to analyze and why.
-
-**Your Decision:**"""
-    
-    def _parse_and_execute_decision(self, decision_content: str, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """解析并执行LLM的决策"""
-        try:
-            # 提取决策行
-            lines = decision_content.strip().split('\n')
-            decision_line = None
+    def _should_continue_analysis(self, state: DeepPaperAnalysisState) -> str:
+        """判断是否继续分析或调用工具"""
+        messages = state["messages"]
+        
+        logger.info(f"🔄 分析控制流: 检查 {len(messages)} 条消息")
+        
+        # 检查最后的消息
+        if messages:
+            last_message = messages[-1]
+            last_msg_type = type(last_message).__name__
+            logger.info(f"  - 最后消息类型: {last_msg_type}")
             
-            for line in lines:
-                line = line.strip()
-                if '|' in line and any(action in line for action in ['analyze_image', 'deep_text_analysis', 'complete_analysis']):
-                    decision_line = line
-                    break
-            
-            if not decision_line:
-                # 如果没有找到格式化的决策，查找关键词
-                if 'complete_analysis' in decision_content.lower() or 'complete' in decision_content.lower():
-                    decision_line = "complete_analysis"
-                else:
-                    # 默认进行文本分析
-                    decision_line = "deep_text_analysis|general_analysis"
-            
-            logger.info(f"解析到的决策: {decision_line}")
-            
-            # 执行决策
-            if decision_line.startswith("analyze_image"):
-                return self._execute_image_analysis(decision_line, state)
-            elif decision_line.startswith("deep_text_analysis"):
-                return self._execute_text_analysis(decision_line, state)
-            elif decision_line.startswith("complete_analysis") or decision_line == "complete_analysis":
-                return {"is_analysis_complete": True, "completed_tasks": ["iterative_analysis_complete"]}
-            else:
-                logger.warning(f"未识别的决策格式: {decision_line}")
-                return {"analysis_errors": [f"未识别的决策格式: {decision_line}"]}
+            # 检查是否是 AI 消息并且包含工具调用
+            if isinstance(last_message, AIMessage):
+                # 使用 getattr 安全检查 tool_calls 属性
+                tool_calls = getattr(last_message, 'tool_calls', None)
+                if tool_calls:
+                    logger.info(f"🔧 检测到 {len(tool_calls)} 个工具调用 → call_tools")
+                    return "call_tools"
                 
-        except Exception as e:
-            logger.error(f"决策解析和执行失败: {e}")
-            return {"analysis_errors": [f"决策执行失败: {str(e)}"]}
-    
-    def _execute_image_analysis(self, decision_line: str, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """执行图片分析决策"""
-        try:
-            parts = decision_line.split('|')
-            if len(parts) >= 3:
-                image_path = parts[1].strip()
-                analysis_query = parts[2].strip()
-            else:
-                # 如果格式不完整，使用默认查询
-                image_path = state['available_images'][0] if state['available_images'] else ""
-                analysis_query = "Analyze this image and describe its content in detail"
+                # 检查是否LLM表示分析完成
+                content = last_message.content
+                if isinstance(content, str):
+                    content_lower = content.lower()
+                    completion_keywords = [
+                        "分析完成", "analysis complete", "完成分析",
+                        "分析结束", "analysis finished", "结束分析",
+                        "analysis is complete", "finished analyzing"
+                    ]
+                    if any(keyword in content_lower for keyword in completion_keywords):
+                        logger.info(f"✅ LLM表示分析完成 → chinese_analysis")
+                        return "chinese_analysis"
+                    
+                    # 检查内容长度，如果较长可能是完整分析
+                    if len(content) > 2000:  # 内容较长，可能已经完成了分析
+                        logger.info(f"📝 内容较长 ({len(content)} 字符)，可能已完成分析 → chinese_analysis")
+                        return "chinese_analysis"
             
-            if not image_path or image_path not in state['available_images']:
-                return {"analysis_errors": [f"Invalid image path: {image_path}"]}
-            
-            logger.info(f"分析图片: {image_path}")
-            
-            # 调用图片分析工具
-            analysis_result = self.image_tool._run(analysis_query, image_path)
-            
-            # 更新状态
-            analyzed_images = state.get("analyzed_images", {}).copy()
-            analyzed_images[image_path] = {
-                "analysis_query": analysis_query,
-                "analysis_result": analysis_result,
-                "iteration": state.get("analysis_iteration", 0)
-            }
-            
-            completed_tasks = state.get("completed_tasks", []).copy()
-            completed_tasks.append(f"analyzed_image_{len(analyzed_images)}")
-            
-            return {
-                "analyzed_images": analyzed_images,
-                "completed_tasks": completed_tasks
-            }
-            
-        except Exception as e:
-            logger.error(f"图片分析执行失败: {e}")
-            return {"analysis_errors": [f"图片分析失败: {str(e)}"]}
-    
-    def _execute_text_analysis(self, decision_line: str, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """执行文本分析决策"""
-        try:
-            parts = decision_line.split('|')
-            focus_area = parts[1].strip() if len(parts) > 1 else "general_analysis"
-            
-            logger.info(f"执行文本分析: {focus_area}")
-            
-            # 这里可以根据focus_area进行不同的文本分析
-            # 目前简单记录分析任务完成
-            completed_tasks = state.get("completed_tasks", []).copy()
-            completed_tasks.append(f"text_analysis_{focus_area}")
-            
-            return {
-                "completed_tasks": completed_tasks
-            }
-            
-        except Exception as e:
-            logger.error(f"文本分析执行失败: {e}")
-            return {"analysis_errors": [f"文本分析失败: {str(e)}"]}
-    
-    def _should_continue_english_analysis(self, state: DeepPaperAnalysisState) -> str:
-        """判断是否继续英文分析"""
-        if state.get("is_analysis_complete", False):
-            return "extract_contributions"
+            # 如果是工具消息，让LLM继续处理工具结果
+            elif isinstance(last_message, ToolMessage):
+                logger.info(f"🔧 收到工具结果 → continue")
+                return "continue"
         
-        current_iteration = state.get("analysis_iteration", 0)
-        if current_iteration >= self.config.max_analysis_iterations:
-            logger.warning("达到最大迭代次数，强制进入贡献提取阶段")
-            return "extract_contributions"
+        # 防止无限循环：检查消息数量
+        if len(messages) > 15:  # 增加上限，给更多机会进行工具调用
+            logger.warning(f"⚠️ 消息数量超过限制 ({len(messages)}) → chinese_analysis")
+            return "chinese_analysis"
         
+        # 统计工具调用次数
+        tool_call_count = 0
+        tool_message_count = 0
+        for msg in messages:
+            if isinstance(msg, AIMessage):
+                tool_calls = getattr(msg, 'tool_calls', None)
+                if tool_calls:
+                    tool_call_count += len(tool_calls)
+            elif isinstance(msg, ToolMessage):
+                tool_message_count += 1
+        
+        logger.info(f"  - 工具调用次数: {tool_call_count}, 工具响应: {tool_message_count}")
+        
+        # 如果已经进行了足够的工具调用，考虑结束
+        if tool_call_count >= 3:  # 已经进行了多次工具调用
+            logger.info(f"🔄 已进行 {tool_call_count} 次工具调用，考虑结束分析 → chinese_analysis")
+            return "chinese_analysis"
+        
+        # 默认继续分析
+        logger.info(f"🔄 继续分析 → continue")
         return "continue"
     
-    def _extract_contributions_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """提取主要贡献节点"""
-        logger.info("开始提取主要贡献...")
+    def _chinese_analysis_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
+        """中文分析节点 - 直接输出中文分析结果"""
+        logger.info("开始生成中文分析结果...")
         
         try:
-            contribution_tool = self.analysis_tools_dict["analyze_contributions"]
-            image_insights = state.get("analyzed_images", {})
+            # 准备中文分析的提示词
+            chinese_prompt = self._generate_chinese_analysis_prompt(state)
             
-            result = contribution_tool._run(
-                paper_text=state["paper_text"],
-                image_insights=image_insights
-            )
+            # 使用主分析LLM直接生成中文结果
+            response = self.analysis_llm.invoke(chinese_prompt)
+            chinese_content = response.content if hasattr(response, 'content') else str(response)
             
-            # 解析结果
-            contributions_data = json.loads(result) if isinstance(result, str) else result
+            logger.info("中文分析结果生成完成")
             
-            logger.info("主要贡献提取完成")
-            return {"main_contributions": contributions_data}
-            
-        except Exception as e:
-            logger.error(f"主要贡献提取失败: {e}")
-            return {"analysis_errors": [f"贡献提取失败: {str(e)}"]}
-    
-    def _analyze_methodology_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """分析方法论节点"""
-        logger.info("开始分析方法论...")
-        
-        try:
-            methodology_tool = self.analysis_tools_dict["analyze_methodology"]
-            image_insights = state.get("analyzed_images", {})
-            
-            result = methodology_tool._run(
-                paper_text=state["paper_text"],
-                image_insights=image_insights
-            )
-            
-            methodology_data = json.loads(result) if isinstance(result, str) else result
-            
-            logger.info("方法论分析完成")
-            return {"methodology_analysis": methodology_data}
-            
-        except Exception as e:
-            logger.error(f"方法论分析失败: {e}")
-            return {"analysis_errors": [f"方法论分析失败: {str(e)}"]}
-    
-    def _analyze_results_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """分析实验结果节点"""
-        logger.info("开始分析实验结果...")
-        
-        try:
-            results_tool = self.analysis_tools_dict["analyze_experimental_results"]
-            chart_insights = state.get("analyzed_images", {})
-            
-            result = results_tool._run(
-                paper_text=state["paper_text"],
-                chart_insights=chart_insights
-            )
-            
-            results_data = json.loads(result) if isinstance(result, str) else result
-            
-            logger.info("实验结果分析完成")
-            return {"experimental_results": results_data}
-            
-        except Exception as e:
-            logger.error(f"实验结果分析失败: {e}")
-            return {"analysis_errors": [f"实验结果分析失败: {str(e)}"]}
-    
-    def _analyze_background_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """分析背景节点"""
-        logger.info("开始分析研究背景...")
-        
-        try:
-            background_tool = self.analysis_tools_dict["analyze_background"]
-            image_insights = state.get("analyzed_images", {})
-            
-            result = background_tool._run(
-                paper_text=state["paper_text"],
-                image_insights=image_insights
-            )
-            
-            background_data = json.loads(result) if isinstance(result, str) else result
-            
-            logger.info("研究背景分析完成")
-            return {"background_analysis": background_data}
-            
-        except Exception as e:
-            logger.error(f"研究背景分析失败: {e}")
-            return {"analysis_errors": [f"背景分析失败: {str(e)}"]}
-    
-    def _should_translate(self, state: DeepPaperAnalysisState) -> str:
-        """判断是否需要翻译"""
-        if self.config.enable_translation:
-            return "translate"
-        else:
-            return "skip_translation"
-    
-    def _translate_all_sections_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
-        """翻译所有章节节点"""
-        logger.info("开始翻译所有分析结果...")
-        
-        translation_results = {}
-        
-        try:
-            # 翻译主要贡献
-            if state.get("main_contributions"):
-                logger.info("翻译主要贡献...")
-                translated = self.translation_tool.translate_contributions(state["main_contributions"])
-                translation_results["translated_contributions"] = translated
-            
-            # 翻译方法论
-            if state.get("methodology_analysis"):
-                logger.info("翻译方法论...")
-                translated = self.translation_tool.translate_methodology(state["methodology_analysis"])
-                translation_results["translated_methodology"] = translated
-            
-            # 翻译实验结果
-            if state.get("experimental_results"):
-                logger.info("翻译实验结果...")
-                translated = self.translation_tool.translate_results(state["experimental_results"])
-                translation_results["translated_results"] = translated
-            
-            # 翻译背景分析
-            if state.get("background_analysis"):
-                logger.info("翻译研究背景...")
-                translated = self.translation_tool.translate_background(state["background_analysis"])
-                translation_results["translated_background"] = translated
-            
-            translation_results["is_translation_complete"] = True
-            logger.info("所有章节翻译完成")
-            
-            return translation_results
-            
-        except Exception as e:
-            logger.error(f"翻译失败: {e}")
             return {
-                "analysis_errors": [f"翻译失败: {str(e)}"],
-                "is_translation_complete": False
+                "chinese_analysis": chinese_content,
+                "is_complete": True
             }
+            
+        except Exception as e:
+            logger.error(f"中文分析失败: {e}")
+            return {"messages": [AIMessage(content=f"中文分析失败: {str(e)}")]}
+    
+    # 移除了翻译相关的方法
+    
+    # 移除了翻译节点，直接输出中文
+    
+    def _generate_initial_analysis_prompt(self, state: DeepPaperAnalysisState) -> str:
+        """生成初始分析提示词"""
+        available_images = state.get('available_images', [])
+        image_list = "\n".join([f"  - {img}" for img in available_images[:10]])  # 显示前10个图片
+        if len(available_images) > 10:
+            image_list += f"\n  ... and {len(available_images) - 10} more images"
+        
+        return f"""
+你是一位专业的学术论文分析专家。你有一个图片分析工具，可以帮助你理解论文中的图表、架构图和实验结果。
+
+**可用工具:**
+- `analyze_image`: 用于分析论文中的任何图片/图表/图表/示意图
+  - 当你需要理解文本中引用的视觉内容时调用此工具
+  - 始终分析关键图表、架构图、实验图表和重要表格
+  - 提供具体的分析查询，如"分析这个架构图并识别主要组件"或"从这个实验图表中提取性能指标"
+
+**本论文中可用的图片:**
+{image_list}
+
+**论文内容:**
+{state['paper_text'][:15000]}...
+
+**你的任务:**
+对这篇学术论文进行全面分析。**重要**: 当你遇到对图表、图表、架构图或实验结果的引用时，使用图片分析工具来获得更深入的见解。
+
+**分析指导原则:**
+1. **研究目标和贡献**: 识别主要研究目标和关键贡献
+2. **技术方法与创新**: 分析技术方法和新颖方面
+3. **实验设计与结果**: 检查实验设置和性能结果
+4. **视觉内容分析**: 对于任何提到的图表/图表/示意图，使用图片分析工具
+
+**何时使用图片分析工具:**
+- 当文本提到"图X"、"表Y"、"架构"、"示意图"等时
+- 当分析可能有视觉表示的实验结果时
+- 当理解系统架构或模型设计时
+- 当从图表或性能比较中提取特定数据时
+
+**如何使用工具:**
+调用 `analyze_image` 时需要:
+- `analysis_query`: 对你要分析内容的清晰中文描述（如"分析这个系统架构并识别主要组件"）
+- `image_path`: 来自可用图片列表的相对路径（如"imgs/img_in_image_box_253_178_967_593.jpg"）
+
+现在开始你的分析。记住，每当视觉内容可以提供额外见解时，就使用图片分析工具。
+
+**注意**: 请用中文进行所有分析和说明。
+"""
+    
+    def _generate_chinese_analysis_prompt(self, state: DeepPaperAnalysisState) -> str:
+        """生成中文分析提示词"""
+        
+        # 收集所有分析信息
+        paper_text = state["paper_text"]
+        messages = state["messages"]
+        
+        # 提取图片分析结果
+        image_analysis_results = []
+        tool_call_count = 0
+        for msg in messages:
+            if isinstance(msg, ToolMessage):
+                image_analysis_results.append(msg.content)
+            elif isinstance(msg, AIMessage):
+                tool_calls = getattr(msg, 'tool_calls', None)
+                if tool_calls:
+                    tool_call_count += len(tool_calls)
+        
+        image_insights = "\n\n".join(image_analysis_results) if image_analysis_results else "未进行图片分析"
+        
+        logger.info(f"中文分析: 发现 {tool_call_count} 次工具调用, {len(image_analysis_results)} 个图片分析结果")
+        
+        return f"""
+请基于之前的分析和图片理解，用中文生成这篇论文的全面分析报告。
+
+**论文内容:**
+{paper_text[:15000]}
+
+**图片分析结果:**
+{image_insights}
+
+**要求:**
+请用中文提供详细的分析，包括以下内容：
+
+# 论文深度分析报告
+
+## 1. 研究目标与动机
+- 论文要解决的主要问题
+- 研究动机和重要性
+- 与现有研究的关系
+
+## 2. 主要贡献与创新点
+- 列出3-6个关键贡献
+- 每个贡献的具体描述和创新性
+- 与现有方法的区别和优势
+
+## 3. 技术方法分析
+- 主要技术方法和算法
+- 关键技术细节和创新点
+- 方法的优势和限制
+
+## 4. 实验设计与结果
+- 实验设置和数据集
+- 主要性能指标和结果
+- 与基准方法的比较
+
+## 5. 图表分析与见解
+{'基于图片分析结果的深入解读' if image_analysis_results else '未提供图表分析'}
+
+## 6. 关键发现与启示
+- 3-5个最重要的发现
+- 对领域的影响和意义
+- 未来研究方向
+
+## 7. 整体评价与总结
+- 论文的技术质量和深度
+- 实用价值和应用前景
+- 不足之处和改进建议
+
+请用专业、准确的中文进行分析，确保内容全面且深入。
+"""
+    
+    # 移除了翻译提示词生成方法
     
     def analyze_paper_folder(self, folder_path: str, thread_id: str = "1") -> Dict[str, Any]:
         """
@@ -560,47 +468,46 @@ Respond with exactly one action in the specified format. Be specific about what 
         """
         logger.info(f"开始分析论文文件夹: {folder_path}")
         
-        # 解析文件夹内容
-        folder_data = self._parse_paper_folder(folder_path)
-        
-        # 创建初始状态
-        initial_state: DeepPaperAnalysisState = {
-            "base_folder_path": folder_path,
-            "paper_text": folder_data["paper_text"],
-            "available_images": folder_data["available_images"],
-            "image_mappings": folder_data["image_mappings"],
-            
-            # 分析结果初始化
-            "main_contributions": None,
-            "background_analysis": None,
-            "methodology_analysis": None,
-            "experimental_results": None,
-            "analyzed_images": None,
-            "image_insights": None,
-            
-            # 翻译结果初始化
-            "translated_contributions": None,
-            "translated_background": None,
-            "translated_methodology": None,
-            "translated_results": None,
-            
-            # 状态跟踪初始化
-            "analysis_iteration": 0,
-            "completed_tasks": [],
-            "is_analysis_complete": False,
-            "is_translation_complete": False,
-            "analysis_errors": []
-        }
-        
-        # 配置LangGraph
-        config = RunnableConfig(
-            configurable={"thread_id": thread_id},
-            recursion_limit=100
-        )
-        
         try:
-            # 执行分析
-            logger.info("开始执行两阶段分析流程...")
+            # 1. 解析文件夹内容
+            folder_data = self._parse_paper_folder(folder_path)
+            
+            # 2. 创建图片分析工具
+            logger.info("创建图片分析工具...")
+            self.image_tool = create_image_analysis_tool(folder_path, self.config.vision_model)
+            
+            # 3. 创建带工具的LLM
+            self.llm_with_tools = self.analysis_llm.bind_tools([self.image_tool])
+            
+            # 4. 构建并编译完整的图
+            logger.info("构建 LangGraph 工作流...")
+            self._build_graph_with_tools(self.image_tool)
+            
+            logger.info(f"✅ 初始化完成:")
+            logger.info(f"  - 图片分析工具: {self.image_tool.name}")
+            logger.info(f"  - 可分析图片数量: {len(folder_data['available_images'])}")
+            logger.info(f"  - 视觉模型: {self.config.vision_model}")
+            
+            # 5. 创建初始状态
+            initial_state: DeepPaperAnalysisState = {
+                "base_folder_path": folder_path,
+                "paper_text": folder_data["paper_text"],
+                "available_images": folder_data["available_images"],
+                "image_mappings": folder_data["image_mappings"],
+                
+                "messages": [],
+                "chinese_analysis": None,
+                "is_complete": False
+            }
+            
+            # 6. 配置LangGraph
+            config = RunnableConfig(
+                configurable={"thread_id": thread_id},
+                recursion_limit=100
+            )
+            
+            # 7. 执行分析
+            logger.info("开始执行LangGraph工作流...")
             result = self.agent.invoke(initial_state, config)
             
             logger.info("论文分析完成")
@@ -608,9 +515,11 @@ Respond with exactly one action in the specified format. Be specific about what 
             
         except Exception as e:
             logger.error(f"论文分析失败: {e}")
+            import traceback
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
             return {
                 "error": f"分析失败: {str(e)}",
-                "initial_state": initial_state
+                "folder_path": folder_path
             }
     
     def _parse_paper_folder(self, folder_path: str) -> Dict[str, Any]:
@@ -640,7 +549,7 @@ Respond with exactly one action in the specified format. Be specific about what 
         """获取当前配置"""
         return self.config
     
-    def generate_markdown_report(self, analysis_result: Dict[str, Any], output_path: str = None) -> str:
+    def generate_markdown_report(self, analysis_result: Dict[str, Any], output_path: Optional[str] = None) -> str:
         """
         生成markdown分析报告
         
@@ -653,8 +562,8 @@ Respond with exactly one action in the specified format. Be specific about what 
         """
         logger.info("生成markdown分析报告...")
         
-        # 创建格式化器
-        formatter = create_markdown_formatter(self.config.target_language)
+        # 创建格式化器（使用中文）
+        formatter = create_markdown_formatter("zh")
         
         # 生成报告
         report_content = formatter.format_analysis_report(analysis_result)
@@ -669,7 +578,7 @@ Respond with exactly one action in the specified format. Be specific about what 
         
         return report_content
     
-    def analyze_and_generate_report(self, folder_path: str, output_path: str = None, thread_id: str = "1") -> tuple[Dict[str, Any], str]:
+    def analyze_and_generate_report(self, folder_path: str, output_path: Optional[str] = None, thread_id: str = "1") -> tuple[Dict[str, Any], str]:
         """
         完整的分析和报告生成流程
         
@@ -697,14 +606,12 @@ Respond with exactly one action in the specified format. Be specific about what 
 def create_deep_paper_analysis_agent(
     analysis_model: str = "deepseek.DeepSeek_V3",
     vision_model: str = "ollama.llava",
-    translation_model: str = "ollama.Qwen3_30B",
     **kwargs
 ) -> DeepPaperAnalysisAgent:
     """创建深度论文分析agent的便捷函数"""
     config = DeepPaperAnalysisConfig(
         analysis_model=analysis_model,
         vision_model=vision_model,
-        translation_model=translation_model,
         **kwargs
     )
     return DeepPaperAnalysisAgent(config=config)
