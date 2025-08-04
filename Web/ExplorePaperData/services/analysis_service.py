@@ -217,15 +217,15 @@ class DeepAnalysisService:
             str: 论文文件夹路径，失败返回None
         """
         try:
-            # 标准化论文文件夹路径
-            paper_folder = f"/mnt/nfs_share/code/homesystem/data/paper_analyze/{arxiv_id}"
-            paper_folder_path = Path(paper_folder)
+            # 使用相对路径获取项目根目录
+            project_root = Path(__file__).parent.parent.parent.parent
+            paper_folder = project_root / "data" / "paper_analyze" / arxiv_id
             
             # 创建文件夹（如果不存在）
-            paper_folder_path.mkdir(parents=True, exist_ok=True)
+            paper_folder.mkdir(parents=True, exist_ok=True)
             
             logger.info(f"📁 论文文件夹已准备: {paper_folder}")
-            return paper_folder
+            return str(paper_folder)
             
         except Exception as e:
             logger.error(f"❌ 准备论文文件夹失败 {arxiv_id}: {e}")

@@ -551,12 +551,12 @@ class PaperGatherService:
                     'description': '相关性阈值'
                 },
                 {
-                    'field': 'summarization_threshold', 
+                    'field': 'deep_analysis_threshold', 
                     'default': 0.8,
                     'min': 0.0,
                     'max': 1.0,
                     'type': float,
-                    'description': '摘要生成阈值'
+                    'description': '深度分析阈值'
                 },
                 {
                     'field': 'max_papers_per_search',
@@ -567,20 +567,12 @@ class PaperGatherService:
                     'description': '每次搜索的最大论文数'
                 },
                 {
-                    'field': 'max_papers_in_response',
-                    'default': 50,
-                    'min': 1,
-                    'max': 200,
+                    'field': 'ocr_char_limit_for_analysis',
+                    'default': 10000,
+                    'min': 1000,
+                    'max': 50000,
                     'type': int,
-                    'description': '响应中的最大论文数'
-                },
-                {
-                    'field': 'max_relevant_papers_in_response',
-                    'default': 10,
-                    'min': 1,
-                    'max': 50,
-                    'type': int,
-                    'description': '响应中的最大相关论文数'
+                    'description': 'OCR字符分析限制'
                 }
             ]
             
@@ -608,7 +600,7 @@ class PaperGatherService:
                     return False, f"{rule['description']} 格式无效: {value} (错误: {e})"
             
             # 布尔值验证和转换
-            boolean_fields = ['enable_paper_summarization', 'enable_translation']
+            boolean_fields = ['enable_deep_analysis']
             for field in boolean_fields:
                 if field in config_dict:
                     value = config_dict[field]
@@ -736,10 +728,9 @@ class PaperGatherService:
             valid_params = {
                 'interval_seconds', 'search_query', 'max_papers_per_search', 
                 'user_requirements', 'llm_model_name', 'abstract_analysis_model',
-                'full_paper_analysis_model', 'translation_model', 'paper_analysis_model',
-                'relevance_threshold', 'max_papers_in_response', 'max_relevant_papers_in_response',
-                'enable_paper_summarization', 'summarization_threshold', 
-                'enable_translation', 'custom_settings',
+                'full_paper_analysis_model', 'deep_analysis_model', 'vision_model',
+                'relevance_threshold', 'deep_analysis_threshold', 'ocr_char_limit_for_analysis',
+                'enable_deep_analysis', 'custom_settings',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数
@@ -895,10 +886,9 @@ class PaperGatherService:
             valid_params = {
                 'interval_seconds', 'search_query', 'max_papers_per_search', 
                 'user_requirements', 'llm_model_name', 'abstract_analysis_model',
-                'full_paper_analysis_model', 'translation_model', 'paper_analysis_model',
-                'relevance_threshold', 'max_papers_in_response', 'max_relevant_papers_in_response',
-                'enable_paper_summarization', 'summarization_threshold', 
-                'enable_translation', 'custom_settings',
+                'full_paper_analysis_model', 'deep_analysis_model', 'vision_model',
+                'relevance_threshold', 'deep_analysis_threshold', 'ocr_char_limit_for_analysis',
+                'enable_deep_analysis', 'custom_settings',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数

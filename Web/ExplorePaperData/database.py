@@ -322,7 +322,7 @@ class PaperService:
                 SELECT arxiv_id, title, authors, categories, processing_status, 
                        created_at, research_objectives, keywords, task_name, task_id,
                        full_paper_relevance_score, full_paper_relevance_justification,
-                       dify_document_id
+                       dify_document_id, deep_analysis_result, deep_analysis_status
                 FROM arxiv_papers 
                 {where_clause}
                 ORDER BY created_at DESC
@@ -331,10 +331,14 @@ class PaperService:
             cursor.execute(data_query, params + [per_page, offset])
             papers = [dict(row) for row in cursor.fetchall()]
             
+            # 为每个论文添加深度分析标识
+            for paper in papers:
+                paper['has_deep_analysis'] = bool(paper.get('deep_analysis_result'))
+            
             return papers, total
     
     def get_paper_detail(self, arxiv_id: str) -> Optional[Dict]:
-        """获取论文详细信息"""
+        """获取论文详细信息，优先显示深度分析内容"""
         cache_key = f"paper_detail_{arxiv_id}"
         cached_data = self.db_manager.get_cache(cache_key)
         if cached_data:
@@ -362,6 +366,43 @@ class PaperService:
                         paper_dict['metadata'] = json.loads(paper_dict['metadata'])
                     except:
                         paper_dict['metadata'] = {}
+                
+                # 检查是否存在深度分析内容，如果存在则优先使用
+                if paper_dict.get('deep_analysis_result'):
+                    # 标记内容来源为深度分析
+                    paper_dict['content_source'] = 'deep_analysis'
+                    paper_dict['has_deep_analysis'] = True
+                    
+                    # 使用深度分析内容替换原有的结构化字段（用于显示摘要部分）
+                    # 保留原始数据库翻译字段以备查看
+                    paper_dict['original_research_background'] = paper_dict.get('research_background')
+                    paper_dict['original_research_objectives'] = paper_dict.get('research_objectives')
+                    paper_dict['original_methods'] = paper_dict.get('methods')
+                    paper_dict['original_key_findings'] = paper_dict.get('key_findings')
+                    paper_dict['original_conclusions'] = paper_dict.get('conclusions')
+                    paper_dict['original_limitations'] = paper_dict.get('limitations')
+                    paper_dict['original_future_work'] = paper_dict.get('future_work')
+                    
+                    # 提取深度分析内容的前几段用于摘要显示
+                    deep_analysis_text = paper_dict['deep_analysis_result']
+                    if deep_analysis_text:
+                        # 简单提取前500字符作为摘要
+                        lines = deep_analysis_text.split('\n')
+                        preview_lines = []
+                        char_count = 0
+                        for line in lines:
+                            if char_count + len(line) > 500:
+                                break
+                            preview_lines.append(line)
+                            char_count += len(line)
+                        
+                        paper_dict['deep_analysis_preview'] = '\n'.join(preview_lines)
+                        if char_count >= 500:
+                            paper_dict['deep_analysis_preview'] += '\n\n... (查看完整深度分析)'
+                else:
+                    # 使用数据库翻译字段
+                    paper_dict['content_source'] = 'database_translation'
+                    paper_dict['has_deep_analysis'] = False
                 
                 # 缓存结果
                 self.db_manager.set_cache(cache_key, paper_dict, timeout=600)

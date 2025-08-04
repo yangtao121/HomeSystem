@@ -4,8 +4,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from HomeSystem.workflow.task import Task
 from HomeSystem.utility.arxiv.arxiv import ArxivTool, ArxivResult, ArxivData, ArxivSearchMode
-from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult, TranslationLLM
-from HomeSystem.graph.paper_analysis_agent import PaperAnalysisAgent, PaperAnalysisConfig
+from HomeSystem.workflow.paper_gather_task.llm_config import AbstractAnalysisLLM, AbstractAnalysisResult, FullPaperAnalysisLLM, FullAnalysisResult
 from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
 from loguru import logger
 
@@ -21,20 +20,16 @@ class PaperGatherTaskConfig:
                  llm_model_name: str = "ollama.Qwen3_30B",
                  abstract_analysis_model: Optional[str] = None,
                  full_paper_analysis_model: Optional[str] = None,
-                 translation_model: Optional[str] = None,
-                 paper_analysis_model: Optional[str] = None,
                  relevance_threshold: float = 0.7,
                  max_papers_in_response: int = 50,
                  max_relevant_papers_in_response: int = 10,
-                 enable_paper_summarization: bool = True,
-                 summarization_threshold: float = 0.8,
-                 enable_translation: bool = True,
-                 # 重试相关参数
-                 translation_retry_count: int = 1,
-                 translation_retry_delay: float = 1.0,
-                 summarization_retry_count: int = 1,
-                 summarization_retry_delay: float = 1.0,
-                 # 新增搜索模式相关参数
+                 # 深度分析相关参数
+                 enable_deep_analysis: bool = True,
+                 deep_analysis_threshold: float = 0.8,
+                 deep_analysis_model: str = "deepseek.DeepSeek_V3",
+                 vision_model: str = "ollama.Qwen2_5_VL_7B",
+                 ocr_char_limit_for_analysis: int = 10000,
+                 # 搜索模式相关参数
                  search_mode: ArxivSearchMode = ArxivSearchMode.LATEST,
                  start_year: Optional[int] = None,
                  end_year: Optional[int] = None,
@@ -56,22 +51,17 @@ class PaperGatherTaskConfig:
         if not full_paper_analysis_model:
             full_paper_analysis_model = llm_model_name
         self.full_paper_analysis_model = full_paper_analysis_model
-        if not translation_model:
-            translation_model = llm_model_name
-        self.translation_model = translation_model
-        if not paper_analysis_model:
-            paper_analysis_model = llm_model_name
-        self.paper_analysis_model = paper_analysis_model
+        
         self.relevance_threshold = relevance_threshold
         self.max_papers_in_response = max_papers_in_response
         self.max_relevant_papers_in_response = max_relevant_papers_in_response
-        self.enable_paper_summarization = enable_paper_summarization
-        self.summarization_threshold = summarization_threshold
-        self.enable_translation = enable_translation
-        self.translation_retry_count = translation_retry_count
-        self.translation_retry_delay = translation_retry_delay
-        self.summarization_retry_count = summarization_retry_count
-        self.summarization_retry_delay = summarization_retry_delay
+        
+        # 深度分析相关配置
+        self.enable_deep_analysis = enable_deep_analysis
+        self.deep_analysis_threshold = deep_analysis_threshold
+        self.deep_analysis_model = deep_analysis_model
+        self.vision_model = vision_model
+        self.ocr_char_limit_for_analysis = ocr_char_limit_for_analysis
         # 新增搜索模式相关属性
         self.search_mode = search_mode
         self.start_year = start_year
@@ -91,8 +81,8 @@ class PaperGatherTaskConfig:
                    f"查询='{search_query}', "
                    f"搜索模式={search_mode.value}, "
                    f"最大论文数={max_papers_per_search}, "
-                   f"启用论文总结={enable_paper_summarization}, "
-                   f"启用翻译={enable_translation}")
+                   f"启用深度分析={enable_deep_analysis}, "
+                   f"深度分析阈值={deep_analysis_threshold}")
     
     def _validate_search_mode_params(self):
         """验证搜索模式参数的合法性"""
@@ -129,18 +119,15 @@ class PaperGatherTaskConfig:
             'llm_model_name': self.llm_model_name,
             'abstract_analysis_model': self.abstract_analysis_model,
             'full_paper_analysis_model': self.full_paper_analysis_model,
-            'translation_model': self.translation_model,
-            'paper_analysis_model': self.paper_analysis_model,
             'relevance_threshold': self.relevance_threshold,
             'max_papers_in_response': self.max_papers_in_response,
             'max_relevant_papers_in_response': self.max_relevant_papers_in_response,
-            'enable_paper_summarization': self.enable_paper_summarization,
-            'summarization_threshold': self.summarization_threshold,
-            'enable_translation': self.enable_translation,
-            'translation_retry_count': self.translation_retry_count,
-            'translation_retry_delay': self.translation_retry_delay,
-            'summarization_retry_count': self.summarization_retry_count,
-            'summarization_retry_delay': self.summarization_retry_delay,
+            # 深度分析相关配置
+            'enable_deep_analysis': self.enable_deep_analysis,
+            'deep_analysis_threshold': self.deep_analysis_threshold,
+            'deep_analysis_model': self.deep_analysis_model,
+            'vision_model': self.vision_model,
+            'ocr_char_limit_for_analysis': self.ocr_char_limit_for_analysis,
             # 搜索模式相关配置
             'search_mode': self.search_mode.value,
             'start_year': self.start_year,
@@ -177,25 +164,9 @@ class PaperGatherTask(Task):
         self.full_paper_analyzer = FullPaperAnalysisLLM(
             model_name=self.config.full_paper_analysis_model
         )
-        self.translator = TranslationLLM(
-            model_name=self.config.translation_model 
-        )
         
         # 初始化数据库操作
         self.db_ops = DatabaseOperations()
-        
-        # 初始化论文分析智能体（用于论文总结）
-        if self.config.enable_paper_summarization:
-            paper_analysis_config = PaperAnalysisConfig(
-                model_name=self.config.paper_analysis_model,
-                memory_enabled=False,
-                parallel_execution=True,
-                validate_results=True
-            )
-            self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
-            logger.info("论文分析智能体初始化完成")
-        else:
-            self.paper_analysis_agent = None
         
         logger.info(f"初始化论文收集任务，配置: {self.config.get_config_dict()}")
         
@@ -206,7 +177,7 @@ class PaperGatherTask(Task):
         # 如果更新了任何模型配置，需要重新初始化相应的LLM分析器
         model_related_keys = [
             'llm_model_name', 'abstract_analysis_model', 
-            'full_paper_analysis_model', 'translation_model', 'paper_analysis_model'
+            'full_paper_analysis_model'
         ]
         
         if any(key in kwargs for key in model_related_keys):
@@ -223,134 +194,11 @@ class PaperGatherTask(Task):
                     model_name=self.config.full_paper_analysis_model or self.config.llm_model_name
                 )
                 logger.info(f"重新初始化完整论文分析器: {self.full_paper_analyzer.model_name}")
-            
-            # 重新初始化翻译器
-            if 'llm_model_name' in kwargs or 'translation_model' in kwargs:
-                self.translator = TranslationLLM(
-                    model_name=self.config.translation_model or self.config.llm_model_name
-                )
-                logger.info(f"重新初始化翻译器: {self.translator.model_name}")
-            
-            # 重新初始化论文分析智能体
-            if ('llm_model_name' in kwargs or 'paper_analysis_model' in kwargs) and self.config.enable_paper_summarization:
-                paper_analysis_config = PaperAnalysisConfig(
-                    model_name=self.config.paper_analysis_model or self.config.llm_model_name,
-                    memory_enabled=False,
-                    parallel_execution=True,
-                    validate_results=True
-                )
-                self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
-                logger.info(f"重新初始化论文分析智能体: {self.paper_analysis_agent.config.model_name}")
-            
-        # 如果更新了论文总结开关，需要相应地初始化或清理论文分析智能体
-        if 'enable_paper_summarization' in kwargs:
-            if self.config.enable_paper_summarization and not self.paper_analysis_agent:
-                paper_analysis_config = PaperAnalysisConfig(
-                    model_name=self.config.paper_analysis_model or self.config.llm_model_name,
-                    memory_enabled=False,
-                    parallel_execution=True,
-                    validate_results=True
-                )
-                self.paper_analysis_agent = PaperAnalysisAgent(config=paper_analysis_config)
-                logger.info("启用论文总结，初始化论文分析智能体")
-            elif not self.config.enable_paper_summarization:
-                self.paper_analysis_agent = None
-                logger.info("禁用论文总结，清理论文分析智能体")
     
     def get_config(self) -> PaperGatherTaskConfig:
         """获取当前配置"""
         return self.config
     
-    async def translate_paper_fields(self, paper: ArxivData) -> bool:
-        """
-        将论文的英文结构化字段翻译为中文并直接覆盖原字段 (并发版本)
-        
-        Args:
-            paper: 论文数据对象，会直接修改其字段
-            
-        Returns:
-            bool: 翻译是否成功
-        """
-        if not self.config.enable_translation:
-            logger.debug("翻译功能已禁用，跳过翻译")
-            return True
-            
-        try:
-            logger.debug(f"开始并发翻译论文字段: {paper.title[:50]}...")
-            
-            # 定义需要翻译的字段
-            fields_to_translate = [
-                'research_background', 'research_objectives', 'methods', 
-                'key_findings', 'conclusions', 'limitations', 'future_work', "snippet"
-            ]
-            
-            # 收集需要翻译的字段和内容
-            texts_to_translate = []
-            field_names_to_translate = []
-            
-            for field_name in fields_to_translate:
-                field_value = getattr(paper, field_name, None)
-                if field_value and field_value.strip() and field_value != '无':
-                    texts_to_translate.append((field_name, field_value))
-                    field_names_to_translate.append(field_name)
-            
-            if not texts_to_translate:
-                logger.debug(f"没有需要翻译的字段: {paper.title[:50]}...")
-                return True
-            
-            logger.debug(f"准备并发翻译 {len(texts_to_translate)} 个字段: {field_names_to_translate}")
-            
-            # 使用重试逻辑进行翻译
-            retry_count = 0
-            last_error = None
-            
-            while retry_count <= self.config.translation_retry_count:
-                try:
-                    if retry_count > 0:
-                        logger.info(f"翻译重试第 {retry_count} 次，延迟 {self.config.translation_retry_delay} 秒...")
-                        await asyncio.sleep(self.config.translation_retry_delay)
-                    
-                    # 使用批量并发翻译
-                    translation_results = await self.translator.translate_texts_batch(texts_to_translate)
-                    
-                    # 检查翻译结果是否成功
-                    failed_translations = []
-                    for i, result in enumerate(translation_results):
-                        if result.translated_text.startswith("翻译失败") or result.translated_text.startswith("翻译异常"):
-                            failed_translations.append(field_names_to_translate[i])
-                    
-                    if failed_translations:
-                        raise Exception(f"以下字段翻译失败: {', '.join(failed_translations)}")
-                    
-                    # 将翻译结果应用到字段
-                    for i, (field_name, original_text) in enumerate(texts_to_translate):
-                        if i < len(translation_results):
-                            translation_result = translation_results[i]
-                            # 直接覆盖原字段
-                            setattr(paper, field_name, translation_result.translated_text)
-                            logger.debug(f"字段 {field_name} 翻译完成 (质量: {translation_result.translation_quality})")
-                        else:
-                            logger.warning(f"字段 {field_name} 翻译结果缺失，保持原文")
-                    
-                    logger.info(f"论文字段并发翻译完成: {paper.title[:50]}... (翻译了 {len(translation_results)} 个字段)")
-                    return True
-                    
-                except Exception as e:
-                    last_error = e
-                    retry_count += 1
-                    logger.error(f"翻译尝试 {retry_count} 失败: {e}")
-                    
-                    if retry_count <= self.config.translation_retry_count:
-                        logger.info(f"将在 {self.config.translation_retry_delay} 秒后重试...")
-                        continue
-            
-            # 所有重试都失败了
-            logger.error(f"翻译失败，已达到最大重试次数 ({self.config.translation_retry_count}): {last_error}")
-            return False
-            
-        except Exception as e:
-            logger.error(f"翻译过程中发生异常: {e}")
-            return False
     
     async def check_paper_in_database(self, arxiv_id: str) -> Optional[ArxivPaperModel]:
         """
@@ -406,19 +254,12 @@ class PaperGatherTask(Task):
         Returns:
             bool: 保存是否成功
         """
-        # 检查翻译和总结是否成功
-        translation_success = getattr(paper, 'translation_success', True)
-        summarization_success = getattr(paper, 'summarization_success', True)
+        # 检查深度分析是否成功（可选，失败也可以保存基础信息）
+        deep_analysis_success = getattr(paper, 'deep_analysis_success', True)
         
-        # 如果翻译失败且重试次数已用完，不保存到数据库
-        if not translation_success:
-            logger.error(f"论文翻译失败，不保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
-            return False
-            
-        # 如果总结失败且重试次数已用完，不保存到数据库
-        if not summarization_success:
-            logger.error(f"论文总结失败，不保存到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
-            return False
+        # 深度分析失败不阻止数据库保存，只记录日志
+        if not deep_analysis_success:
+            logger.warning(f"论文深度分析失败，但仍会保存基础信息到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
             
         try:
             # 创建ArxivPaperModel实例
@@ -436,22 +277,12 @@ class PaperGatherTask(Task):
                     'search_query': getattr(paper, 'search_query', ''),
                     'final_relevance_score': getattr(paper, 'final_relevance_score', 0.0),
                     'abstract_relevance_score': getattr(paper, 'abstract_relevance_score', 0.0),
-                    'full_paper_relevance_score': getattr(paper, 'full_paper_relevance_score', 0.0),
-                    'paper_summarized': getattr(paper, 'paper_summarized', False)
+                    'full_paper_relevance_score': getattr(paper, 'full_paper_relevance_score', 0.0)
                 },
                 # 任务追踪字段
                 task_name=self.config.task_name,
                 task_id=self.config.task_id,
-                # 结构化论文分析字段
-                research_background=getattr(paper, 'research_background', None),
-                research_objectives=getattr(paper, 'research_objectives', None),
-                methods=getattr(paper, 'methods', None),
-                key_findings=getattr(paper, 'key_findings', None),
-                conclusions=getattr(paper, 'conclusions', None),
-                limitations=getattr(paper, 'limitations', None),
-                future_work=getattr(paper, 'future_work', None),
-                keywords=getattr(paper, 'keywords', None),
-                # 完整论文相关性评分字段
+                # 完整论文相关性评分字段（保留基础分析结果）
                 full_paper_relevance_score=getattr(paper, 'full_paper_relevance_score', None),
                 full_paper_relevance_justification=self._get_required_field(paper, 'full_paper_analysis_justification', 'full_paper_relevance_justification')
             )
@@ -538,6 +369,14 @@ class PaperGatherTask(Task):
         try:
             logger.info(f"开始完整论文分析: {paper.title[:50]}...")
             
+            # 准备统一的论文文件夹路径（使用相对路径）
+            import os
+            from pathlib import Path
+            project_root = Path(__file__).parent.parent.parent.parent  # 回到项目根目录
+            paper_folder = project_root / "data" / "paper_analyze" / paper.arxiv_id
+            paper_folder.mkdir(parents=True, exist_ok=True)
+            paper_folder_str = str(paper_folder)
+            
             # 检查是否已有OCR结果
             ocr_result = getattr(paper, 'ocr_result', None)
             
@@ -546,9 +385,14 @@ class PaperGatherTask(Task):
                 logger.debug("下载PDF中...")
                 paper.downloadPdf()
                 
-                # 执行OCR
-                logger.debug("执行OCR识别...")
-                ocr_result, status_info = paper.performOCR(max_pages=25)
+                # 执行PaddleOCR并保存到标准路径
+                logger.debug("执行PaddleOCR识别...")
+                ocr_result, status_info = paper.performOCR(
+                    use_paddleocr=True,
+                    auto_save=True,
+                    save_path=paper_folder_str,
+                    max_pages=25
+                )
                 
                 # 确保OCR结果保存到paper对象
                 paper.ocr_result = ocr_result
@@ -558,16 +402,24 @@ class PaperGatherTask(Task):
                     logger.warning(f"OCR结果过短或为空，跳过完整分析: {len(ocr_result) if ocr_result else 0} 字符")
                     return None
                 
-                logger.info(f"OCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+                logger.info(f"PaddleOCR成功，提取了 {status_info['char_count']} 字符，处理了 {status_info['processed_pages']}/{status_info['total_pages']} 页")
+                logger.info(f"OCR结果已保存到: {paper_folder_str}/{paper.arxiv_id}_paddleocr.md")
                 if status_info['is_oversized']:
                     logger.info("检测到超长文档，可能是毕业论文或书籍")
             else:
                 logger.debug(f"使用现有OCR结果进行完整论文分析: {len(ocr_result)} 字符")
             
+            # 限制用于LLM分析的字符数（默认10000字符）
+            analysis_char_limit = getattr(self.config, 'ocr_char_limit_for_analysis', 10000)
+            limited_ocr_result = ocr_result[:analysis_char_limit] if len(ocr_result) > analysis_char_limit else ocr_result
+            
+            if len(ocr_result) > analysis_char_limit:
+                logger.info(f"OCR结果过长({len(ocr_result)}字符)，限制为{analysis_char_limit}字符用于相关性分析")
+            
             # 使用FullPaperAnalysisLLM进行分析
             logger.debug("开始LLM分析完整论文...")
             full_analysis = self.full_paper_analyzer.analyze_full_paper(
-                paper_content=ocr_result,
+                paper_content=limited_ocr_result,
                 user_requirements=self.config.user_requirements
             )
 
@@ -580,118 +432,82 @@ class PaperGatherTask(Task):
             logger.error(f"完整论文分析失败: {e}")
             return None
     
-    async def summarize_paper(self, paper: ArxivData) -> Optional[Dict[str, Any]]:
+    async def perform_deep_analysis(self, paper: ArxivData, paper_folder_str: str) -> bool:
         """
-        使用论文分析智能体对论文进行总结
+        执行深度论文分析，替代原来的 summarize_paper 功能
         
         Args:
-            paper: 论文数据
+            paper: 论文数据对象
+            paper_folder_str: 论文文件夹路径
             
         Returns:
-            Dict: 论文总结结果，如果总结失败返回None
+            bool: 深度分析是否成功
         """
-        if not self.paper_analysis_agent:
-            logger.warning("论文分析智能体未初始化，无法进行论文总结")
-            return None
-            
         try:
-            logger.info(f"开始论文总结: {paper.title[:50]}...")
+            logger.info(f"🤖 开始深度论文分析: {paper.title[:50]}...")
             
-            # 优先使用现有的OCR结果
-            ocr_result = getattr(paper, 'ocr_result', None)
+            # 动态导入深度分析智能体（延迟导入避免启动时的兼容性问题）
+            try:
+                from HomeSystem.graph.deep_paper_analysis_agent import create_deep_paper_analysis_agent
+                logger.info("✅ 成功导入深度论文分析智能体")
+            except Exception as import_error:
+                logger.error(f"❌ 导入深度论文分析智能体失败: {import_error}")
+                return False
             
-            if not ocr_result or len(ocr_result.strip()) < 500:
-                logger.warning(f"无有效OCR结果可用于论文总结，需要先执行完整论文分析")
-                logger.warning(f"OCR结果长度: {len(ocr_result) if ocr_result else 0} 字符")
-                return None
+            # 获取深度分析配置
+            # analysis_model = getattr(self.config, 'deep_analysis_model', 'deepseek.DeepSeek_V3')
+            analysis_model = self.config.deep_analysis_model
+            # vision_model = getattr(self.config, 'vision_model', 'ollama.Qwen2_5_VL_7B')
+            vision_model = self.config.vision_model
             
-            logger.debug(f"使用现有OCR结果进行论文总结: {len(ocr_result)} 字符")
+            # 创建深度分析智能体
+            logger.info("🤖 创建深度分析智能体...")
+            agent = create_deep_paper_analysis_agent(
+                analysis_model=analysis_model,
+                vision_model=vision_model
+            )
+            logger.info("✅ 深度分析智能体创建成功")
             
-            # 使用重试逻辑进行总结
-            retry_count = 0
-            last_error = None
-            summary_result = None
+            # 执行分析
+            import time
+            analysis_result, report_content = agent.analyze_and_generate_report(
+                folder_path=paper_folder_str,
+                thread_id=f"paper_gather_{paper.arxiv_id}_{int(time.time())}"
+            )
             
-            while retry_count <= self.config.summarization_retry_count:
-                try:
-                    if retry_count > 0:
-                        logger.info(f"论文总结重试第 {retry_count} 次，延迟 {self.config.summarization_retry_delay} 秒...")
-                        await asyncio.sleep(self.config.summarization_retry_delay)
-                    
-                    # 使用论文分析智能体进行总结
-                    logger.debug("开始使用论文分析智能体进行总结...")
-                    summary_result = self.paper_analysis_agent.analyze_paper(
-                        paper_text=ocr_result,
-                        thread_id=f"paper_summary_{paper.arxiv_id}"
-                    )
-                    
-                    # 检查总结结果是否成功
-                    if not summary_result or "error" in summary_result:
-                        error_msg = summary_result.get("error", "未知错误") if summary_result else "无返回结果"
-                        raise Exception(f"论文总结失败: {error_msg}")
-                    
-                    break  # 总结成功，退出重试循环
-                    
-                except Exception as e:
-                    last_error = e
-                    retry_count += 1
-                    logger.error(f"论文总结尝试 {retry_count} 失败: {e}")
-                    
-                    if retry_count <= self.config.summarization_retry_count:
-                        logger.info(f"将在 {self.config.summarization_retry_delay} 秒后重试...")
+            # 检查分析是否成功
+            if 'error' in analysis_result:
+                logger.error(f"深度分析失败 {paper.arxiv_id}: {analysis_result['error']}")
+                return False
             
-            # 检查是否所有重试都失败了
-            if retry_count > self.config.summarization_retry_count:
-                logger.error(f"论文总结失败，已达到最大重试次数 ({self.config.summarization_retry_count}): {last_error}")
-                return None
-            
-            if summary_result and "error" not in summary_result:
-                # 提取结构化结果
-                structured_result = self.paper_analysis_agent.get_structured_result(summary_result)
-
-                # print(f"Structured Result: {structured_result}")
-
-                if structured_result:
-                    # 将结构化结果赋值给ArxivData对象的对应字段
-                    paper.research_background = structured_result.get("research_background")
-                    paper.research_objectives = structured_result.get("research_objectives")
-                    paper.methods = structured_result.get("methods")
-                    paper.key_findings = structured_result.get("key_findings")
-                    paper.conclusions = structured_result.get("conclusions")
-                    paper.limitations = structured_result.get("limitations")
-                    paper.future_work = structured_result.get("future_work")
-                    paper.keywords = structured_result.get("keywords")
-                    
-                    logger.info(f"论文总结成功: {paper.title[:50]}...")
-                    return {
-                        "structured_summary": structured_result,
-                        "analysis_metadata": {
-                            "extraction_method": summary_result.get("extraction_method", "parallel_llm"),
-                            "completed_tasks": summary_result.get("completed_tasks", 0),
-                            "extraction_errors": summary_result.get("extraction_errors", []),
-                            "timestamp": summary_result.get("timestamp", "")
-                        }
-                    }
-                else:
-                    logger.warning("无法提取结构化总结结果")
-                    return {
-                        "raw_summary": summary_result,
-                        "analysis_metadata": {
-                            "extraction_method": "parallel_llm",
-                            "note": "结构化提取失败，返回原始结果"
-                        }
-                    }
+            # 处理分析结果
+            if analysis_result.get('analysis_result') or report_content:
+                # 使用分析结果或报告内容
+                final_content = analysis_result.get('analysis_result') or report_content
+                
+                # 保存到文件
+                import os
+                analysis_file = os.path.join(paper_folder_str, f"{paper.arxiv_id}_analysis.md")
+                with open(analysis_file, 'w', encoding='utf-8') as f:
+                    f.write(final_content)
+                
+                # 将深度分析结果保存到paper对象中
+                paper.deep_analysis_result = final_content
+                paper.deep_analysis_completed = True
+                paper.deep_analysis_file_path = analysis_file
+                
+                logger.info(f"深度分析完成: {paper.arxiv_id}, 保存了 {len(final_content)} 字符")
+                logger.info(f"分析结果已保存到: {analysis_file}")
+                
+                return True
             else:
-                error_msg = summary_result.get("error", "未知错误") if summary_result else "无返回结果"
-                logger.error(f"论文总结失败: {error_msg}")
-                return None
+                logger.warning(f"深度分析未生成有效结果: {paper.arxiv_id}")
+                return False
                 
         except Exception as e:
-            logger.error(f"论文总结过程中发生异常: {e}")
-            return None
-        finally:
-            # 内存清理现在统一在 process_papers 方法中处理
-            pass
+            logger.error(f"❌ 深度分析过程中发生异常 {paper.arxiv_id}: {e}")
+            return False
+    
     
     async def process_papers(self, papers: ArxivResult) -> List[ArxivData]:
         """
@@ -711,8 +527,8 @@ class PaperGatherTask(Task):
             # 初始化论文处理标记
             setattr(paper, 'saved_to_database', False)
             setattr(paper, 'full_paper_analyzed', False)
-            setattr(paper, 'translation_success', True)  # 默认翻译成功
-            setattr(paper, 'summarization_success', True)  # 默认总结成功
+            setattr(paper, 'deep_analysis_completed', False)  # 深度分析是否完成
+            setattr(paper, 'deep_analysis_success', True)  # 默认深度分析成功（如果不执行深度分析）
             
             # 第一步：检查论文是否已在数据库中
             existing_paper = await self.check_paper_in_database(paper.arxiv_id)
@@ -755,44 +571,34 @@ class PaperGatherTask(Task):
                     if full_analysis.is_relevant:
                         logger.info(f"完整论文分析确认相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
                         
-                        # 第四步：如果启用了论文总结且相关性评分足够高，则进行论文总结
+                        # 第四步：如果启用了深度分析且相关性评分足够高，则进行深度分析
                         # 此时OCR结果已经在analyze_full_paper中准备好，不会重复执行
-                        if (self.config.enable_paper_summarization and 
-                            self.paper_analysis_agent and 
-                            full_analysis.relevance_score >= self.config.summarization_threshold):
+                        deep_analysis_enabled = getattr(self.config, 'enable_deep_analysis', True)
+                        deep_analysis_threshold = getattr(self.config, 'deep_analysis_threshold', 0.8)
+                        
+                        if (deep_analysis_enabled and 
+                            full_analysis.relevance_score >= deep_analysis_threshold):
                             
-                            logger.info(f"相关性评分足够高 ({full_analysis.relevance_score:.2f})，开始论文总结: {paper.title[:50]}...")
-                            summary_result = await self.summarize_paper(paper)
-
-                            if summary_result:
-                                paper.paper_summarized = True
-                                paper.paper_summary = summary_result
-                                logger.info(f"论文总结完成: {paper.title[:50]}...")
-                                
-                                # 第五步：翻译结构化字段
-                                translation_success = await self.translate_paper_fields(paper)
-                                setattr(paper, 'translation_success', translation_success)
-                                
-                                if translation_success:
-                                    # 输出翻译后的中文内容（调试信息）
-                                    logger.debug(f"论文关键词: {getattr(paper, 'keywords', '无')}")
-                                    logger.debug(f"论文研究背景: {getattr(paper, 'research_background', '无') or '无'}")
-                                    logger.debug(f"论文研究目标: {getattr(paper, 'research_objectives', '无') or '无'}")
-                                    logger.debug(f"论文方法: {getattr(paper, 'methods', '无') or '无'}")
-                                    logger.debug(f"论文主要发现: {getattr(paper, 'key_findings', '无') or '无'}")
-                                    logger.debug(f"论文结论: {getattr(paper, 'conclusions', '无') or '无'}")
-                                    logger.debug(f"论文局限性: {getattr(paper, 'limitations', '无') or '无'}")
-                                    logger.debug(f"论文未来工作: {getattr(paper, 'future_work', '无') or '无'}")
-                                else:
-                                    logger.warning(f"论文翻译失败: {paper.title[:50]}...")
+                            logger.info(f"相关性评分足够高 ({full_analysis.relevance_score:.2f})，开始深度分析: {paper.title[:50]}...")
+                            
+                            # 重新计算论文文件夹路径（保持一致性）
+                            from pathlib import Path
+                            project_root = Path(__file__).parent.parent.parent.parent
+                            paper_folder = project_root / "data" / "paper_analyze" / paper.arxiv_id
+                            paper_folder_str = str(paper_folder)
+                            
+                            deep_analysis_success = await self.perform_deep_analysis(paper, paper_folder_str)
+                            setattr(paper, 'deep_analysis_success', deep_analysis_success)
+                            
+                            if deep_analysis_success:
+                                logger.info(f"深度分析完成: {paper.title[:50]}...")
                             else:
-                                logger.warning(f"论文总结失败: {paper.title[:50]}...")
-                                setattr(paper, 'summarization_success', False)
+                                logger.warning(f"深度分析失败: {paper.title[:50]}...")
                         else:
-                            if not self.config.enable_paper_summarization:
-                                logger.debug(f"论文总结功能已禁用，跳过总结: {paper.title[:50]}...")
-                            elif full_analysis.relevance_score < self.config.summarization_threshold:
-                                logger.debug(f"相关性评分不足总结阈值 ({full_analysis.relevance_score:.2f} < {self.config.summarization_threshold})，跳过总结: {paper.title[:50]}...")
+                            if not deep_analysis_enabled:
+                                logger.debug(f"深度分析功能已禁用，跳过深度分析: {paper.title[:50]}...")
+                            elif full_analysis.relevance_score < deep_analysis_threshold:
+                                logger.debug(f"相关性评分不足深度分析阈值 ({full_analysis.relevance_score:.2f} < {deep_analysis_threshold})，跳过深度分析: {paper.title[:50]}...")
                     else:
                         logger.info(f"完整论文分析判定不相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
                 else:

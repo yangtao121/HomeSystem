@@ -209,6 +209,36 @@
     </div>
     {% endif %}
     
+    <!-- 深度分析预览 -->
+    {% if paper.has_deep_analysis and paper.deep_analysis_preview %}
+    <div class="detail-section">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightbulb"></i>
+                    深度分析内容预览
+                    <span class="badge bg-light text-success ms-2">AI 深度分析</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="detail-content markdown-content">
+                    {{ paper.deep_analysis_preview|markdown|safe }}
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('paper_analysis_view', arxiv_id=paper.arxiv_id) }}" 
+                       class="btn btn-success">
+                        <i class="bi bi-eye"></i> 查看完整深度分析
+                    </a>
+                    <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" 
+                       class="btn btn-outline-success ms-2">
+                        <i class="bi bi-download"></i> 下载分析结果
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- 相关度评分 -->
     <div class="detail-section">
         <div class="card">
@@ -268,16 +298,26 @@
     </div>
     
     <!-- 结构化分析 -->
-    {% if paper.research_background or paper.research_objectives or paper.methods or paper.key_findings or paper.conclusions or paper.limitations or paper.future_work %}
+    {% if not paper.has_deep_analysis and (paper.research_background or paper.research_objectives or paper.methods or paper.key_findings or paper.conclusions or paper.limitations or paper.future_work) %}
     <div class="detail-section">
-        <div class="card">
-            <div class="card-header">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
                 <h5 class="mb-0">
                     <i class="bi bi-diagram-3"></i>
                     结构化分析
+                    <span class="badge bg-light text-info ms-2">数据库翻译</span>
                 </h5>
             </div>
             <div class="card-body">
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-info-circle"></i>
+                        以下内容来自数据库存储的翻译数据，质量可能有限。建议进行深度分析以获得更优质的内容。
+                    </div>
+                    <button class="btn btn-success btn-sm start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                        <i class="bi bi-lightbulb"></i> 立即深度分析
+                    </button>
+                </div>
                 <div class="row">
                     {% if paper.research_background %}
                     <div class="col-md-6 mb-3">
