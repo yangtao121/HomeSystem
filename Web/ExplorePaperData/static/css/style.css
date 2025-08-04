@@ -635,3 +635,225 @@ body {
         padding: 0.5rem;
     }
 }
+
+/* ========== 深度分析配置模态框样式 ========== */
+
+/* 设置按钮样式 */
+.btn-outline-light {
+    transition: all 0.3s ease;
+}
+
+.btn-outline-light:hover {
+    background-color: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.8);
+    transform: translateY(-1px);
+}
+
+/* 配置模态框样式 */
+#analysisConfigModal .modal-content {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+#analysisConfigModal .modal-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+}
+
+#analysisConfigModal .modal-title {
+    font-weight: 600;
+}
+
+/* 表单样式 */
+#analysisConfigForm .form-label {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+}
+
+#analysisConfigForm .form-select,
+#analysisConfigForm .form-range {
+    border-radius: 8px;
+    border: 2px solid #e1e8ed;
+    transition: all 0.3s ease;
+}
+
+#analysisConfigForm .form-select:focus,
+#analysisConfigForm .form-range:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+/* 模型详情卡片样式 */
+#modelDetails .card {
+    border: 1px solid #e1e8ed;
+    transition: all 0.3s ease;
+}
+
+#modelDetails .card:hover {
+    border-color: var(--secondary-color);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+}
+
+#modelDetails .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e1e8ed;
+    font-weight: 600;
+}
+
+/* 智能推荐样式 */
+#modelRecommendations .card {
+    transition: all 0.3s ease;
+}
+
+#modelRecommendations .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+#modelRecommendations .btn {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+#modelRecommendations .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* 推荐按钮颜色 */
+.btn-outline-success:hover {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+.btn-outline-info:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+/* 状态提示样式 */
+#configSaveStatus {
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+#configLoadingState .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+#configErrorState .bi-exclamation-triangle-fill {
+    color: var(--danger-color);
+}
+
+/* 模态框按钮样式 */
+#analysisConfigModal .modal-footer .btn {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.6rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+#analysisConfigModal .modal-footer .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 超时时间滑块样式 */
+#timeoutRange {
+    height: 6px;
+    background: #e1e8ed;
+    border-radius: 3px;
+    outline: none;
+}
+
+#timeoutRange::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--secondary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+    transition: all 0.3s ease;
+}
+
+#timeoutRange::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(52, 152, 219, 0.4);
+}
+
+#timeoutRange::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: var(--secondary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    #analysisConfigModal .modal-lg {
+        max-width: 95%;
+        margin: 1rem auto;
+    }
+    
+    #modelDetails .col-md-6 {
+        margin-bottom: 1rem;
+    }
+    
+    #modelRecommendations .col-md-6 {
+        margin-bottom: 1rem;
+    }
+    
+    #analysisConfigModal .modal-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    #analysisConfigModal .modal-footer .btn {
+        width: 100%;
+    }
+}
+
+/* 动画效果 */
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#analysisConfigForm,
+#modelDetails,
+#modelRecommendations {
+    animation: slideInDown 0.4s ease-out;
+}
+
+/* 加载状态动画 */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+#configLoadingState p {
+    animation: pulse 2s infinite;
+}

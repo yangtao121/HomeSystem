@@ -14,6 +14,9 @@ import os
 import zipfile
 import tempfile
 import re
+import sys
+import json
+import redis
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +31,26 @@ moment = Moment(app)
 # 初始化服务
 paper_service = PaperService()
 dify_service = DifyService()
-analysis_service = DeepAnalysisService(paper_service)
+
+# 添加HomeSystem模块路径以导入LLMFactory
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+# 初始化Redis连接用于配置存储
+try:
+    redis_client = redis.Redis(
+        host=app.config.get('REDIS_HOST', 'localhost'),
+        port=app.config.get('REDIS_PORT', 16379),
+        db=app.config.get('REDIS_DB', 0),
+        decode_responses=True
+    )
+    redis_client.ping()  # 测试连接
+    logger.info("Redis连接成功")
+except Exception as e:
+    logger.warning(f"Redis连接失败，将使用内存存储: {e}")
+    redis_client = None
+
+# 初始化分析服务（需要在Redis初始化之后）
+analysis_service = DeepAnalysisService(paper_service, redis_client)
 
 # 添加模板上下文处理器
 @app.context_processor
@@ -1167,6 +1189,173 @@ def api_cancel_analysis(arxiv_id):
         return jsonify({
             'success': False,
             'error': f"取消失败: {str(e)}"
+        }), 500
+
+@app.route('/api/analysis_config', methods=['GET'])
+def get_analysis_config():
+    """获取深度分析配置和可用模型"""
+    try:
+        # 导入LLMFactory
+        from HomeSystem.graph.llm_factory import LLMFactory
+        factory = LLMFactory()
+        
+        # 从Redis获取当前配置，如果不存在则使用默认值
+        config_key = "analysis_config:global"
+        current_config = {
+            "analysis_model": "deepseek.DeepSeek_V3",
+            "vision_model": "ollama.Qwen2_5_VL_7B",
+            "timeout": 600
+        }
+        
+        if redis_client:
+            try:
+                saved_config = redis_client.get(config_key)
+                if saved_config:
+                    current_config.update(json.loads(saved_config))
+            except Exception as e:
+                logger.warning(f"读取Redis配置失败: {e}")
+        
+        # 获取可用模型列表和详细信息
+        available_models = factory.get_available_llm_models()
+        vision_models = factory.get_available_vision_models()
+        
+        # 构建模型详细信息字典
+        model_details = {}
+        for model_key in available_models:
+            if model_key in factory.available_llm_models:
+                model_info = factory.available_llm_models[model_key]
+                model_details[model_key] = {
+                    'display_name': model_info['display_name'],
+                    'description': model_info.get('description', ''),
+                    'provider': model_info['provider'],
+                    'max_tokens': model_info.get('max_tokens'),
+                    'context_length': model_info.get('context_length'),
+                    'supports_functions': model_info.get('supports_functions', False),
+                    'supports_vision': model_info.get('supports_vision', False),
+                    'is_local': model_info['type'] == 'ollama'
+                }
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'current_config': current_config,
+                'available_models': {
+                    'analysis_models': available_models,
+                    'vision_models': vision_models
+                },
+                'model_details': model_details,
+                'recommended_models': {
+                    'reasoning': ['deepseek.DeepSeek_R1', 'volcano.Doubao_1_6_Thinking'],
+                    'coding': ['ollama.Qwen3_30B', 'moonshot.Kimi_K2'],
+                    'general': ['deepseek.DeepSeek_V3', 'zhipuai.GLM_4_5'],
+                    'vision': vision_models[:3] if vision_models else []
+                }
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"获取分析配置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"获取配置失败: {str(e)}"
+        }), 500
+
+@app.route('/api/analysis_config', methods=['POST'])
+def save_analysis_config():
+    """保存深度分析配置"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请求数据不能为空'
+            }), 400
+        
+        # 验证必要字段
+        analysis_model = data.get('analysis_model')
+        vision_model = data.get('vision_model')
+        timeout = data.get('timeout', 600)
+        
+        if not analysis_model or not vision_model:
+            return jsonify({
+                'success': False,
+                'error': '分析模型和视觉模型不能为空'
+            }), 400
+        
+        # 验证超时时间
+        try:
+            timeout = int(timeout)
+            if timeout < 300 or timeout > 1800:
+                return jsonify({
+                    'success': False,
+                    'error': '超时时间必须在300-1800秒之间'
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                'success': False,
+                'error': '超时时间必须为有效的整数'
+            }), 400
+        
+        # 验证模型是否可用
+        from HomeSystem.graph.llm_factory import LLMFactory
+        factory = LLMFactory()
+        
+        available_llm_models = factory.get_available_llm_models()
+        available_vision_models = factory.get_available_vision_models()
+        
+        if analysis_model not in available_llm_models:
+            return jsonify({
+                'success': False,
+                'error': f'分析模型 {analysis_model} 不可用'
+            }), 400
+        
+        if vision_model not in available_vision_models:
+            return jsonify({
+                'success': False,
+                'error': f'视觉模型 {vision_model} 不可用'
+            }), 400
+        
+        # 构建配置
+        config = {
+            'analysis_model': analysis_model,
+            'vision_model': vision_model,
+            'timeout': timeout
+        }
+        
+        # 保存到Redis
+        config_key = "analysis_config:global"
+        if redis_client:
+            try:
+                redis_client.set(config_key, json.dumps(config))
+                logger.info(f"配置已保存到Redis: {config}")
+            except Exception as e:
+                logger.error(f"保存配置到Redis失败: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'保存配置失败: {str(e)}'
+                }), 500
+        else:
+            # 如果Redis不可用，记录警告但不阻止操作
+            logger.warning("Redis不可用，配置仅在当前会话有效")
+        
+        # 更新analysis_service的配置
+        analysis_service.default_config.update({
+            'analysis_model': analysis_model,
+            'vision_model': vision_model,
+            'timeout': timeout
+        })
+        
+        return jsonify({
+            'success': True,
+            'message': '配置保存成功',
+            'config': config
+        })
+        
+    except Exception as e:
+        logger.error(f"保存分析配置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"保存配置失败: {str(e)}"
         }), 500
 
 @app.route('/paper/<arxiv_id>/analysis')

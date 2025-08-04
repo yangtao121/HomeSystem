@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initDataVisualization();
     initTooltips();
     initResponsiveFeatures();
+    initAnalysisConfigModal();
 });
 
 /**
@@ -1869,3 +1870,462 @@ window.cleanMissingDifyRecord = cleanMissingDifyRecord;
 
 // Note: startDeepAnalysis and cancelDeepAnalysis are defined in paper_detail.html template
 // to avoid conflicts and ensure proper scope access
+
+// ========== 深度分析配置功能 ==========
+
+// 全局变量存储配置数据
+let currentAnalysisConfig = {};
+let availableModels = {};
+let modelDetails = {};
+
+/**
+ * 初始化深度分析配置模态框
+ */
+function initAnalysisConfigModal() {
+    console.log('[Config] 初始化深度分析配置模态框');
+    
+    // 绑定模态框显示事件
+    const configModal = document.getElementById('analysisConfigModal');
+    if (configModal) {
+        configModal.addEventListener('show.bs.modal', function () {
+            console.log('[Config] 模态框显示，开始加载配置');
+            loadAnalysisConfig();
+        });
+    }
+    
+    // 绑定超时时间滑块事件
+    const timeoutRange = document.getElementById('timeoutRange');
+    const timeoutValue = document.getElementById('timeoutValue');
+    if (timeoutRange && timeoutValue) {
+        timeoutRange.addEventListener('input', function() {
+            timeoutValue.textContent = this.value;
+        });
+    }
+    
+    // 绑定模型选择变化事件
+    const analysisModelSelect = document.getElementById('analysisModelSelect');
+    const visionModelSelect = document.getElementById('visionModelSelect');
+    
+    if (analysisModelSelect) {
+        analysisModelSelect.addEventListener('change', function() {
+            updateModelDetails();
+        });
+    }
+    
+    if (visionModelSelect) {
+        visionModelSelect.addEventListener('change', function() {
+            updateModelDetails();
+        });
+    }
+    
+    // 绑定按钮事件
+    const saveConfigBtn = document.getElementById('saveConfigBtn');
+    const resetConfigBtn = document.getElementById('resetConfigBtn');
+    
+    if (saveConfigBtn) {
+        saveConfigBtn.addEventListener('click', saveAnalysisConfig);
+    }
+    
+    if (resetConfigBtn) {
+        resetConfigBtn.addEventListener('click', resetAnalysisConfig);
+    }
+}
+
+/**
+ * 加载深度分析配置
+ */
+function loadAnalysisConfig() {
+    console.log('[Config] 开始加载深度分析配置');
+    
+    // 显示加载状态
+    showConfigLoadingState();
+    
+    fetch('/api/analysis_config', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log(`[Config] 配置加载响应状态: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Config] 配置加载成功:', data);
+        
+        if (data.success) {
+            // 存储数据
+            currentAnalysisConfig = data.data.current_config;
+            availableModels = data.data.available_models;
+            modelDetails = data.data.model_details;
+            
+            // 填充配置表单
+            populateConfigForm(data.data);
+            
+            // 显示配置表单
+            showConfigForm();
+        } else {
+            throw new Error(data.error || '获取配置失败');
+        }
+    })
+    .catch(error => {
+        console.error('[Config] 配置加载失败:', error);
+        showConfigErrorState(error.message);
+    });
+}
+
+/**
+ * 填充配置表单
+ */
+function populateConfigForm(configData) {
+    console.log('[Config] 开始填充配置表单');
+    
+    const { current_config, available_models, model_details, recommended_models } = configData;
+    
+    // 填充分析模型下拉框
+    const analysisModelSelect = document.getElementById('analysisModelSelect');
+    if (analysisModelSelect) {
+        analysisModelSelect.innerHTML = '<option value="">请选择分析模型...</option>';
+        
+        // 按提供商分组显示模型
+        const modelsByProvider = {};
+        available_models.analysis_models.forEach(modelKey => {
+            const detail = model_details[modelKey];
+            if (detail) {
+                if (!modelsByProvider[detail.provider]) {
+                    modelsByProvider[detail.provider] = [];
+                }
+                modelsByProvider[detail.provider].push({
+                    key: modelKey,
+                    detail: detail
+                });
+            }
+        });
+        
+        // 添加分组选项
+        Object.keys(modelsByProvider).sort().forEach(provider => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = `${provider.charAt(0).toUpperCase() + provider.slice(1)} 模型`;
+            
+            modelsByProvider[provider].forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.key;
+                option.textContent = `${model.detail.display_name} ${model.detail.is_local ? '🏠' : '☁️'}`;
+                if (model.key === current_config.analysis_model) {
+                    option.selected = true;
+                }
+                optgroup.appendChild(option);
+            });
+            
+            analysisModelSelect.appendChild(optgroup);
+        });
+    }
+    
+    // 填充视觉模型下拉框
+    const visionModelSelect = document.getElementById('visionModelSelect');
+    if (visionModelSelect) {
+        visionModelSelect.innerHTML = '<option value="">请选择视觉模型...</option>';
+        
+        available_models.vision_models.forEach(modelKey => {
+            const detail = model_details[modelKey];
+            if (detail) {
+                const option = document.createElement('option');
+                option.value = modelKey;
+                option.textContent = `${detail.display_name} ${detail.is_local ? '🏠' : '☁️'}`;
+                if (modelKey === current_config.vision_model) {
+                    option.selected = true;
+                }
+                visionModelSelect.appendChild(option);
+            }
+        });
+    }
+    
+    // 设置超时时间
+    const timeoutRange = document.getElementById('timeoutRange');
+    const timeoutValue = document.getElementById('timeoutValue');
+    if (timeoutRange && timeoutValue) {
+        timeoutRange.value = current_config.timeout;
+        timeoutValue.textContent = current_config.timeout;
+    }
+    
+    // 填充智能推荐
+    populateModelRecommendations(recommended_models, model_details);
+    
+    // 更新模型详情
+    updateModelDetails();
+}
+
+/**
+ * 填充智能推荐
+ */
+function populateModelRecommendations(recommendations, modelDetails) {
+    console.log('[Config] 填充智能推荐');
+    
+    // 推理模型推荐
+    const reasoningModels = document.getElementById('reasoningModels');
+    if (reasoningModels && recommendations.reasoning) {
+        reasoningModels.innerHTML = '';
+        recommendations.reasoning.forEach(modelKey => {
+            if (modelDetails[modelKey]) {
+                const detail = modelDetails[modelKey];
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-outline-success btn-sm';
+                button.innerHTML = `${detail.display_name} ${detail.is_local ? '🏠' : '☁️'}`;
+                button.onclick = () => selectRecommendedModel('analysis', modelKey);
+                reasoningModels.appendChild(button);
+            }
+        });
+    }
+    
+    // 代码分析模型推荐
+    const codingModels = document.getElementById('codingModels');
+    if (codingModels && recommendations.coding) {
+        codingModels.innerHTML = '';
+        recommendations.coding.forEach(modelKey => {
+            if (modelDetails[modelKey]) {
+                const detail = modelDetails[modelKey];
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-outline-info btn-sm';
+                button.innerHTML = `${detail.display_name} ${detail.is_local ? '🏠' : '☁️'}`;
+                button.onclick = () => selectRecommendedModel('analysis', modelKey);
+                codingModels.appendChild(button);
+            }
+        });
+    }
+}
+
+/**
+ * 选择推荐模型
+ */
+function selectRecommendedModel(type, modelKey) {
+    console.log(`[Config] 选择推荐模型: ${type} = ${modelKey}`);
+    
+    const selectElement = document.getElementById(type === 'analysis' ? 'analysisModelSelect' : 'visionModelSelect');
+    if (selectElement) {
+        selectElement.value = modelKey;
+        updateModelDetails();
+    }
+}
+
+/**
+ * 更新模型详情显示
+ */
+function updateModelDetails() {
+    console.log('[Config] 更新模型详情显示');
+    
+    const analysisModelKey = document.getElementById('analysisModelSelect').value;
+    const visionModelKey = document.getElementById('visionModelSelect').value;
+    
+    // 更新分析模型详情
+    const analysisModelDetails = document.getElementById('analysisModelDetails');
+    if (analysisModelDetails && analysisModelKey && modelDetails[analysisModelKey]) {
+        const detail = modelDetails[analysisModelKey];
+        analysisModelDetails.innerHTML = `
+            <ul class="list-unstyled mb-0">
+                <li><strong>提供商:</strong> ${detail.provider}</li>
+                <li><strong>类型:</strong> ${detail.is_local ? '本地模型 🏠' : '云端模型 ☁️'}</li>
+                <li><strong>最大Token:</strong> ${detail.max_tokens || '未知'}</li>
+                <li><strong>上下文长度:</strong> ${detail.context_length || '未知'}</li>
+                <li><strong>支持函数:</strong> ${detail.supports_functions ? '✅' : '❌'}</li>
+                <li><strong>支持视觉:</strong> ${detail.supports_vision ? '✅' : '❌'}</li>
+            </ul>
+            <div class="mt-2">
+                <small class="text-muted">${detail.description}</small>
+            </div>
+        `;
+    }
+    
+    // 更新视觉模型详情
+    const visionModelDetails = document.getElementById('visionModelDetails');
+    if (visionModelDetails && visionModelKey && modelDetails[visionModelKey]) {
+        const detail = modelDetails[visionModelKey];
+        visionModelDetails.innerHTML = `
+            <ul class="list-unstyled mb-0">
+                <li><strong>提供商:</strong> ${detail.provider}</li>
+                <li><strong>类型:</strong> ${detail.is_local ? '本地模型 🏠' : '云端模型 ☁️'}</li>
+                <li><strong>最大Token:</strong> ${detail.max_tokens || '未知'}</li>
+                <li><strong>上下文长度:</strong> ${detail.context_length || '未知'}</li>
+                <li><strong>支持函数:</strong> ${detail.supports_functions ? '✅' : '❌'}</li>
+                <li><strong>支持视觉:</strong> ${detail.supports_vision ? '✅' : '❌'}</li>
+            </ul>
+            <div class="mt-2">
+                <small class="text-muted">${detail.description}</small>
+            </div>
+        `;
+    }
+    
+    // 显示模型详情区域
+    const modelDetailsDiv = document.getElementById('modelDetails');
+    const modelRecommendationsDiv = document.getElementById('modelRecommendations');
+    if (analysisModelKey || visionModelKey) {
+        if (modelDetailsDiv) modelDetailsDiv.style.display = 'block';
+        if (modelRecommendationsDiv) modelRecommendationsDiv.style.display = 'block';
+    }
+}
+
+/**
+ * 保存深度分析配置
+ */
+function saveAnalysisConfig() {
+    console.log('[Config] 开始保存深度分析配置');
+    
+    const analysisModel = document.getElementById('analysisModelSelect').value;
+    const visionModel = document.getElementById('visionModelSelect').value;
+    const timeout = parseInt(document.getElementById('timeoutRange').value);
+    
+    // 验证输入
+    if (!analysisModel || !visionModel) {
+        showConfigSaveStatus('error', '请选择分析模型和视觉模型');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('saveConfigBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm"></i> 保存中...';
+    saveBtn.disabled = true;
+    
+    const configData = {
+        analysis_model: analysisModel,
+        vision_model: visionModel,
+        timeout: timeout
+    };
+    
+    console.log('[Config] 提交配置数据:', configData);
+    
+    fetch('/api/analysis_config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configData)
+    })
+    .then(response => {
+        console.log(`[Config] 保存响应状态: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('[Config] 保存响应数据:', data);
+        
+        if (data.success) {
+            showConfigSaveStatus('success', '配置保存成功！新配置将在下次分析时生效');
+            currentAnalysisConfig = data.config;
+            
+            // 3秒后自动关闭模态框
+            setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('analysisConfigModal'));
+                if (modal) modal.hide();
+            }, 2000);
+        } else {
+            throw new Error(data.error || '保存失败');
+        }
+    })
+    .catch(error => {
+        console.error('[Config] 保存配置失败:', error);
+        showConfigSaveStatus('error', `保存失败: ${error.message}`);
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+/**
+ * 重置配置为默认值
+ */
+function resetAnalysisConfig() {
+    console.log('[Config] 重置配置为默认值');
+    
+    if (!confirm('确定要重置为默认配置吗？')) {
+        return;
+    }
+    
+    // 重置表单值
+    document.getElementById('analysisModelSelect').value = 'deepseek.DeepSeek_V3';
+    document.getElementById('visionModelSelect').value = 'ollama.Qwen2_5_VL_7B';
+    document.getElementById('timeoutRange').value = 600;
+    document.getElementById('timeoutValue').textContent = '600';
+    
+    // 更新模型详情
+    updateModelDetails();
+    
+    showConfigSaveStatus('info', '已重置为默认配置，点击保存按钮应用更改');
+}
+
+/**
+ * 显示配置加载状态
+ */
+function showConfigLoadingState() {
+    document.getElementById('configLoadingState').style.display = 'block';
+    document.getElementById('analysisConfigForm').style.display = 'none';
+    document.getElementById('configErrorState').style.display = 'none';
+    document.getElementById('saveConfigBtn').style.display = 'none';
+    document.getElementById('resetConfigBtn').style.display = 'none';
+}
+
+/**
+ * 显示配置表单
+ */
+function showConfigForm() {
+    document.getElementById('configLoadingState').style.display = 'none';
+    document.getElementById('analysisConfigForm').style.display = 'block';
+    document.getElementById('configErrorState').style.display = 'none';
+    document.getElementById('saveConfigBtn').style.display = 'inline-block';
+    document.getElementById('resetConfigBtn').style.display = 'inline-block';
+}
+
+/**
+ * 显示配置错误状态
+ */
+function showConfigErrorState(errorMessage) {
+    document.getElementById('configLoadingState').style.display = 'none';
+    document.getElementById('analysisConfigForm').style.display = 'none';
+    document.getElementById('configErrorState').style.display = 'block';
+    document.getElementById('configErrorMessage').textContent = errorMessage;
+    document.getElementById('saveConfigBtn').style.display = 'none';
+    document.getElementById('resetConfigBtn').style.display = 'none';
+}
+
+/**
+ * 显示配置保存状态
+ */
+function showConfigSaveStatus(type, message) {
+    const statusDiv = document.getElementById('configSaveStatus');
+    const messageSpan = document.getElementById('configSaveMessage');
+    
+    statusDiv.classList.remove('alert-info', 'alert-success', 'alert-warning', 'alert-danger');
+    
+    if (type === 'success') {
+        statusDiv.classList.add('alert-success');
+        messageSpan.innerHTML = `<i class="bi bi-check-circle"></i> ${message}`;
+    } else if (type === 'error') {
+        statusDiv.classList.add('alert-danger');
+        messageSpan.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}`;
+    } else if (type === 'warning') {
+        statusDiv.classList.add('alert-warning');
+        messageSpan.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}`;
+    } else {
+        statusDiv.classList.add('alert-info');
+        messageSpan.innerHTML = `<i class="bi bi-info-circle"></i> ${message}`;
+    }
+    
+    statusDiv.style.display = 'block';
+    
+    // 3秒后自动隐藏（除了成功消息）
+    if (type !== 'success') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// 导出函数到全局作用域
+window.loadAnalysisConfig = loadAnalysisConfig;
+window.selectRecommendedModel = selectRecommendedModel;

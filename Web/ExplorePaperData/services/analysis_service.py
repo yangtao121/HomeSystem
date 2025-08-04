@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 class DeepAnalysisService:
     """深度论文分析服务类"""
     
-    def __init__(self, paper_service: PaperService):
+    def __init__(self, paper_service: PaperService, redis_client=None):
         self.paper_service = paper_service
         self.analysis_threads = {}  # 存储正在进行的分析线程
+        self.redis_client = redis_client  # Redis客户端用于读取配置
         
         # 默认配置
         self.default_config = {
@@ -36,6 +37,33 @@ class DeepAnalysisService:
             'vision_model': 'ollama.Qwen2_5_VL_7B',
             'timeout': 600  # 10分钟超时
         }
+    
+    def load_config(self) -> Dict[str, Any]:
+        """
+        从Redis加载配置，如果不存在则使用默认配置
+        
+        Returns:
+            Dict: 配置字典
+        """
+        config = self.default_config.copy()
+        
+        if self.redis_client:
+            try:
+                config_key = "analysis_config:global"
+                saved_config = self.redis_client.get(config_key)
+                if saved_config:
+                    import json
+                    saved_data = json.loads(saved_config)
+                    config.update(saved_data)
+                    logger.info(f"从Redis加载配置: {config}")
+                else:
+                    logger.info("Redis中未找到配置，使用默认配置")
+            except Exception as e:
+                logger.warning(f"从Redis加载配置失败，使用默认配置: {e}")
+        else:
+            logger.info("Redis不可用，使用默认配置")
+        
+        return config
     
     def start_analysis(self, arxiv_id: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -79,8 +107,11 @@ class DeepAnalysisService:
             # 更新分析状态为处理中
             self.paper_service.update_analysis_status(arxiv_id, 'processing')
             
-            # 合并配置
-            analysis_config = {**self.default_config, **(config or {})}
+            # 加载当前配置
+            current_config = self.load_config()
+            
+            # 合并配置（用户传入的配置优先）
+            analysis_config = {**current_config, **(config or {})}
             
             # 创建并启动分析线程
             thread = threading.Thread(
