@@ -165,7 +165,7 @@ providers:
   zhipuai:
     name: ZhipuAI
     description: 智谱AI - GLM-4.5系列智能体原生大模型
-    type: zhipuai
+    type: openai_compatible
     api_key_env: ZHIPUAI_API_KEY
     base_url_env: ZHIPUAI_BASE_URL
     base_url: https://open.bigmodel.cn/api/paas/v4
