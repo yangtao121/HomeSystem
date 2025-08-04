@@ -199,8 +199,8 @@ $(document).ready(function() {
             // 高级模型配置
             if (config.abstract_analysis_model) $('#abstract_analysis_model').val(config.abstract_analysis_model);
             if (config.full_paper_analysis_model) $('#full_paper_analysis_model').val(config.full_paper_analysis_model);
-            if (config.translation_model) $('#translation_model').val(config.translation_model);
-            if (config.paper_analysis_model) $('#paper_analysis_model').val(config.paper_analysis_model);
+            if (config.deep_analysis_model) $('#deep_analysis_model').val(config.deep_analysis_model);
+            if (config.vision_model) $('#vision_model').val(config.vision_model);
             
             // 高级配置
             if (config.max_papers_per_search !== undefined) $('#max_papers_per_search').val(config.max_papers_per_search);
@@ -208,14 +208,18 @@ $(document).ready(function() {
                 $('#relevance_threshold').val(config.relevance_threshold);
                 $('#relevance_threshold_value').text((config.relevance_threshold * 100).toFixed(0) + '%');
             }
-            if (config.summarization_threshold !== undefined) {
-                $('#summarization_threshold').val(config.summarization_threshold);
-                $('#summarization_threshold_value').text((config.summarization_threshold * 100).toFixed(0) + '%');
+            if (config.deep_analysis_threshold !== undefined) {
+                $('#deep_analysis_threshold').val(config.deep_analysis_threshold);
+                $('#deep_analysis_threshold_value').text((config.deep_analysis_threshold * 100).toFixed(0) + '%');
             }
             
-            // 响应控制配置
-            if (config.max_papers_in_response !== undefined) $('#max_papers_in_response').val(config.max_papers_in_response);
-            if (config.max_relevant_papers_in_response !== undefined) $('#max_relevant_papers_in_response').val(config.max_relevant_papers_in_response);
+            // 深度分析配置
+            if (config.enable_deep_analysis !== undefined) {
+                $('#enable_deep_analysis').prop('checked', config.enable_deep_analysis);
+            }
+            if (config.ocr_char_limit_for_analysis !== undefined) {
+                $('#ocr_char_limit_for_analysis').val(config.ocr_char_limit_for_analysis);
+            }
             
             // 搜索模式
             if (config.search_mode) $('#search_mode').val(config.search_mode);
@@ -224,14 +228,6 @@ $(document).ready(function() {
             if (config.start_year !== undefined) $('#start_year').val(config.start_year);
             if (config.end_year !== undefined) $('#end_year').val(config.end_year);
             if (config.after_year !== undefined) $('#after_year').val(config.after_year);
-            
-            // 布尔值配置
-            if (config.enable_paper_summarization !== undefined) {
-                $('#enable_paper_summarization').prop('checked', config.enable_paper_summarization);
-            }
-            if (config.enable_translation !== undefined) {
-                $('#enable_translation').prop('checked', config.enable_translation);
-            }
             
             // 定时任务配置
             if (config.interval_seconds && config.interval_seconds > 0) {
@@ -288,22 +284,22 @@ $(document).ready(function() {
             // 高级模型配置
             $('#edit_abstract_analysis_model').val(config.abstract_analysis_model || '');
             $('#edit_full_paper_analysis_model').val(config.full_paper_analysis_model || '');
-            $('#edit_translation_model').val(config.translation_model || '');
-            $('#edit_paper_analysis_model').val(config.paper_analysis_model || '');
+            $('#edit_deep_analysis_model').val(config.deep_analysis_model || '');
+            $('#edit_vision_model').val(config.vision_model || '');
             
             // 高级配置
             $('#edit_max_papers_per_search').val(config.max_papers_per_search || 20);
             $('#edit_relevance_threshold').val(config.relevance_threshold || 0.7);
-            $('#edit_summarization_threshold').val(config.summarization_threshold || 0.8);
+            $('#edit_deep_analysis_threshold').val(config.deep_analysis_threshold || 0.8);
             $('#edit_search_mode').val(config.search_mode || 'latest');
+            $('#edit_ocr_char_limit_for_analysis').val(config.ocr_char_limit_for_analysis || 10000);
             
             // 更新阈值显示
             $('#edit_relevance_threshold_value').text(((config.relevance_threshold || 0.7) * 100).toFixed(0) + '%');
-            $('#edit_summarization_threshold_value').text(((config.summarization_threshold || 0.8) * 100).toFixed(0) + '%');
+            $('#edit_deep_analysis_threshold_value').text(((config.deep_analysis_threshold || 0.8) * 100).toFixed(0) + '%');
             
             // 布尔值配置
-            $('#edit_enable_paper_summarization').prop('checked', config.enable_paper_summarization !== false);
-            $('#edit_enable_translation').prop('checked', config.enable_translation !== false);
+            $('#edit_enable_deep_analysis').prop('checked', config.enable_deep_analysis !== false);
             
             // 搜索模式相关配置
             this.updateEditSearchModeFields(config.search_mode || 'latest');
@@ -338,14 +334,14 @@ $(document).ready(function() {
                 llm_model_name: $('#edit_llm_model_name').val(),
                 abstract_analysis_model: $('#edit_abstract_analysis_model').val() || '',
                 full_paper_analysis_model: $('#edit_full_paper_analysis_model').val() || '',
-                translation_model: $('#edit_translation_model').val() || '',
-                paper_analysis_model: $('#edit_paper_analysis_model').val() || '',
+                deep_analysis_model: $('#edit_deep_analysis_model').val() || '',
+                vision_model: $('#edit_vision_model').val() || '',
                 max_papers_per_search: parseInt($('#edit_max_papers_per_search').val()) || 20,
                 relevance_threshold: parseFloat($('#edit_relevance_threshold').val()) || 0.7,
-                summarization_threshold: parseFloat($('#edit_summarization_threshold').val()) || 0.8,
+                deep_analysis_threshold: parseFloat($('#edit_deep_analysis_threshold').val()) || 0.8,
                 search_mode: $('#edit_search_mode').val() || 'latest',
-                enable_paper_summarization: $('#edit_enable_paper_summarization').is(':checked'),
-                enable_translation: $('#edit_enable_translation').is(':checked')
+                ocr_char_limit_for_analysis: parseInt($('#edit_ocr_char_limit_for_analysis').val()) || 10000,
+                enable_deep_analysis: $('#edit_enable_deep_analysis').is(':checked')
             };
             
             // 添加搜索模式相关配置
@@ -617,16 +613,14 @@ $(document).ready(function() {
                 llm_model_name: $('#llm_model_name').val() || '',
                 abstract_analysis_model: $('#abstract_analysis_model').val() || '',
                 full_paper_analysis_model: $('#full_paper_analysis_model').val() || '',
-                translation_model: $('#translation_model').val() || '',
-                paper_analysis_model: $('#paper_analysis_model').val() || '',
+                deep_analysis_model: $('#deep_analysis_model').val() || '',
+                vision_model: $('#vision_model').val() || '',
                 max_papers_per_search: parseInt($('#max_papers_per_search').val()) || 20,
-                max_papers_in_response: parseInt($('#max_papers_in_response').val()) || 50,
-                max_relevant_papers_in_response: parseInt($('#max_relevant_papers_in_response').val()) || 10,
                 relevance_threshold: parseFloat($('#relevance_threshold').val()) || 0.7,
-                summarization_threshold: parseFloat($('#summarization_threshold').val()) || 0.8,
+                deep_analysis_threshold: parseFloat($('#deep_analysis_threshold').val()) || 0.8,
                 search_mode: $('#search_mode').val() || 'latest',
-                enable_paper_summarization: $('#enable_paper_summarization').is(':checked'),
-                enable_translation: $('#enable_translation').is(':checked')
+                ocr_char_limit_for_analysis: parseInt($('#ocr_char_limit_for_analysis').val()) || 10000,
+                enable_deep_analysis: $('#enable_deep_analysis').is(':checked')
             };
             
             // 添加定时任务配置

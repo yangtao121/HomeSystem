@@ -455,8 +455,10 @@ class PaperGatherTask(Task):
                 return False
             
             # 获取深度分析配置
-            analysis_model = getattr(self.config, 'deep_analysis_model', 'deepseek.DeepSeek_V3')
-            vision_model = getattr(self.config, 'vision_model', 'ollama.Qwen2_5_VL_7B')
+            # analysis_model = getattr(self.config, 'deep_analysis_model', 'deepseek.DeepSeek_V3')
+            analysis_model = self.config.deep_analysis_model
+            # vision_model = getattr(self.config, 'vision_model', 'ollama.Qwen2_5_VL_7B')
+            vision_model = self.config.vision_model
             
             # 创建深度分析智能体
             logger.info("🤖 创建深度分析智能体...")
