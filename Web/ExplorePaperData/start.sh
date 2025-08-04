@@ -26,12 +26,15 @@ fi
 
 # 检查数据库连接
 echo "🔗 检查数据库连接..."
+# 获取项目根目录路径
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 python -c "
 import sys
 import os
 # 添加项目根目录到路径
-project_root = os.path.join(os.path.dirname(__file__), '..', '..')
-sys.path.append(project_root)
+sys.path.append('$PROJECT_ROOT')
 from database import DatabaseManager
 try:
     db_manager = DatabaseManager()

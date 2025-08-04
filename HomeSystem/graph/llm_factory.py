@@ -14,7 +14,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_deepseek import ChatDeepSeek
-from langchain_community.chat_models import ChatZhipuAI
+# from langchain_community.chat_models import ChatZhipuAI
 from pydantic import SecretStr
 
 
@@ -74,7 +74,9 @@ class LLMFactory:
                         'max_tokens': model.get('max_tokens'),
                         'context_length': model.get('context_length'),
                         'supports_functions': model.get('supports_functions', False),
-                        'supports_vision': model.get('supports_vision', False)
+                        'supports_vision': model.get('supports_vision', False),
+                        'supports_thinking': model.get('supports_thinking', False),
+                        'thinking_max_length': model.get('thinking_max_length')
                     }
         
         return available
@@ -128,6 +130,17 @@ class LLMFactory:
             return False
         return self.available_llm_models[model_name]['type'] == 'ollama'
     
+    def supports_thinking(self, model_name: str) -> bool:
+        """检查指定模型是否支持思考模式"""
+        if model_name not in self.available_llm_models:
+            return False
+        return self.available_llm_models[model_name].get('supports_thinking', False)
+    
+    def get_available_thinking_models(self) -> List[str]:
+        """获取所有支持思考模式的模型列表"""
+        return [model_key for model_key, config in self.available_llm_models.items() 
+                if config.get('supports_thinking', False)]
+    
     def create_llm(self, model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
         """
         创建LLM实例，直接用于langgraph
@@ -150,6 +163,13 @@ class LLMFactory:
         
         config = self.available_llm_models[model_name]
         logger.info(f"创建LLM: {model_name} ({config['display_name']})")
+        
+        # 分离思考模式参数和普通参数
+        thinking_params = {}
+        if 'enable_thinking' in kwargs:
+            thinking_params['enable_thinking'] = kwargs.pop('enable_thinking')
+        if 'thinking_budget' in kwargs:
+            thinking_params['thinking_budget'] = kwargs.pop('thinking_budget')
         
         # 设置默认参数
         defaults = self.config.get('defaults', {}).get('llm', {})
@@ -177,14 +197,7 @@ class LLMFactory:
                 api_key=SecretStr(api_key) if api_key else None,
                 **params
             )
-        elif config['type'] == 'zhipuai':  # Use native ChatZhipuAI for ZhipuAI models
-            api_key = os.getenv(config['api_key_env'])
-            return ChatZhipuAI(
-                model=config['model_name'],
-                api_key=api_key,
-                **params
-            )
-        else:  # openai_compatible
+        elif config['provider'] == 'zhipuai':  # Use OpenAI compatible for ZhipuAI models
             api_key = os.getenv(config['api_key_env'])
             base_url = os.getenv(config['base_url_env'], config['base_url'])
             return ChatOpenAI(
@@ -193,6 +206,26 @@ class LLMFactory:
                 base_url=base_url,
                 **params
             )
+        else:  # openai_compatible
+            api_key = os.getenv(config['api_key_env'])
+            base_url = os.getenv(config['base_url_env'], config['base_url'])
+            
+            # 处理阿里云思考模式模型的特殊参数
+            if config.get('provider') == 'alibaba' and config.get('supports_thinking', False) and thinking_params:
+                return ChatOpenAI(
+                    model=config['model_name'],
+                    api_key=SecretStr(api_key) if api_key else None,
+                    base_url=base_url,
+                    model_kwargs=thinking_params,
+                    **params
+                )
+            else:
+                return ChatOpenAI(
+                    model=config['model_name'],
+                    api_key=SecretStr(api_key) if api_key else None,
+                    base_url=base_url,
+                    **params
+                )
     
     def create_vision_llm(self, model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
         """
@@ -226,6 +259,41 @@ class LLMFactory:
         
         # 创建支持视觉的LLM实例
         logger.info(f"创建视觉LLM: {model_name}")
+        return self.create_llm(model_name, **kwargs)
+    
+    def create_thinking_llm(self, model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
+        """
+        创建支持思考模式的LLM实例
+        
+        Args:
+            model_name: 模型名称，如果为None则自动选择支持思考模式的模型
+            **kwargs: 传递给模型的参数，可包含enable_thinking和thinking_budget
+            
+        Returns:
+            BaseChatModel: 支持思考模式的LLM实例
+            
+        Raises:
+            ValueError: 如果指定的模型不支持思考模式
+        """
+        # 如果未指定模型，选择默认的思考模式模型
+        if model_name is None:
+            thinking_models = self.get_available_thinking_models()
+            if not thinking_models:
+                raise ValueError("没有可用的思考模式模型")
+            model_name = thinking_models[0]  # 选择第一个可用的思考模式模型
+        
+        # 检查模型是否支持思考模式
+        if not self.supports_thinking(model_name):
+            raise ValueError(f"模型 '{model_name}' 不支持思考模式")
+        
+        # 设置默认的思考模式参数
+        if 'enable_thinking' not in kwargs:
+            kwargs['enable_thinking'] = True
+        if 'thinking_budget' not in kwargs:
+            kwargs['thinking_budget'] = 1  # 默认思考预算
+        
+        # 创建支持思考模式的LLM实例
+        logger.info(f"创建思考模式LLM: {model_name}")
         return self.create_llm(model_name, **kwargs)
     
     def validate_vision_input(self, model_name: str) -> None:
@@ -297,8 +365,9 @@ class LLMFactory:
         logger.info("-" * 60)
         for model_name, config in self.available_llm_models.items():
             vision_mark = "👁️" if config.get('supports_vision', False) else "📝"
+            thinking_mark = "🧠" if config.get('supports_thinking', False) else ""
             local_mark = "🏠" if config['type'] == 'ollama' else "☁️"
-            logger.info(f"✅ {model_name:35} | {vision_mark}{local_mark} {config['display_name']}")
+            logger.info(f"✅ {model_name:35} | {vision_mark}{thinking_mark}{local_mark} {config['display_name']}")
         
         logger.info("\n🔍 Embedding模型:")
         logger.info("-" * 60)
@@ -352,6 +421,21 @@ def check_vision_support(model_name: str) -> bool:
 def validate_vision_input(model_name: str) -> None:
     """便捷函数：验证模型视觉输入能力"""
     return llm_factory.validate_vision_input(model_name)
+
+
+def get_thinking_llm(model_name: Optional[str] = None, **kwargs) -> BaseChatModel:
+    """便捷函数：创建支持思考模式的LLM实例"""
+    return llm_factory.create_thinking_llm(model_name, **kwargs)
+
+
+def list_available_thinking_models() -> List[str]:
+    """便捷函数：获取可用思考模式模型列表"""
+    return llm_factory.get_available_thinking_models()
+
+
+def check_thinking_support(model_name: str) -> bool:
+    """便捷函数：检查模型是否支持思考模式"""
+    return llm_factory.supports_thinking(model_name)
 
 
 if __name__ == "__main__":

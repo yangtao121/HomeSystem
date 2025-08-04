@@ -188,6 +188,65 @@ providers:
       supports_vision: false
       context_length: 131072
       description: 轻量化版本，高效智能体模型，性能评分59.8
+  alibaba:
+    name: Alibaba Cloud DashScope
+    description: 阿里云灵积平台 - 通义千问系列大模型
+    type: openai_compatible
+    api_key_env: DASHSCOPE_API_KEY
+    base_url_env: DASHSCOPE_BASE_URL
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    models:
+    - name: qwen-turbo-latest
+      key: alibaba.Qwen_Turbo_Latest
+      display_name: 通义千问Turbo最新版
+      parameters: 高效轻量级模型
+      max_tokens: 8192
+      supports_functions: true
+      supports_vision: false
+      context_length: 131072
+      supports_thinking: true
+      thinking_max_length: 32768
+      description: 最新版Turbo模型，支持思考模式，速度最快成本最低，适合简单任务
+    - name: qwen-turbo
+      key: alibaba.Qwen_Turbo
+      display_name: 通义千问Turbo
+      parameters: 高效轻量级模型
+      max_tokens: 8192
+      supports_functions: true
+      supports_vision: false
+      context_length: 131072
+      description: 高效轻量级模型，速度快成本低，适合日常对话和简单任务
+    - name: qwen-plus
+      key: alibaba.Qwen_Plus
+      display_name: 通义千问Plus
+      parameters: 平衡性能模型
+      max_tokens: 32768
+      supports_functions: true
+      supports_vision: false
+      context_length: 131072
+      supports_thinking: true
+      thinking_max_length: 65536
+      description: 平衡性能与成本的模型，支持思考模式，适合复杂推理任务
+    - name: qwen3-235b-a22b-instruct-2507
+      key: alibaba.Qwen3_235B_A22B
+      display_name: 通义千问3-235B-A22B
+      parameters: 235B参数MoE架构
+      max_tokens: 32768
+      supports_functions: true
+      supports_vision: false
+      context_length: 262144
+      description: 通义千问3系列最强版本，MoE架构，支持256K上下文
+    - name: qwen3-235b-a22b-thinking-2507
+      key: alibaba.Qwen3_235B_A22B_Thinking
+      display_name: 通义千问3-235B-A22B-思考版
+      parameters: 235B参数MoE架构
+      max_tokens: 32768
+      supports_functions: true
+      supports_vision: false
+      context_length: 262144
+      supports_thinking: true
+      thinking_max_length: 81920
+      description: 专门的思考模式模型，支持80K推理过程长度，在复杂推理任务上表现卓越
   ollama:
     name: Ollama
     description: 本地部署的开源大模型 (14B以上参数)
@@ -377,6 +436,21 @@ vendor_configs:
     gpu_required: true
     min_vram: 24GB
     note: 需要本地GPU支持，推荐RTX 4090或更高
+  alibaba:
+    retry_attempts: 3
+    retry_delay: 1.0
+    rate_limit: 60
+    special_headers:
+      User-Agent: HomeSystem/1.0
+    region: cn-hangzhou
+    pricing:
+      input_tokens: 0.8
+      output_tokens: 2.0
+      note: 思考模式推理token计费另议
+    performance:
+      reasoning_capability: exceptional
+      thinking_support: true
+      context_length: 256000
 recommendations:
   general_use: deepseek-chat
   reasoning: deepseek-reasoner
