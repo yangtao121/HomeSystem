@@ -13,6 +13,7 @@ from .paper_analysis_tools import (
     create_paper_analysis_tools
 )
 from .math_formula_extractor import MathFormulaExtractorTool, create_math_formula_extractor_tool
+from .text_chunk_indexer import TextChunkIndexerTool, create_text_chunk_indexer_tool
 
 __all__ = [
     # Search tools
@@ -29,5 +30,9 @@ __all__ = [
     
     # Math formula extractor
     "MathFormulaExtractorTool",
-    "create_math_formula_extractor_tool"
+    "create_math_formula_extractor_tool",
+    
+    # Text chunk indexer
+    "TextChunkIndexerTool",
+    "create_text_chunk_indexer_tool"
 ]
