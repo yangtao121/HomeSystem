@@ -1866,3 +1866,6 @@ window.uploadPaperToDify = uploadPaperToDify;
 window.removePaperFromDify = removePaperFromDify;
 window.verifyDifyDocument = verifyDifyDocument;
 window.cleanMissingDifyRecord = cleanMissingDifyRecord;
+
+// Note: startDeepAnalysis and cancelDeepAnalysis are defined in paper_detail.html template
+// to avoid conflicts and ensure proper scope access
