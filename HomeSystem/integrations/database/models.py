@@ -83,6 +83,12 @@ class ArxivPaperModel(BaseModel):
         self.dify_character_count = kwargs.get('dify_character_count', 0)  # Dify中的字符数
         self.dify_segment_count = kwargs.get('dify_segment_count', 0)  # 分片数量
         self.dify_metadata = kwargs.get('dify_metadata', {})  # Dify相关元数据
+        
+        # 深度分析字段
+        self.deep_analysis_result = kwargs.get('deep_analysis_result', None)  # 深度分析结果内容
+        self.deep_analysis_status = kwargs.get('deep_analysis_status', None)  # 分析状态 (pending, processing, completed, failed, cancelled)
+        self.deep_analysis_created_at = kwargs.get('deep_analysis_created_at', None)  # 分析创建时间
+        self.deep_analysis_updated_at = kwargs.get('deep_analysis_updated_at', None)  # 分析更新时间
     
     @property
     def table_name(self) -> str:
@@ -120,6 +126,10 @@ class ArxivPaperModel(BaseModel):
             'dify_character_count': self.dify_character_count,
             'dify_segment_count': self.dify_segment_count,
             'dify_metadata': json.dumps(self.dify_metadata) if isinstance(self.dify_metadata, dict) else self.dify_metadata,
+            'deep_analysis_result': self.deep_analysis_result,
+            'deep_analysis_status': self.deep_analysis_status,
+            'deep_analysis_created_at': self.deep_analysis_created_at.isoformat() if self.deep_analysis_created_at else None,
+            'deep_analysis_updated_at': self.deep_analysis_updated_at.isoformat() if self.deep_analysis_updated_at else None,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
@@ -152,6 +162,19 @@ class ArxivPaperModel(BaseModel):
                 data['dify_upload_time'] = datetime.fromisoformat(data['dify_upload_time'])
             except (ValueError, TypeError):
                 data['dify_upload_time'] = None
+        
+        # 处理深度分析时间字段
+        if 'deep_analysis_created_at' in data and isinstance(data['deep_analysis_created_at'], str):
+            try:
+                data['deep_analysis_created_at'] = datetime.fromisoformat(data['deep_analysis_created_at'])
+            except (ValueError, TypeError):
+                data['deep_analysis_created_at'] = None
+        
+        if 'deep_analysis_updated_at' in data and isinstance(data['deep_analysis_updated_at'], str):
+            try:
+                data['deep_analysis_updated_at'] = datetime.fromisoformat(data['deep_analysis_updated_at'])
+            except (ValueError, TypeError):
+                data['deep_analysis_updated_at'] = None
         
         return cls(**data)
     
@@ -196,6 +219,12 @@ class ArxivPaperModel(BaseModel):
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_segment_count INTEGER DEFAULT 0;
         ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS dify_metadata JSONB DEFAULT '{}';
         
+        -- 添加深度分析字段
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS deep_analysis_result TEXT DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS deep_analysis_status VARCHAR(20) DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS deep_analysis_created_at TIMESTAMP DEFAULT NULL;
+        ALTER TABLE arxiv_papers ADD COLUMN IF NOT EXISTS deep_analysis_updated_at TIMESTAMP DEFAULT NULL;
+        
         -- 创建索引
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_arxiv_id ON arxiv_papers(arxiv_id);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_status ON arxiv_papers(processing_status);
@@ -219,6 +248,11 @@ class ArxivPaperModel(BaseModel):
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_mapping ON arxiv_papers(dify_dataset_id, dify_document_id);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_upload_time ON arxiv_papers(dify_upload_time);
         CREATE INDEX IF NOT EXISTS idx_arxiv_papers_dify_document_name ON arxiv_papers(dify_document_name);
+        
+        -- 深度分析字段索引
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_deep_analysis_status ON arxiv_papers(deep_analysis_status);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_deep_analysis_created_at ON arxiv_papers(deep_analysis_created_at);
+        CREATE INDEX IF NOT EXISTS idx_arxiv_papers_deep_analysis_updated_at ON arxiv_papers(deep_analysis_updated_at);
         
         -- 创建更新时间戳触发器
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -407,6 +441,66 @@ class ArxivPaperModel(BaseModel):
             'character_count': self.dify_character_count,
             'segment_count': self.dify_segment_count,
             'metadata': self.dify_metadata or {}
+        }
+    
+    def set_deep_analysis_result(self, result: str, status: str = 'completed'):
+        """
+        设置深度分析结果
+        
+        Args:
+            result: 分析结果内容
+            status: 分析状态 (默认为 'completed')
+        """
+        self.deep_analysis_result = result
+        self.deep_analysis_status = status
+        self.deep_analysis_updated_at = datetime.now()
+        
+        # 如果是第一次设置，也设置创建时间
+        if not self.deep_analysis_created_at:
+            self.deep_analysis_created_at = datetime.now()
+        
+        self.update_timestamp()
+    
+    def update_deep_analysis_status(self, status: str):
+        """
+        更新深度分析状态
+        
+        Args:
+            status: 新的状态 (pending, processing, completed, failed, cancelled)
+        """
+        valid_statuses = ['pending', 'processing', 'completed', 'failed', 'cancelled']
+        if status not in valid_statuses:
+            raise ValueError(f"无效的深度分析状态: {status}, 有效值: {valid_statuses}")
+        
+        self.deep_analysis_status = status
+        self.deep_analysis_updated_at = datetime.now()
+        
+        # 如果是第一次设置状态，也设置创建时间
+        if not self.deep_analysis_created_at:
+            self.deep_analysis_created_at = datetime.now()
+        
+        self.update_timestamp()
+    
+    def has_deep_analysis(self) -> bool:
+        """检查是否有深度分析结果"""
+        return bool(self.deep_analysis_result and self.deep_analysis_status == 'completed')
+    
+    def clear_deep_analysis(self):
+        """清除深度分析结果"""
+        self.deep_analysis_result = None
+        self.deep_analysis_status = None
+        self.deep_analysis_created_at = None
+        self.deep_analysis_updated_at = None
+        self.update_timestamp()
+    
+    def get_deep_analysis_summary(self) -> Dict[str, Any]:
+        """获取深度分析摘要信息"""
+        return {
+            'has_analysis': self.has_deep_analysis(),
+            'status': self.deep_analysis_status,
+            'result_length': len(self.deep_analysis_result) if self.deep_analysis_result else 0,
+            'created_at': self.deep_analysis_created_at.isoformat() if self.deep_analysis_created_at else None,
+            'updated_at': self.deep_analysis_updated_at.isoformat() if self.deep_analysis_updated_at else None
         }
 
 

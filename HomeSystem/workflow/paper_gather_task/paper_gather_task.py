@@ -262,6 +262,17 @@ class PaperGatherTask(Task):
             logger.warning(f"论文深度分析失败，但仍会保存基础信息到数据库: {paper.arxiv_id} - {paper.title[:50]}...")
             
         try:
+            # 准备深度分析字段
+            deep_analysis_result = getattr(paper, 'deep_analysis_result', None)
+            deep_analysis_completed = getattr(paper, 'deep_analysis_completed', False)
+            deep_analysis_status = None
+            
+            # 根据深度分析情况设置状态
+            if deep_analysis_result and deep_analysis_completed:
+                deep_analysis_status = 'completed'
+            elif not deep_analysis_success:
+                deep_analysis_status = 'failed'
+            
             # 创建ArxivPaperModel实例
             paper_model = ArxivPaperModel(
                 arxiv_id=paper.arxiv_id,
@@ -284,7 +295,12 @@ class PaperGatherTask(Task):
                 task_id=self.config.task_id,
                 # 完整论文相关性评分字段（保留基础分析结果）
                 full_paper_relevance_score=getattr(paper, 'full_paper_relevance_score', None),
-                full_paper_relevance_justification=self._get_required_field(paper, 'full_paper_analysis_justification', 'full_paper_relevance_justification')
+                full_paper_relevance_justification=self._get_required_field(paper, 'full_paper_analysis_justification', 'full_paper_relevance_justification'),
+                # 深度分析字段
+                deep_analysis_result=deep_analysis_result,
+                deep_analysis_status=deep_analysis_status,
+                deep_analysis_created_at=datetime.now() if deep_analysis_status else None,
+                deep_analysis_updated_at=datetime.now() if deep_analysis_status else None
             )
             
             # 保存到数据库

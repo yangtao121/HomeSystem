@@ -434,8 +434,9 @@ class DeepAnalysisService:
             str: 处理后的Markdown内容
         """
         try:
-            # 使用正则表达式匹配Markdown图片语法
-            img_pattern = r'!\[(.*?)\]\((imgs/[^)]+)\)'
+            # 使用更宽泛的正则表达式匹配各种Markdown图片语法格式
+            # 匹配 ![alt](imgs/filename) 格式
+            img_pattern = r'!\[([^\]]*)\]\((imgs/[^)]+)\)'
             
             def replace_image_path(match):
                 alt_text = match.group(1)
@@ -444,10 +445,18 @@ class DeepAnalysisService:
                 new_path = f"/paper/{arxiv_id}/analysis_images/{relative_path.replace('imgs/', '')}"
                 return f"![{alt_text}]({new_path})"
             
+            # 先记录原始图片数量用于调试
+            original_matches = re.findall(img_pattern, content)
+            logger.info(f"Found {len(original_matches)} image references for {arxiv_id}")
+            if original_matches:
+                logger.debug(f"Sample matches: {original_matches[:3]}")  # 记录前3个匹配项用于调试
+            
             # 替换所有图片路径
             processed_content = re.sub(img_pattern, replace_image_path, content)
             
-            logger.info(f"Processed {len(re.findall(img_pattern, content))} image paths for {arxiv_id}")
+            # 验证处理结果
+            processed_matches = re.findall(r'!\[([^\]]*)\]\((/paper/[^)]+)\)', processed_content)
+            logger.info(f"Processed {len(processed_matches)} image paths for {arxiv_id}")
             
             return processed_content
             
