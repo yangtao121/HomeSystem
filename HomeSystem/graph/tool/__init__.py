@@ -14,6 +14,7 @@ from .paper_analysis_tools import (
 )
 from .math_formula_extractor import MathFormulaExtractorTool, create_math_formula_extractor_tool
 from .text_chunk_indexer import TextChunkIndexerTool, create_text_chunk_indexer_tool
+from .text_editor import TextEditorTool, EditOperation, OperationType, create_text_editor_tool
 
 __all__ = [
     # Search tools
@@ -34,5 +35,11 @@ __all__ = [
     
     # Text chunk indexer
     "TextChunkIndexerTool",
-    "create_text_chunk_indexer_tool"
+    "create_text_chunk_indexer_tool",
+    
+    # Text editor
+    "TextEditorTool",
+    "EditOperation",
+    "OperationType", 
+    "create_text_editor_tool"
 ]
