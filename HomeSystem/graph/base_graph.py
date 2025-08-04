@@ -7,6 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Union
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 
 from .llm_factory import get_llm, get_embedding, get_vision_llm, validate_vision_input
 from .vision_utils import VisionUtils, create_vision_message
@@ -28,6 +29,16 @@ class BaseGraph(ABC):
                  ):
         
         self.agent = None
+        
+        # Token 使用统计相关属性
+        try:
+            self.token_callback = UsageMetadataCallbackHandler()
+            self.session_token_callback = None  # 用于单个会话的统计
+            logger.debug("Token使用统计回调初始化成功")
+        except Exception as e:
+            logger.warning(f"Token使用统计初始化失败，将禁用token统计功能: {e}")
+            self.token_callback = None
+            self.session_token_callback = None
         
         # MCP 相关属性（完全可选，不影响现有功能）
         self.mcp_enabled = enable_mcp and MCP_MANAGER_AVAILABLE
@@ -168,7 +179,24 @@ class BaseGraph(ABC):
             # 创建包含图片的消息
             message = HumanMessage(content=content)
             
-            config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+            # 创建用于本次运行的token回调
+            callbacks = []
+            run_callback = None
+            
+            try:
+                if self.token_callback:
+                    callbacks.append(self.token_callback)
+                run_callback = UsageMetadataCallbackHandler()
+                callbacks.append(run_callback)
+                logger.debug("图片运行Token回调创建成功")
+            except Exception as e:
+                logger.warning(f"图片运行Token回调创建失败，继续执行但不统计token: {e}")
+            
+            config = {
+                "configurable": {"thread_id": thread_id}, 
+                "recursion_limit": 100,
+                "callbacks": callbacks
+            }
             input_data = {"messages": [message]}
             
             logger.info(f"使用图片运行Agent: {Path(image_path).name}")
@@ -186,6 +214,13 @@ class BaseGraph(ABC):
                 if not isinstance(message, SystemMessage):
                     if hasattr(message, 'content') and message.content:
                         result_content = message.content
+            
+            # 记录本次运行的token使用情况
+            try:
+                if run_callback and run_callback.usage_metadata:
+                    logger.info(f"本次图片运行Token使用: {run_callback.usage_metadata}")
+            except Exception as e:
+                logger.debug(f"图片运行Token使用统计记录失败: {e}")
             
             return result_content
             
@@ -208,8 +243,27 @@ class BaseGraph(ABC):
             logger.error("Agent is not initialized. Please set the agent before running.")
             raise ValueError("Agent is not initialized")
         
-        config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+        # 创建用于本次运行的token回调
+        callbacks = []
+        run_callback = None
+        
+        try:
+            if self.token_callback:
+                callbacks.append(self.token_callback)
+            run_callback = UsageMetadataCallbackHandler()
+            callbacks.append(run_callback)
+            logger.debug("Token回调创建成功")
+        except Exception as e:
+            logger.warning(f"Token回调创建失败，继续执行但不统计token: {e}")
+        
+        config = {
+            "configurable": {"thread_id": thread_id}, 
+            "recursion_limit": 100,
+            "callbacks": callbacks
+        }
         input_data = {"messages": [{"role": "user", "content": input_text}]}
+        
+        logger.info(f"开始运行Agent，线程ID: {thread_id}")
         
         events = self.agent.stream(
             input_data,
@@ -224,6 +278,13 @@ class BaseGraph(ABC):
             if not isinstance(message, SystemMessage):
                 if hasattr(message, 'content') and message.content:
                     result_content = message.content
+        
+        # 记录本次运行的token使用情况
+        try:
+            if run_callback and run_callback.usage_metadata:
+                logger.info(f"本次运行Token使用: {run_callback.usage_metadata}")
+        except Exception as e:
+            logger.debug(f"Token使用统计记录失败: {e}")
         
         return result_content
 
@@ -255,7 +316,23 @@ class BaseGraph(ABC):
             logger.error(f"无法加载图片: {e}")
             return
 
-        config = {"configurable": {"thread_id": "1"}, "recursion_limit": 100}
+        # 为聊天会话创建独立的token回调
+        callbacks = []
+        try:
+            if self.token_callback:
+                callbacks.append(self.token_callback)
+            self.session_token_callback = UsageMetadataCallbackHandler()
+            callbacks.append(self.session_token_callback)
+            logger.debug("图片聊天会话Token回调创建成功")
+        except Exception as e:
+            logger.warning(f"图片聊天会话Token回调创建失败，继续执行但不统计token: {e}")
+            self.session_token_callback = None
+        
+        config = {
+            "configurable": {"thread_id": "1"}, 
+            "recursion_limit": 100,
+            "callbacks": callbacks
+        }
         
         while True:
             try:
@@ -266,6 +343,12 @@ class BaseGraph(ABC):
             
             if user_input.lower() in ['exit', 'quit', 'q']:
                 logger.info("Exiting vision chat...")
+                # 显示本次聊天会话的token使用统计
+                try:
+                    if self.session_token_callback and self.session_token_callback.usage_metadata:
+                        logger.info(f"本次图片聊天会话Token使用: {self.session_token_callback.usage_metadata}")
+                except Exception as e:
+                    logger.debug(f"图片聊天会话Token使用统计记录失败: {e}")
                 break
             
             try:
@@ -309,8 +392,23 @@ class BaseGraph(ABC):
             logger.error("Agent is not initialized. Please set the agent before starting the chat.")
             raise ValueError("Agent is not initialized")
 
+        # 为聊天会话创建独立的token回调
+        callbacks = []
+        try:
+            if self.token_callback:
+                callbacks.append(self.token_callback)
+            self.session_token_callback = UsageMetadataCallbackHandler()
+            callbacks.append(self.session_token_callback)
+            logger.debug("聊天会话Token回调创建成功")
+        except Exception as e:
+            logger.warning(f"聊天会话Token回调创建失败，继续执行但不统计token: {e}")
+            self.session_token_callback = None
         
-        config = {"configurable": {"thread_id": "1"}, "recursion_limit": 100}
+        config = {
+            "configurable": {"thread_id": "1"}, 
+            "recursion_limit": 100,
+            "callbacks": callbacks
+        }
         while True:
             try:
                 user_input = input("> ")
@@ -321,6 +419,12 @@ class BaseGraph(ABC):
             
             if user_input.lower() in ['exit', 'quit', 'q']:
                 logger.info("Exiting the program...")
+                # 显示本次聊天会话的token使用统计
+                try:
+                    if self.session_token_callback and self.session_token_callback.usage_metadata:
+                        logger.info(f"本次聊天会话Token使用: {self.session_token_callback.usage_metadata}")
+                except Exception as e:
+                    logger.debug(f"聊天会话Token使用统计记录失败: {e}")
                 break
             
             logger.info("Processing your request...")
@@ -513,4 +617,169 @@ class BaseGraph(ABC):
                 logger.error(f"Error shutting down MCP Manager: {e}")
             finally:
                 self.mcp_tools.clear()
+
+    # ========== Token 使用统计方法 ==========
+    
+    def _parse_usage_metadata(self, usage_metadata: Dict[str, Any]) -> tuple:
+        """
+        解析不同格式的token使用元数据
+        
+        Args:
+            usage_metadata: 原始使用元数据
+            
+        Returns:
+            tuple: (input_tokens, output_tokens, total_tokens)
+        """
+        if not usage_metadata:
+            return 0, 0, 0
+        
+        # 直接格式: {'input_tokens': 10, 'output_tokens': 20, 'total_tokens': 30}
+        if 'input_tokens' in usage_metadata:
+            return (
+                usage_metadata.get('input_tokens', 0),
+                usage_metadata.get('output_tokens', 0),
+                usage_metadata.get('total_tokens', 0)
+            )
+        
+        # 按模型分组格式: {'model_name': {'input_tokens': 10, 'output_tokens': 20, 'total_tokens': 30}}
+        input_total = 0
+        output_total = 0
+        total_total = 0
+        
+        for model_name, model_usage in usage_metadata.items():
+            if isinstance(model_usage, dict):
+                input_total += model_usage.get('input_tokens', 0)
+                output_total += model_usage.get('output_tokens', 0)
+                total_total += model_usage.get('total_tokens', 0)
+        
+        return input_total, output_total, total_total
+    
+    def get_token_usage(self) -> Dict[str, Any]:
+        """
+        获取累计的token使用统计
+        
+        Returns:
+            Dict[str, Any]: Token使用统计信息
+        """
+        try:
+            if not self.token_callback or not self.token_callback.usage_metadata:
+                return {
+                    'input_tokens': 0,
+                    'output_tokens': 0,
+                    'total_tokens': 0,
+                    'has_data': False
+                }
+            
+            usage = self.token_callback.usage_metadata
+            
+            # 处理不同的token metadata格式
+            input_tokens, output_tokens, total_tokens = self._parse_usage_metadata(usage)
+            
+            return {
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
+                'total_tokens': total_tokens,
+                'has_data': True,
+                'raw_metadata': usage
+            }
+        except Exception as e:
+            logger.warning(f"获取token使用统计失败: {e}")
+            return {
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'total_tokens': 0,
+                'has_data': False,
+                'error': str(e)
+            }
+    
+    def get_session_token_usage(self) -> Dict[str, Any]:
+        """
+        获取当前会话的token使用统计
+        
+        Returns:
+            Dict[str, Any]: 会话Token使用统计信息
+        """
+        try:
+            if not self.session_token_callback or not self.session_token_callback.usage_metadata:
+                return {
+                    'input_tokens': 0,
+                    'output_tokens': 0,
+                    'total_tokens': 0,
+                    'has_data': False
+                }
+            
+            usage = self.session_token_callback.usage_metadata
+            
+            # 处理不同的token metadata格式
+            input_tokens, output_tokens, total_tokens = self._parse_usage_metadata(usage)
+            
+            return {
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
+                'total_tokens': total_tokens,
+                'has_data': True,
+                'raw_metadata': usage
+            }
+        except Exception as e:
+            logger.warning(f"获取会话token使用统计失败: {e}")
+            return {
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'total_tokens': 0,
+                'has_data': False,
+                'error': str(e)
+            }
+    
+    def reset_token_usage(self) -> None:
+        """重置累计token使用统计"""
+        try:
+            self.token_callback = UsageMetadataCallbackHandler()
+            logger.info("Token使用统计已重置")
+        except Exception as e:
+            logger.error(f"重置Token使用统计失败: {e}")
+            self.token_callback = None
+    
+    def reset_session_token_usage(self) -> None:
+        """重置会话token使用统计"""
+        try:
+            if self.session_token_callback:
+                self.session_token_callback = UsageMetadataCallbackHandler()
+                logger.info("会话Token使用统计已重置")
+        except Exception as e:
+            logger.error(f"重置会话Token使用统计失败: {e}")
+            self.session_token_callback = None
+    
+    def print_token_statistics(self, include_session: bool = True) -> None:
+        """
+        打印格式化的token使用统计
+        
+        Args:
+            include_session: 是否包含会话统计
+        """
+        logger.info("=" * 60)
+        logger.info("Token 使用统计")
+        logger.info("=" * 60)
+        
+        # 累计统计
+        total_usage = self.get_token_usage()
+        if total_usage['has_data']:
+            logger.info("📊 累计统计:")
+            logger.info(f"  输入Token: {total_usage['input_tokens']:,}")
+            logger.info(f"  输出Token: {total_usage['output_tokens']:,}")
+            logger.info(f"  总Token: {total_usage['total_tokens']:,}")
+        else:
+            logger.info("📊 累计统计: 暂无数据")
+        
+        # 会话统计
+        if include_session:
+            session_usage = self.get_session_token_usage()
+            if session_usage['has_data']:
+                logger.info("\n🔄 当前会话统计:")
+                logger.info(f"  输入Token: {session_usage['input_tokens']:,}")
+                logger.info(f"  输出Token: {session_usage['output_tokens']:,}")
+                logger.info(f"  总Token: {session_usage['total_tokens']:,}")
+            else:
+                logger.info("\n🔄 当前会话统计: 暂无数据")
+        
+        logger.info("=" * 60)
 

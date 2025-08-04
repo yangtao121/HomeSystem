@@ -185,6 +185,93 @@ window.MathJax = {
 .toc a:hover {
     text-decoration: underline;
 }
+
+/* 图片模态框控制按钮样式 */
+.image-modal-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1001;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 8px;
+    padding: 10px;
+    backdrop-filter: blur(10px);
+}
+
+.image-modal-controls .btn {
+    margin: 0 3px;
+    font-size: 14px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.image-modal-controls .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.image-modal-controls .btn:active {
+    transform: translateY(0);
+}
+
+.image-modal-controls .btn i {
+    margin-right: 5px;
+}
+
+/* Toast 通知样式优化 */
+.toast {
+    min-width: 300px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.toast-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.toast.success .toast-icon {
+    color: #28a745;
+}
+
+.toast.error .toast-icon {
+    color: #dc3545;
+}
+
+.toast.warning .toast-icon {
+    color: #ffc107;
+}
+
+.toast.info .toast-icon {
+    color: #17a2b8;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .image-modal-controls {
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        transform: none;
+        display: flex;
+        justify-content: center;
+    }
+    
+    .image-modal-controls .btn {
+        flex: 1;
+        margin: 0 2px;
+        font-size: 12px;
+        padding: 8px 10px;
+    }
+    
+    .image-modal-controls .btn i {
+        margin-right: 3px;
+    }
+}
 </style>
 {% endblock %}
 
@@ -316,6 +403,33 @@ window.MathJax = {
     <span class="image-modal-close">&times;</span>
     <img class="image-modal-content" id="modalImage">
     <div id="modalCaption" class="text-center text-white mt-3"></div>
+    
+    <!-- 图片操作按钮栏 -->
+    <div class="image-modal-controls">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-light btn-sm" id="copyImageBtn" title="复制图片到剪贴板 (Ctrl+C)">
+                <i class="bi bi-clipboard"></i> 复制图片
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="downloadImageBtn" title="下载图片 (Ctrl+S)">
+                <i class="bi bi-download"></i> 下载图片
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="closeModalBtn" title="关闭 (ESC)">
+                <i class="bi bi-x-lg"></i> 关闭
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 通知容器 -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+    <div id="imageActionToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="toast-icon me-2"></i>
+            <strong class="me-auto toast-title">操作结果</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body"></div>
+    </div>
 </div>
 
 <!-- 快速导航 -->
@@ -409,33 +523,84 @@ function initImageModal() {
     const modalImg = document.getElementById('modalImage');
     const modalCaption = document.getElementById('modalCaption');
     const closeBtn = document.querySelector('.image-modal-close');
+    const copyBtn = document.getElementById('copyImageBtn');
+    const downloadBtn = document.getElementById('downloadImageBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    
+    let currentImageIndex = 0;
+    let currentImageSrc = '';
     
     // 为所有图片添加点击事件
     const images = document.querySelectorAll('.analysis-content img');
-    images.forEach(img => {
+    images.forEach((img, index) => {
         img.addEventListener('click', function() {
             modal.style.display = 'block';
             modalImg.src = this.src;
-            modalCaption.textContent = this.alt || '图片';
+            modalCaption.textContent = this.alt || `图片 ${index + 1}`;
+            currentImageIndex = index;
+            currentImageSrc = this.src;
         });
     });
     
-    // 关闭模态框
-    closeBtn.addEventListener('click', function() {
-        modal.style.display = 'none';
+    // 复制图片到剪贴板
+    copyBtn.addEventListener('click', async function() {
+        try {
+            await copyImageToClipboard(modalImg);
+            showToast('图片已复制到剪贴板', 'success', 'bi-check-circle-fill');
+        } catch (error) {
+            console.error('复制图片失败:', error);
+            showToast('复制图片失败: ' + error.message, 'error', 'bi-exclamation-triangle-fill');
+        }
     });
+    
+    // 下载图片
+    downloadBtn.addEventListener('click', function() {
+        try {
+            downloadImage(modalImg, currentImageIndex);
+            showToast('图片下载已开始', 'info', 'bi-download');
+        } catch (error) {
+            console.error('下载图片失败:', error);
+            showToast('下载图片失败: ' + error.message, 'error', 'bi-exclamation-triangle-fill');
+        }
+    });
+    
+    // 关闭模态框的多种方式
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+    
+    closeBtn.addEventListener('click', closeModal);
+    closeModalBtn.addEventListener('click', closeModal);
     
     // 点击背景关闭模态框
     modal.addEventListener('click', function(e) {
         if (e.target === modal) {
-            modal.style.display = 'none';
+            closeModal();
         }
     });
     
-    // ESC键关闭模态框
+    // 键盘事件处理
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && modal.style.display === 'block') {
-            modal.style.display = 'none';
+        if (modal.style.display === 'block') {
+            switch(e.key) {
+                case 'Escape':
+                    closeModal();
+                    break;
+                case 'c':
+                case 'C':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        copyBtn.click();
+                    }
+                    break;
+                case 's':
+                case 'S':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        downloadBtn.click();
+                    }
+                    break;
+            }
         }
     });
 }
@@ -485,6 +650,168 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// 复制图片到剪贴板
+async function copyImageToClipboard(imgElement) {
+    if (!navigator.clipboard || !navigator.clipboard.write) {
+        throw new Error('浏览器不支持剪贴板API');
+    }
+    
+    try {
+        // 创建canvas来处理图片
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 等待图片完全加载
+        if (!imgElement.complete) {
+            await new Promise((resolve, reject) => {
+                imgElement.onload = resolve;
+                imgElement.onerror = reject;
+            });
+        }
+        
+        // 设置canvas尺寸
+        canvas.width = imgElement.naturalWidth || imgElement.width;
+        canvas.height = imgElement.naturalHeight || imgElement.height;
+        
+        // 绘制图片到canvas
+        ctx.drawImage(imgElement, 0, 0);
+        
+        // 将canvas转换为blob
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    reject(new Error('无法生成图片数据'));
+                    return;
+                }
+                
+                try {
+                    // 写入剪贴板
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            [blob.type]: blob
+                        })
+                    ]);
+                    resolve();
+                } catch (error) {
+                    reject(new Error('写入剪贴板失败: ' + error.message));
+                }
+            }, 'image/png', 0.95);
+        });
+        
+    } catch (error) {
+        throw new Error('处理图片失败: ' + error.message);
+    }
+}
+
+// 下载图片
+function downloadImage(imgElement, imageIndex) {
+    try {
+        // 获取论文ID
+        let paperIdPart = '';
+        
+        // 尝试从页面中的多个位置获取ArXiv ID
+        const codeElements = document.querySelectorAll('code');
+        for (let code of codeElements) {
+            const text = code.textContent || code.innerText || '';
+            const match = text.match(/(?:arxiv:)?(\d+\.\d+v?\d*)/i);
+            if (match) {
+                paperIdPart = match[1] + '_';
+                break;
+            }
+        }
+        
+        // 如果还没找到，尝试从URL或页面标题获取
+        if (!paperIdPart) {
+            const urlMatch = window.location.pathname.match(/\/paper\/([^\/]+)/);
+            if (urlMatch) {
+                paperIdPart = urlMatch[1] + '_';
+            }
+        }
+        
+        // 生成文件名
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '_');
+        const filename = `${paperIdPart}image_${imageIndex + 1}_${timestamp}.png`;
+        
+        // 创建canvas来转换图片
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 等待图片加载完成
+        const processImage = () => {
+            canvas.width = imgElement.naturalWidth || imgElement.width;
+            canvas.height = imgElement.naturalHeight || imgElement.height;
+            
+            // 绘制图片
+            ctx.drawImage(imgElement, 0, 0);
+            
+            // 转换为数据URL并下载
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    throw new Error('无法生成图片数据');
+                }
+                
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 清理对象URL
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }, 'image/png', 0.95);
+        };
+        
+        if (imgElement.complete) {
+            processImage();
+        } else {
+            imgElement.onload = processImage;
+            imgElement.onerror = () => {
+                throw new Error('图片加载失败');
+            };
+        }
+        
+    } catch (error) {
+        throw new Error('下载图片失败: ' + error.message);
+    }
+}
+
+// 显示Toast通知
+function showToast(message, type = 'info', iconClass = 'bi-info-circle') {
+    const toast = document.getElementById('imageActionToast');
+    const toastIcon = toast.querySelector('.toast-icon');
+    const toastTitle = toast.querySelector('.toast-title');
+    const toastBody = toast.querySelector('.toast-body');
+    
+    // 设置图标
+    toastIcon.className = `toast-icon me-2 ${iconClass}`;
+    
+    // 设置标题
+    const titles = {
+        'success': '操作成功',
+        'error': '操作失败', 
+        'warning': '警告',
+        'info': '提示'
+    };
+    toastTitle.textContent = titles[type] || '通知';
+    
+    // 设置内容
+    toastBody.textContent = message;
+    
+    // 设置样式类
+    toast.className = `toast ${type}`;
+    
+    // 显示Toast
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: type === 'error' ? 5000 : 3000
+    });
+    bsToast.show();
+}
 
 // 键盘快捷键
 document.addEventListener('keydown', function(e) {
