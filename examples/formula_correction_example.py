@@ -20,10 +20,10 @@ def test_formula_correction():
     """测试公式纠错功能"""
     
     # 示例文件路径
-    analysis_file = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2412.03572/2412.03572_analysis.md"
-    ocr_file = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2412.03572/2412.03572_paddleocr.md"
-    output_file = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2412.03572/2412.03572_corrected.md"
-    
+    analysis_file = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2507.23683/2507.23683_analysis.md"
+    ocr_file = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2507.23683/2507.23683_paddleocr.md"
+    output_file = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2507.23683/2507.23683_corrected.md"
+
     # 检查文件是否存在
     if not os.path.exists(analysis_file):
         logger.error(f"分析文档不存在: {analysis_file}")
@@ -37,7 +37,7 @@ def test_formula_correction():
         # 1. 创建公式纠错agent
         logger.info("创建公式纠错Agent...")
         agent = create_formula_correction_agent(
-            correction_model="deepseek.DeepSeek_V3"
+            correction_model="alibaba.Qwen_Plus"
         )
         
         # 2. 执行公式纠错
