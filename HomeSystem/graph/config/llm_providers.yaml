@@ -92,6 +92,15 @@ providers:
       supports_vision: false
       context_length: 262144
       description: 通义千问3系列最强版本
+    - name: Qwen/Qwen3-235B-A22B-Thinking-2507
+      key: siliconflow.Qwen3_235B_A22B_Thinking
+      display_name: 通义千问 3-235B-A22B-思考
+      parameters: 235B
+      max_tokens: 10240 # 256K上下文
+      supports_functions: true
+      supports_vision: false
+      context_length: 262144
+      description: 通义千问3系列最强版本
   volcano:
     name: Volcano Engine
     description: 火山引擎 - 豆包1.6系列大模型
@@ -153,6 +162,32 @@ providers:
       supports_vision: false
       context_length: 131072
       description: 长上下文处理专用版本
+  zhipuai:
+    name: ZhipuAI
+    description: 智谱AI - GLM-4.5系列智能体原生大模型
+    type: zhipuai
+    api_key_env: ZHIPUAI_API_KEY
+    base_url_env: ZHIPUAI_BASE_URL
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    models:
+    - name: glm-4.5
+      key: zhipuai.GLM_4_5
+      display_name: GLM-4.5
+      parameters: 355B总参数/32B激活
+      max_tokens: 32768
+      supports_functions: true
+      supports_vision: false
+      context_length: 131072
+      description: 智能体原生旗舰模型，MoE架构，全球排名第3
+    - name: glm-4.5-air
+      key: zhipuai.GLM_4_5_Air
+      display_name: GLM-4.5-Air
+      parameters: 106B总参数/12B激活
+      max_tokens: 32768
+      supports_functions: true
+      supports_vision: false
+      context_length: 131072
+      description: 轻量化版本，高效智能体模型，性能评分59.8
   ollama:
     name: Ollama
     description: 本地部署的开源大模型 (14B以上参数)
@@ -322,6 +357,19 @@ vendor_configs:
     retry_delay: 1.5
     rate_limit: 50
     min_charge: 50
+  zhipuai:
+    retry_attempts: 3
+    retry_delay: 1.0
+    rate_limit: 100
+    special_headers:
+      User-Agent: HomeSystem/1.0
+    pricing:
+      input_tokens: 0.8
+      output_tokens: 2.0
+      note: 比DeepSeek便宜85%
+    performance:
+      max_speed: 100
+      global_ranking: 3
   ollama:
     retry_attempts: 1
     retry_delay: 0.1
@@ -336,6 +384,10 @@ recommendations:
   long_context: doubao-seed-1.6
   local_deployment: llama3.3:70b
   cost_effective: siliconflow
+  agent_tasks: glm-4.5
+  efficient_agent: glm-4.5-air
+  tool_calling: glm-4.5
+  multilingual: glm-4.5
 benchmarks:
   deepseek_v3:
     aime_2024: 90%+
@@ -347,3 +399,11 @@ benchmarks:
   kimi_k2:
     eq_bench3: 排名第一
     creative_writing_v3: 排名第一
+  glm_4_5:
+    global_ranking: 第3名
+    performance_score: 63.2
+    agent_tasks: 智能体原生优化
+  glm_4_5_air:
+    performance_score: 59.8
+    efficiency: 高效版本
+    cost_effective: 比主流模型便宜85%

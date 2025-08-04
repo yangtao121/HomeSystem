@@ -1232,6 +1232,317 @@ class PaperService:
             logger.error(f"获取迁移预览失败: {e}")
             return {'valid_papers': [], 'invalid_papers': arxiv_ids, 'summary': {}}
 
+    # === 深度论文分析相关方法 ===
+    
+    def update_analysis_status(self, arxiv_id: str, status: str) -> bool:
+        """
+        更新论文深度分析状态
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            status: 状态 (pending/processing/completed/failed/cancelled)
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 首先检查是否需要添加新列（用于兼容性）
+                cursor.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'arxiv_papers' 
+                    AND column_name IN ('deep_analysis_status', 'deep_analysis_result', 'deep_analysis_created_at', 'deep_analysis_updated_at')
+                """)
+                existing_columns = [row[0] for row in cursor.fetchall()]
+                
+                # 如果列不存在，添加它们
+                if 'deep_analysis_status' not in existing_columns:
+                    cursor.execute("""
+                        ALTER TABLE arxiv_papers 
+                        ADD COLUMN IF NOT EXISTS deep_analysis_status VARCHAR(20) DEFAULT NULL,
+                        ADD COLUMN IF NOT EXISTS deep_analysis_result TEXT DEFAULT NULL,
+                        ADD COLUMN IF NOT EXISTS deep_analysis_created_at TIMESTAMP DEFAULT NULL,
+                        ADD COLUMN IF NOT EXISTS deep_analysis_updated_at TIMESTAMP DEFAULT NULL
+                    """)
+                    conn.commit()
+                
+                # 更新状态
+                if status == 'processing' and not self._has_analysis_status(cursor, arxiv_id):
+                    # 首次开始分析
+                    cursor.execute("""
+                        UPDATE arxiv_papers 
+                        SET deep_analysis_status = %s,
+                            deep_analysis_created_at = CURRENT_TIMESTAMP,
+                            deep_analysis_updated_at = CURRENT_TIMESTAMP
+                        WHERE arxiv_id = %s
+                    """, (status, arxiv_id))
+                else:
+                    # 更新现有状态
+                    cursor.execute("""
+                        UPDATE arxiv_papers 
+                        SET deep_analysis_status = %s,
+                            deep_analysis_updated_at = CURRENT_TIMESTAMP
+                        WHERE arxiv_id = %s
+                    """, (status, arxiv_id))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    logger.info(f"Updated analysis status for {arxiv_id} to {status}")
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"Failed to update analysis status for {arxiv_id}: {e}")
+            return False
+    
+    def _has_analysis_status(self, cursor, arxiv_id: str) -> bool:
+        """检查论文是否已有分析状态记录"""
+        try:
+            cursor.execute("""
+                SELECT deep_analysis_status 
+                FROM arxiv_papers 
+                WHERE arxiv_id = %s 
+                AND deep_analysis_status IS NOT NULL
+            """, (arxiv_id,))
+            return cursor.fetchone() is not None
+        except:
+            return False
+    
+    def save_analysis_result(self, arxiv_id: str, markdown_content: str) -> bool:
+        """
+        保存深度分析结果
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            markdown_content: 分析结果的Markdown内容
+            
+        Returns:
+            bool: 保存是否成功
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET deep_analysis_result = %s,
+                        deep_analysis_status = 'completed',
+                        deep_analysis_updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id = %s
+                """, (markdown_content, arxiv_id))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    logger.info(f"Saved analysis result for {arxiv_id}, {len(markdown_content)} characters")
+                    
+                    # 清除相关缓存
+                    cache_key = f"paper_detail_{arxiv_id}"
+                    redis_client = self.db_manager.get_redis_client()
+                    if redis_client:
+                        redis_client.delete(cache_key)
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"Failed to save analysis result for {arxiv_id}: {e}")
+            return False
+    
+    def get_analysis_status(self, arxiv_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取深度分析状态信息
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            Dict: 状态信息，如果不存在返回None
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                cursor.execute("""
+                    SELECT deep_analysis_status as status,
+                           deep_analysis_created_at as created_at,
+                           deep_analysis_updated_at as updated_at,
+                           CASE 
+                               WHEN deep_analysis_result IS NOT NULL 
+                               THEN LENGTH(deep_analysis_result) 
+                               ELSE 0 
+                           END as result_length
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                result = cursor.fetchone()
+                
+                if result and result['status']:
+                    return dict(result)
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get analysis status for {arxiv_id}: {e}")
+            return None
+    
+    def get_analysis_result(self, arxiv_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取深度分析结果
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            Dict: 分析结果信息，如果不存在返回None
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                cursor.execute("""
+                    SELECT deep_analysis_result as content,
+                           deep_analysis_status as status,
+                           deep_analysis_created_at as created_at,
+                           deep_analysis_updated_at as updated_at,
+                           title, arxiv_id
+                    FROM arxiv_papers 
+                    WHERE arxiv_id = %s
+                    AND deep_analysis_result IS NOT NULL
+                """, (arxiv_id,))
+                
+                result = cursor.fetchone()
+                
+                if result:
+                    return dict(result)
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get analysis result for {arxiv_id}: {e}")
+            return None
+    
+    def has_analysis_result(self, arxiv_id: str) -> bool:
+        """
+        检查论文是否已有深度分析结果
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            bool: 是否已有分析结果
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT 1 FROM arxiv_papers 
+                    WHERE arxiv_id = %s 
+                    AND deep_analysis_result IS NOT NULL 
+                    AND deep_analysis_status = 'completed'
+                """, (arxiv_id,))
+                
+                return cursor.fetchone() is not None
+                
+        except Exception as e:
+            logger.error(f"Failed to check analysis result for {arxiv_id}: {e}")
+            return False
+    
+    def get_papers_with_analysis(self, page: int = 1, per_page: int = 20) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        获取已有深度分析结果的论文列表
+        
+        Args:
+            page: 页码
+            per_page: 每页数量
+            
+        Returns:
+            Tuple: (论文列表, 总数量)
+        """
+        try:
+            offset = (page - 1) * per_page
+            
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 获取总数
+                cursor.execute("""
+                    SELECT COUNT(*) as total
+                    FROM arxiv_papers 
+                    WHERE deep_analysis_result IS NOT NULL 
+                    AND deep_analysis_status = 'completed'
+                """)
+                total = cursor.fetchone()['total']
+                
+                # 获取分页数据
+                cursor.execute("""
+                    SELECT arxiv_id, title, authors, categories, published_date,
+                           deep_analysis_status, deep_analysis_created_at, deep_analysis_updated_at,
+                           LENGTH(deep_analysis_result) as result_length,
+                           task_name, processing_status
+                    FROM arxiv_papers 
+                    WHERE deep_analysis_result IS NOT NULL 
+                    AND deep_analysis_status = 'completed'
+                    ORDER BY deep_analysis_updated_at DESC
+                    LIMIT %s OFFSET %s
+                """, (per_page, offset))
+                
+                papers = [dict(row) for row in cursor.fetchall()]
+                
+                return papers, total
+                
+        except Exception as e:
+            logger.error(f"Failed to get papers with analysis: {e}")
+            return [], 0
+    
+    def delete_analysis_result(self, arxiv_id: str) -> bool:
+        """
+        删除深度分析结果
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET deep_analysis_result = NULL,
+                        deep_analysis_status = NULL,
+                        deep_analysis_created_at = NULL,
+                        deep_analysis_updated_at = NULL
+                    WHERE arxiv_id = %s
+                """, (arxiv_id,))
+                
+                success = cursor.rowcount > 0
+                conn.commit()
+                
+                if success:
+                    logger.info(f"Deleted analysis result for {arxiv_id}")
+                    
+                    # 清除相关缓存
+                    cache_key = f"paper_detail_{arxiv_id}"
+                    redis_client = self.db_manager.get_redis_client()
+                    if redis_client:
+                        redis_client.delete(cache_key)
+                
+                return success
+                
+        except Exception as e:
+            logger.error(f"Failed to delete analysis result for {arxiv_id}: {e}")
+            return False
+
 
 class DifyService:
     """Dify 知识库服务"""
@@ -2529,3 +2840,4 @@ class DifyService:
                 "success": False,
                 "error": str(e)
             }
+    

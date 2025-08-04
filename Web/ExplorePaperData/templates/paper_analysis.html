@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}{{ paper.title }} - 深度分析 - ArXiv论文{% endblock %}
+
+{% block extra_head %}
+<!-- MathJax for LaTeX formula rendering -->
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    processEscapes: true,
+    processEnvironments: true
+  },
+  options: {
+    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+  }
+};
+</script>
+
+<!-- Prism.js for code highlighting -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/autoloader/prism-autoloader.min.js"></script>
+
+<!-- Print styles -->
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .analysis-content { 
+        max-width: none !important; 
+        font-size: 12pt !important;
+        line-height: 1.4 !important;
+    }
+    .analysis-content img {
+        max-width: 100% !important;
+        page-break-inside: avoid;
+    }
+    .analysis-content h1, .analysis-content h2, .analysis-content h3 {
+        page-break-after: avoid;
+    }
+    .navbar, .btn, .alert { display: none !important; }
+}
+
+.analysis-content {
+    max-width: 900px;
+    margin: 0 auto;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.analysis-content img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px;
+    margin: 10px 0;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.analysis-content img:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.analysis-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+.analysis-content table th,
+.analysis-content table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.analysis-content table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.analysis-content blockquote {
+    border-left: 4px solid #007bff;
+    margin: 20px 0;
+    padding: 10px 20px;
+    background-color: #f8f9fa;
+}
+
+.analysis-content code {
+    background-color: #f1f1f1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+.analysis-content pre {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    overflow-x: auto;
+}
+
+.analysis-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px 0;
+    margin-bottom: 30px;
+}
+
+.analysis-metadata {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.image-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.9);
+}
+
+.image-modal-content {
+    margin: auto;
+    display: block;
+    width: 80%;
+    max-width: 1200px;
+    max-height: 80%;
+}
+
+.image-modal-close {
+    position: absolute;
+    top: 15px;
+    right: 35px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.image-modal-close:hover,
+.image-modal-close:focus {
+    color: #bbb;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.toc {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.toc ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.toc ul ul {
+    padding-left: 20px;
+}
+
+.toc li {
+    margin: 5px 0;
+}
+
+.toc a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.toc a:hover {
+    text-decoration: underline;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 分析头部 -->
+<div class="analysis-header no-print">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <h1 class="h2 mb-3">{{ paper.title }}</h1>
+                <p class="mb-2">
+                    <i class="bi bi-lightbulb"></i>
+                    <strong>深度分析报告</strong>
+                </p>
+                <p class="mb-0">
+                    <small>
+                        ArXiv ID: <code>{{ paper.arxiv_id }}</code> | 
+                        生成时间: {{ analysis.updated_at|format_date }}
+                    </small>
+                </p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" class="btn btn-light">
+                        <i class="bi bi-arrow-left"></i> 返回详情
+                    </a>
+                    <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" class="btn btn-primary">
+                        <i class="bi bi-download"></i> 下载分析
+                    </a>
+                    <button onclick="window.print()" class="btn btn-outline-light">
+                        <i class="bi bi-printer"></i> 打印
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分析元数据 -->
+<div class="analysis-metadata no-print">
+    <div class="row">
+        <div class="col-md-6">
+            <h6><i class="bi bi-info-circle"></i> 分析信息</h6>
+            <table class="table table-sm">
+                <tr>
+                    <td><strong>论文标题:</strong></td>
+                    <td>{{ paper.title }}</td>
+                </tr>
+                <tr>
+                    <td><strong>ArXiv ID:</strong></td>
+                    <td><code>{{ paper.arxiv_id }}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>分析状态:</strong></td>
+                    <td>
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> 已完成
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>分析时间:</strong></td>
+                    <td>{{ analysis.updated_at|format_date }}</td>
+                </tr>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h6><i class="bi bi-graph-up"></i> 统计信息</h6>
+            <table class="table table-sm">
+                <tr>
+                    <td><strong>内容长度:</strong></td>
+                    <td>{{ analysis.content|length|filesizeformat }}B</td>
+                </tr>
+                <tr>
+                    <td><strong>预计阅读时间:</strong></td>
+                    <td>{{ ((analysis.content|length / 1000) * 2)|round|int }} 分钟</td>
+                </tr>
+                <tr>
+                    <td><strong>论文分类:</strong></td>
+                    <td>
+                        {% if paper.categories %}
+                            {% for category in paper.categories.split(',')[:3] %}
+                            <span class="badge bg-secondary">{{ category | safe_strip }}</span>
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>操作:</strong></td>
+                    <td>
+                        <button onclick="toggleTOC()" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-list"></i> 目录
+                        </button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 目录 -->
+<div id="toc-container" class="toc no-print" style="display: none;">
+    <h5><i class="bi bi-list"></i> 分析目录</h5>
+    <div id="toc-content">
+        <!-- 目录将通过JavaScript动态生成 -->
+    </div>
+</div>
+
+<!-- 分析内容 -->
+<div class="analysis-content">
+    {{ analysis.content|markdown|safe }}
+</div>
+
+<!-- 页脚信息 -->
+<div class="text-center text-muted mt-5 no-print">
+    <hr>
+    <p>
+        <small>
+            <i class="bi bi-lightbulb"></i>
+            此分析报告由 HomeSystem 深度论文分析系统自动生成<br>
+            生成时间: {{ analysis.updated_at|format_date }} | 
+            ArXiv ID: <code>{{ paper.arxiv_id }}</code>
+        </small>
+    </p>
+</div>
+
+<!-- 图片放大模态框 -->
+<div id="imageModal" class="image-modal">
+    <span class="image-modal-close">&times;</span>
+    <img class="image-modal-content" id="modalImage">
+    <div id="modalCaption" class="text-center text-white mt-3"></div>
+</div>
+
+<!-- 快速导航 -->
+<div class="position-fixed bottom-0 end-0 p-3 no-print" style="z-index: 1000;">
+    <div class="btn-group-vertical" role="group">
+        <button onclick="scrollToTop()" class="btn btn-primary btn-sm" title="回到顶部">
+            <i class="bi bi-arrow-up"></i>
+        </button>
+        <button onclick="toggleFullscreen()" class="btn btn-secondary btn-sm" title="全屏阅读">
+            <i class="bi bi-fullscreen"></i>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 生成目录
+    generateTOC();
+    
+    // 初始化图片点击放大功能
+    initImageModal();
+    
+    // 初始化代码高亮
+    if (typeof Prism !== 'undefined') {
+        Prism.highlightAll();
+    }
+    
+    // 重新渲染MathJax（如果存在）
+    if (typeof MathJax !== 'undefined') {
+        MathJax.typesetPromise().catch(function (err) {
+            console.log('MathJax rendering error:', err);
+        });
+    }
+});
+
+function generateTOC() {
+    const headers = document.querySelectorAll('.analysis-content h1, .analysis-content h2, .analysis-content h3, .analysis-content h4');
+    const tocContent = document.getElementById('toc-content');
+    
+    if (headers.length === 0) {
+        document.getElementById('toc-container').style.display = 'none';
+        return;
+    }
+    
+    let tocHTML = '<ul>';
+    let lastLevel = 1;
+    
+    headers.forEach((header, index) => {
+        const level = parseInt(header.tagName.charAt(1));
+        const text = header.textContent;
+        const id = `heading-${index}`;
+        
+        // 为标题添加ID
+        header.id = id;
+        
+        // 生成目录项
+        if (level > lastLevel) {
+            tocHTML += '<ul>';
+        } else if (level < lastLevel) {
+            for (let i = 0; i < lastLevel - level; i++) {
+                tocHTML += '</ul>';
+            }
+        }
+        
+        tocHTML += `<li><a href="#${id}">${text}</a></li>`;
+        lastLevel = level;
+    });
+    
+    // 关闭所有未关闭的ul标签
+    for (let i = 1; i < lastLevel; i++) {
+        tocHTML += '</ul>';
+    }
+    tocHTML += '</ul>';
+    
+    tocContent.innerHTML = tocHTML;
+}
+
+function toggleTOC() {
+    const tocContainer = document.getElementById('toc-container');
+    if (tocContainer.style.display === 'none') {
+        tocContainer.style.display = 'block';
+    } else {
+        tocContainer.style.display = 'none';
+    }
+}
+
+function initImageModal() {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    const modalCaption = document.getElementById('modalCaption');
+    const closeBtn = document.querySelector('.image-modal-close');
+    
+    // 为所有图片添加点击事件
+    const images = document.querySelectorAll('.analysis-content img');
+    images.forEach(img => {
+        img.addEventListener('click', function() {
+            modal.style.display = 'block';
+            modalImg.src = this.src;
+            modalCaption.textContent = this.alt || '图片';
+        });
+    });
+    
+    // 关闭模态框
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    // 点击背景关闭模态框
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // ESC键关闭模态框
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'block') {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log('无法进入全屏模式:', err);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+// 平滑滚动到锚点
+document.addEventListener('click', function(e) {
+    if (e.target.tagName === 'A' && e.target.getAttribute('href').startsWith('#')) {
+        e.preventDefault();
+        const targetId = e.target.getAttribute('href').substring(1);
+        const targetElement = document.getElementById(targetId);
+        if (targetElement) {
+            targetElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    }
+});
+
+// 处理图片加载错误
+document.addEventListener('DOMContentLoaded', function() {
+    const images = document.querySelectorAll('.analysis-content img');
+    images.forEach(img => {
+        img.addEventListener('error', function() {
+            this.style.border = '2px dashed #dc3545';
+            this.style.padding = '20px';
+            this.style.backgroundColor = '#f8f9fa';
+            this.alt = '图片加载失败: ' + (this.alt || this.src);
+            this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="%23f8f9fa" stroke="%23dc3545" stroke-width="2" stroke-dasharray="5,5"/><text x="100" y="50" text-anchor="middle" fill="%23dc3545" font-family="Arial" font-size="12">图片加载失败</text></svg>';
+        });
+    });
+});
+
+// 键盘快捷键
+document.addEventListener('keydown', function(e) {
+    // Ctrl+P 打印
+    if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        window.print();
+    }
+    
+    // T 键切换目录
+    if (e.key === 't' || e.key === 'T') {
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            toggleTOC();
+        }
+    }
+    
+    // F 键全屏
+    if (e.key === 'f' || e.key === 'F') {
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            toggleFullscreen();
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -129,6 +129,56 @@
                         {% endif %}
                     </div>
                     
+                    <!-- 深度分析操作 -->
+                    <div id="deep-analysis-section">
+                        {% if paper.get('deep_analysis_status') %}
+                            {% if paper.deep_analysis_status == 'completed' %}
+                            <div class="d-grid gap-1">
+                                <a href="{{ url_for('paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success" target="_blank">
+                                    <i class="bi bi-lightbulb"></i> 查看深度分析
+                                </a>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-download"></i> 下载分析
+                                    </a>
+                                    <button class="btn btn-outline-warning btn-sm" onclick="startDeepAnalysis('{{ paper.arxiv_id }}')">
+                                        <i class="bi bi-arrow-repeat"></i> 重新分析
+                                    </button>
+                                </div>
+                            </div>
+                            {% elif paper.deep_analysis_status == 'processing' %}
+                            <div class="d-grid gap-1">
+                                <button class="btn btn-info" disabled>
+                                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                                        <span class="visually-hidden">分析中...</span>
+                                    </div>
+                                    深度分析进行中...
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="cancelDeepAnalysis('{{ paper.arxiv_id }}')">
+                                    <i class="bi bi-x-circle"></i> 取消分析
+                                </button>
+                            </div>
+                            {% elif paper.deep_analysis_status == 'failed' %}
+                            <div class="d-grid gap-1">
+                                <div class="alert alert-danger mb-2 p-2" role="alert">
+                                    <small><i class="bi bi-exclamation-triangle"></i> 分析失败</small>
+                                </div>
+                                <button class="btn btn-outline-primary" onclick="startDeepAnalysis('{{ paper.arxiv_id }}')">
+                                    <i class="bi bi-arrow-repeat"></i> 重试分析
+                                </button>
+                            </div>
+                            {% else %}
+                            <button class="btn btn-outline-primary" onclick="startDeepAnalysis('{{ paper.arxiv_id }}')">
+                                <i class="bi bi-lightbulb"></i> 开始深度分析
+                            </button>
+                            {% endif %}
+                        {% else %}
+                        <button class="btn btn-outline-primary" onclick="startDeepAnalysis('{{ paper.arxiv_id }}')">
+                            <i class="bi bi-lightbulb"></i> 开始深度分析
+                        </button>
+                        {% endif %}
+                    </div>
+                    
                     <button class="btn btn-outline-warning" onclick="openMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title | e }}')">
                         <i class="bi bi-arrow-right-circle"></i> 迁移任务
                     </button>
@@ -1444,6 +1494,216 @@
         } catch {
             return dateString;
         }
+    }
+
+    // 复制到剪贴板
+    function copyToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert('已复制到剪贴板', 'success', 2000);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                fallbackCopyTextToClipboard(text);
+            });
+        } else {
+            fallbackCopyTextToClipboard(text);
+        }
+    }
+    
+    function fallbackCopyTextToClipboard(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showAlert('已复制到剪贴板', 'success', 2000);
+            } else {
+                showAlert('复制失败，请手动复制', 'error');
+            }
+        } catch (err) {
+            console.error('复制失败:', err);
+            showAlert('复制失败，请手动复制', 'error');
+        }
+        
+        document.body.removeChild(textArea);
+    }
+
+    // 深度分析功能
+    function startDeepAnalysis(arxivId) {
+        if (!confirm('确定要开始深度分析吗？此过程可能需要几分钟时间。')) {
+            return;
+        }
+        
+        const analysisSection = document.getElementById('deep-analysis-section');
+        const originalContent = analysisSection.innerHTML;
+        
+        // 显示分析中状态
+        analysisSection.innerHTML = `
+            <div class="d-grid gap-1">
+                <button class="btn btn-info" disabled>
+                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                        <span class="visually-hidden">分析中...</span>
+                    </div>
+                    深度分析进行中...
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="cancelDeepAnalysis('${arxivId}')">
+                    <i class="bi bi-x-circle"></i> 取消分析
+                </button>
+            </div>
+        `;
+        
+        // 发送分析请求
+        fetch(`/api/paper/${arxivId}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('深度分析已启动！', 'success');
+                // 开始轮询状态
+                pollAnalysisStatus(arxivId);
+            } else {
+                showAlert(`启动分析失败: ${data.error}`, 'error');
+                // 恢复原始状态
+                analysisSection.innerHTML = originalContent;
+            }
+        })
+        .catch(error => {
+            console.error('启动分析失败:', error);
+            showAlert('启动分析时发生网络错误', 'error');
+            // 恢复原始状态
+            analysisSection.innerHTML = originalContent;
+        });
+    }
+    
+    function cancelDeepAnalysis(arxivId) {
+        if (!confirm('确定要取消深度分析吗？')) {
+            return;
+        }
+        
+        const analysisSection = document.getElementById('deep-analysis-section');
+        const originalContent = analysisSection.innerHTML;
+        
+        // 显示取消中状态
+        analysisSection.innerHTML = `
+            <button class="btn btn-warning" disabled>
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">取消中...</span>
+                </div>
+                正在取消分析...
+            </button>
+        `;
+        
+        // 发送取消请求
+        fetch(`/api/paper/${arxivId}/cancel_analysis`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('分析已取消', 'info');
+                // 更新为可重新开始状态
+                analysisSection.innerHTML = `
+                    <button class="btn btn-outline-primary" onclick="startDeepAnalysis('${arxivId}')">
+                        <i class="bi bi-lightbulb"></i> 开始深度分析
+                    </button>
+                `;
+            } else {
+                showAlert(`取消分析失败: ${data.error}`, 'error');
+                // 恢复原始状态
+                analysisSection.innerHTML = originalContent;
+            }
+        })
+        .catch(error => {
+            console.error('取消分析失败:', error);
+            showAlert('取消分析时发生网络错误', 'error');
+            // 恢复原始状态
+            analysisSection.innerHTML = originalContent;
+        });
+    }
+    
+    function pollAnalysisStatus(arxivId) {
+        const pollInterval = setInterval(() => {
+            fetch(`/api/paper/${arxivId}/analysis_status`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const status = data.data.status;
+                        const analysisSection = document.getElementById('deep-analysis-section');
+                        
+                        if (status === 'completed') {
+                            clearInterval(pollInterval);
+                            // 分析完成，显示查看按钮
+                            analysisSection.innerHTML = `
+                                <div class="d-grid gap-1">
+                                    <a href="/paper/${arxivId}/analysis" class="btn btn-success" target="_blank">
+                                        <i class="bi bi-lightbulb"></i> 查看深度分析
+                                    </a>
+                                    <div class="btn-group" role="group">
+                                        <a href="/api/paper/${arxivId}/download_analysis" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-download"></i> 下载分析
+                                        </a>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="startDeepAnalysis('${arxivId}')">
+                                            <i class="bi bi-arrow-repeat"></i> 重新分析
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            showAlert('深度分析已完成！', 'success');
+                            
+                        } else if (status === 'failed') {
+                            clearInterval(pollInterval);
+                            // 分析失败，显示重试按钮
+                            analysisSection.innerHTML = `
+                                <div class="d-grid gap-1">
+                                    <div class="alert alert-danger mb-2 p-2" role="alert">
+                                        <small><i class="bi bi-exclamation-triangle"></i> 分析失败</small>
+                                    </div>
+                                    <button class="btn btn-outline-primary" onclick="startDeepAnalysis('${arxivId}')">
+                                        <i class="bi bi-arrow-repeat"></i> 重试分析
+                                    </button>
+                                </div>
+                            `;
+                            showAlert('深度分析失败，请重试', 'error');
+                            
+                        } else if (status !== 'processing') {
+                            clearInterval(pollInterval);
+                            // 状态不是processing，可能被取消或其他状态
+                            analysisSection.innerHTML = `
+                                <button class="btn btn-outline-primary" onclick="startDeepAnalysis('${arxivId}')">
+                                    <i class="bi bi-lightbulb"></i> 开始深度分析
+                                </button>
+                            `;
+                        }
+                    } else {
+                        console.error('获取分析状态失败:', data.error);
+                        // 继续轮询，可能是临时错误
+                    }
+                })
+                .catch(error => {
+                    console.error('轮询分析状态失败:', error);
+                    // 继续轮询，可能是临时网络错误
+                });
+        }, 3000); // 每3秒轮询一次
+        
+        // 设置最大轮询时间（30分钟），避免无限轮询
+        setTimeout(() => {
+            clearInterval(pollInterval);
+            console.log('分析状态轮询超时，停止轮询');
+        }, 30 * 60 * 1000);
     }
 
     // 页面加载完成后的处理

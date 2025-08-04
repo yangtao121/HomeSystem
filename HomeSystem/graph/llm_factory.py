@@ -14,6 +14,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_deepseek import ChatDeepSeek
+from langchain_community.chat_models import ChatZhipuAI
 from pydantic import SecretStr
 
 
@@ -71,6 +72,7 @@ class LLMFactory:
                         'base_url': provider_config.get('base_url'),
                         'description': model.get('description', ''),
                         'max_tokens': model.get('max_tokens'),
+                        'context_length': model.get('context_length'),
                         'supports_functions': model.get('supports_functions', False),
                         'supports_vision': model.get('supports_vision', False)
                     }
@@ -173,6 +175,13 @@ class LLMFactory:
             return ChatDeepSeek(
                 model=config['model_name'],
                 api_key=SecretStr(api_key) if api_key else None,
+                **params
+            )
+        elif config['type'] == 'zhipuai':  # Use native ChatZhipuAI for ZhipuAI models
+            api_key = os.getenv(config['api_key_env'])
+            return ChatZhipuAI(
+                model=config['model_name'],
+                api_key=api_key,
                 **params
             )
         else:  # openai_compatible
@@ -384,3 +393,12 @@ if __name__ == "__main__":
     logger.info(f"✅ SiliconFlow LLM创建成功: {type(siliconflow_llm).__name__}")
     response = siliconflow_llm.invoke("你好，SiliconFlow！")
     logger.info(f"✅ SiliconFlow LLM响应成功: {response}")
+
+    # 创建智谱AI模型（如果API Key可用）
+    try:
+        zhipuai_llm = factory.create_llm(model_name='zhipuai.GLM_4_5')
+        logger.info(f"✅ ZhipuAI LLM创建成功: {type(zhipuai_llm).__name__}")
+        response = zhipuai_llm.invoke("你好，智谱AI！")
+        logger.info(f"✅ ZhipuAI LLM响应成功: {response}")
+    except Exception as e:
+        logger.warning(f"⚠️  ZhipuAI模型创建失败（可能缺少API Key）: {e}")

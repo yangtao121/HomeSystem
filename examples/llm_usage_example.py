@@ -59,7 +59,9 @@ def demo_multi_model_conversation():
     models_to_test = [
         "deepseek.DeepSeek_V3",
         "siliconflow.DeepSeek_V3", 
-        "moonshot.Kimi_K2"
+        "moonshot.Kimi_K2",
+        "zhipuai.GLM_4_5",
+        "zhipuai.GLM_4_5_Air"
     ]
     
     available_models = list_available_llm_models()
@@ -99,6 +101,8 @@ class MyGraph(BaseGraph):
         self.main_llm = get_llm("deepseek.DeepSeek_V3")       # 主要推理
         self.code_llm = get_llm("siliconflow.Qwen2_5_72B")   # 代码生成
         self.reasoning_llm = get_llm("deepseek.DeepSeek_R1") # 深度推理
+        self.agent_llm = get_llm("zhipuai.GLM_4_5")          # 智能体任务
+        self.efficient_llm = get_llm("zhipuai.GLM_4_5_Air")  # 高效处理
         
         # 获取embedding模型
         self.embedding = get_embedding("ollama.BGE_M3")
@@ -109,6 +113,10 @@ class MyGraph(BaseGraph):
             return self.code_llm.invoke([HumanMessage(content=query)])
         elif "推理" in query or "reasoning" in query.lower():
             return self.reasoning_llm.invoke([HumanMessage(content=query)])
+        elif "智能体" in query or "agent" in query.lower():
+            return self.agent_llm.invoke([HumanMessage(content=query)])
+        elif "快速" in query or "efficient" in query.lower():
+            return self.efficient_llm.invoke([HumanMessage(content=query)])
         else:
             return self.main_llm.invoke([HumanMessage(content=query)])
 ```
@@ -116,8 +124,10 @@ class MyGraph(BaseGraph):
 ✨ 优势:
   - 同一个graph可以使用多个不同的LLM
   - 根据任务类型动态选择最适合的模型
-  - 支持所有厂商: DeepSeek, 硅基流动, 火山引擎, 月之暗面, Ollama
+  - 支持所有厂商: DeepSeek, 硅基流动, 火山引擎, 月之暗面, 智谱AI, Ollama
   - 统一的provider.model命名格式，易于区分和管理
+  - 智谱AI GLM-4.5: 专为智能体任务优化，全球排名第3
+  - GLM-4.5-Air: 高效轻量版本，成本优势明显
 """)
 
 

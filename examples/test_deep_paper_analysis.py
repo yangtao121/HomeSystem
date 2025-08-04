@@ -20,9 +20,9 @@ def test_deep_paper_analysis():
     """测试深度论文分析功能"""
     
     # 配置参数
-    paper_folder = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2502.13508"
+    paper_folder = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2503.22020"
     vision_model = "ollama.Qwen2_5_VL_7B" 
-    analysis_model = "siliconflow.Qwen3_235B_A22B"
+    analysis_model = "siliconflow.Qwen3_235B_A22B_Thinking"
     
     logger.info(f"开始测试深度论文分析智能体")
     logger.info(f"论文文件夹: {paper_folder}")

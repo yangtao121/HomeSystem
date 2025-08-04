@@ -2,13 +2,18 @@
 ArXiv论文数据可视化Web应用
 提供直观的论文数据探索界面
 """
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
 from flask_moment import Moment
 from database import PaperService, DifyService
 from config import Config
 from utils.markdown_utils import markdown_filter, markdown_safe_filter
+from services.analysis_service import DeepAnalysisService
 import logging
 import math
+import os
+import zipfile
+import tempfile
+import re
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +28,7 @@ moment = Moment(app)
 # 初始化服务
 paper_service = PaperService()
 dify_service = DifyService()
+analysis_service = DeepAnalysisService(paper_service)
 
 # 添加模板上下文处理器
 @app.context_processor
@@ -1075,6 +1081,255 @@ def internal_error(error):
     """500错误处理"""
     logger.error(f"内部错误: {error}")
     return render_template('error.html', error="服务器内部错误"), 500
+
+
+# === 深度论文分析API接口 ===
+
+@app.route('/api/paper/<arxiv_id>/analyze', methods=['POST'])
+def api_start_analysis(arxiv_id):
+    """API接口 - 启动深度论文分析"""
+    try:
+        logger.info(f"🎯 收到深度分析请求 - ArXiv ID: {arxiv_id}")
+        
+        # 获取配置参数
+        data = request.get_json() if request.is_json else {}
+        config = data.get('config', {})
+        logger.info(f"📋 分析配置: {config}")
+        
+        # 启动分析
+        logger.info(f"🔄 调用分析服务...")
+        result = analysis_service.start_analysis(arxiv_id, config)
+        logger.info(f"📤 分析服务返回结果: {result}")
+        
+        if result['success']:
+            logger.info(f"✅ 分析启动成功: {arxiv_id}")
+            return jsonify(result)
+        else:
+            logger.error(f"❌ 分析启动失败: {arxiv_id}, 错误: {result.get('error')}")
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"启动深度分析失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"启动分析失败: {str(e)}"
+        }), 500
+
+@app.route('/api/paper/<arxiv_id>/analysis_status')
+def api_analysis_status(arxiv_id):
+    """API接口 - 查询分析状态"""
+    try:
+        result = analysis_service.get_analysis_status(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        logger.error(f"获取分析状态失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"获取状态失败: {str(e)}"
+        }), 500
+
+@app.route('/api/paper/<arxiv_id>/analysis_result')
+def api_analysis_result(arxiv_id):
+    """API接口 - 获取分析结果"""
+    try:
+        result = analysis_service.get_analysis_result(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        logger.error(f"获取分析结果失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"获取结果失败: {str(e)}"
+        }), 500
+
+@app.route('/api/paper/<arxiv_id>/cancel_analysis', methods=['POST'])
+def api_cancel_analysis(arxiv_id):
+    """API接口 - 取消正在进行的分析"""
+    try:
+        result = analysis_service.cancel_analysis(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"取消分析失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"取消失败: {str(e)}"
+        }), 500
+
+@app.route('/paper/<arxiv_id>/analysis')
+def paper_analysis_view(arxiv_id):
+    """论文深度分析显示页面"""
+    try:
+        # 获取分析结果
+        result = analysis_service.get_analysis_result(arxiv_id)
+        
+        if not result['success']:
+            return render_template('error.html', 
+                                   error="分析结果不存在，请先进行深度分析"), 404
+        
+        # 获取论文基本信息
+        paper = paper_service.get_paper_detail(arxiv_id)
+        if not paper:
+            return render_template('error.html', error="论文不存在"), 404
+        
+        return render_template('paper_analysis.html', 
+                             paper=paper, 
+                             analysis=result)
+    
+    except Exception as e:
+        logger.error(f"显示分析结果失败 {arxiv_id}: {e}")
+        return render_template('error.html', error="加载分析结果失败"), 500
+
+@app.route('/paper/<arxiv_id>/analysis_images/<filename>')
+def serve_analysis_image(arxiv_id, filename):
+    """服务分析图片文件"""
+    try:
+        # 安全检查：防止路径遍历攻击
+        if '..' in filename or '/' in filename or '\\' in filename:
+            logger.warning(f"Suspicious filename requested: {filename}")
+            return "Invalid filename", 400
+        
+        # 验证ArXiv ID格式
+        if not re.match(r'^\d{4}\.\d{4,5}$', arxiv_id):
+            logger.warning(f"Invalid ArXiv ID format: {arxiv_id}")
+            return "Invalid ArXiv ID", 400
+        
+        # 构建安全的文件路径
+        base_path = "/mnt/nfs_share/code/homesystem/data/paper_analyze"
+        image_path = os.path.join(base_path, arxiv_id, "imgs", filename)
+        
+        # 确保路径在允许的目录内
+        real_image_path = os.path.realpath(image_path)
+        real_base_path = os.path.realpath(os.path.join(base_path, arxiv_id))
+        
+        if not real_image_path.startswith(real_base_path):
+            logger.warning(f"Path traversal attempt: {image_path}")
+            return "Access denied", 403
+        
+        # 检查文件是否存在
+        if not os.path.exists(real_image_path):
+            logger.info(f"Image not found: {real_image_path}")
+            return "Image not found", 404
+        
+        # 检查是否是图片文件
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+        file_ext = os.path.splitext(filename.lower())[1]
+        if file_ext not in allowed_extensions:
+            logger.warning(f"Invalid file type requested: {filename}")
+            return "Invalid file type", 400
+        
+        # 发送文件
+        return send_file(real_image_path)
+        
+    except Exception as e:
+        logger.error(f"Serve image failed {arxiv_id}/{filename}: {e}")
+        return "Server error", 500
+
+@app.route('/api/paper/<arxiv_id>/download_analysis')
+def api_download_analysis(arxiv_id):
+    """API接口 - 下载分析结果（Markdown + 图片打包为ZIP）"""
+    try:
+        # 获取分析结果
+        result = analysis_service.get_analysis_result(arxiv_id)
+        
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': '分析结果不存在'
+            }), 404
+        
+        # 创建临时ZIP文件
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        
+        try:
+            with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # 添加Markdown文件
+                markdown_content = result['content']
+                
+                # 处理图片路径，转换为相对路径
+                processed_markdown = _process_markdown_for_download(markdown_content, arxiv_id)
+                
+                zip_file.writestr(f"{arxiv_id}_analysis.md", processed_markdown)
+                
+                # 添加图片文件
+                images_dir = f"/mnt/nfs_share/code/homesystem/data/paper_analyze/{arxiv_id}/imgs"
+                if os.path.exists(images_dir):
+                    for filename in os.listdir(images_dir):
+                        if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                            image_path = os.path.join(images_dir, filename)
+                            if os.path.isfile(image_path):
+                                zip_file.write(image_path, f"imgs/{filename}")
+            
+            # 返回ZIP文件
+            return send_file(
+                temp_zip.name,
+                as_attachment=True,
+                download_name=f"{arxiv_id}_deep_analysis.zip",
+                mimetype='application/zip'
+            )
+            
+        finally:
+            # 清理临时文件（在发送后会被自动删除）
+            pass
+            
+    except Exception as e:
+        logger.error(f"下载分析结果失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"下载失败: {str(e)}"
+        }), 500
+
+def _process_markdown_for_download(content: str, arxiv_id: str) -> str:
+    """
+    处理Markdown内容，将网页URL路径转换为本地相对路径
+    
+    Args:
+        content: 原始Markdown内容
+        arxiv_id: ArXiv论文ID
+        
+    Returns:
+        str: 处理后的Markdown内容
+    """
+    try:
+        # 将网页URL路径转换为相对路径
+        pattern = rf'/paper/{re.escape(arxiv_id)}/analysis_images/([^)]+)'
+        replacement = r'imgs/\1'
+        
+        processed_content = re.sub(pattern, replacement, content)
+        
+        return processed_content
+        
+    except Exception as e:
+        logger.error(f"处理Markdown下载内容失败: {e}")
+        return content
+
+@app.route('/api/analysis/active')
+def api_active_analyses():
+    """API接口 - 获取当前活跃的分析任务"""
+    try:
+        result = analysis_service.get_active_analyses()
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"获取活跃分析失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 @app.template_filter('truncate_text')
 def truncate_text(text, length=100):
