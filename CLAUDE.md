@@ -257,7 +257,7 @@ python app.py
 **Database service startup:**
 ```bash
 # Start required services
-cd /mnt/nfs_share/code/homesystem
+cd homesystem  # 进入项目根目录
 docker compose up -d
 
 # Start with admin tools (optional)

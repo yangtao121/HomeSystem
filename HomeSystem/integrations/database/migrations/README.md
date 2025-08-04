@@ -22,7 +22,7 @@
 
 ```bash
 # 执行迁移
-cd /mnt/nfs_share/code/homesystem
+cd homesystem  # 进入项目根目录
 python HomeSystem/integrations/database/migrations/add_full_paper_relevance_fields.py
 
 # 回滚迁移（仅用于紧急情况）

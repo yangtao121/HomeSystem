@@ -63,14 +63,14 @@ ExplorePaperData/
 确保以下服务正在运行：
 ```bash
 # 启动数据库服务
-cd /mnt/nfs_share/code/homesystem
+cd homesystem  # 进入项目根目录
 docker compose up -d
 ```
 
 ### 2. 安装依赖
 
 ```bash
-cd /mnt/nfs_share/code/homesystem/Web/ExplorePaperData
+cd Web/ExplorePaperData  # 从项目根目录进入
 pip install -r requirements.txt
 ```
 

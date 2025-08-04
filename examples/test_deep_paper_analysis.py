@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 
 # 添加项目路径
-sys.path.append('/mnt/nfs_share/code/homesystem')
+project_root = os.path.join(os.path.dirname(__file__), '..')
+sys.path.append(project_root)
 
 from HomeSystem.graph.deep_paper_analysis_agent import create_deep_paper_analysis_agent
 from loguru import logger
@@ -19,8 +20,9 @@ from loguru import logger
 def test_deep_paper_analysis():
     """测试深度论文分析功能"""
     
-    # 配置参数
-    paper_folder = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2503.22020"
+    # 配置参数 - 使用相对路径
+    project_root = os.path.join(os.path.dirname(__file__), '..')
+    paper_folder = os.path.join(project_root, "data/paper_analyze/2503.22020")
     vision_model = "ollama.Qwen2_5_VL_7B" 
     analysis_model = "siliconflow.Qwen3_235B_A22B_Thinking"
     
@@ -170,7 +172,8 @@ def test_simple_functionality():
         
         # 测试图片工具创建（使用测试文件夹）
         from HomeSystem.graph.tool.image_analysis_tool import create_image_analysis_tool
-        test_folder = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2502.13508"
+        project_root = os.path.join(os.path.dirname(__file__), '..')
+        test_folder = os.path.join(project_root, "data/paper_analyze/2502.13508")
         
         if os.path.exists(test_folder):
             tool = create_image_analysis_tool(test_folder, "ollama.Qwen2_5_VL_7B")

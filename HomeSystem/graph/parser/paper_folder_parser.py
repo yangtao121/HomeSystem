@@ -410,8 +410,10 @@ def parse_paper_folder(folder_path: str) -> Dict[str, Any]:
 
 # 测试代码
 if __name__ == "__main__":
-    # 测试解析器
-    test_folder = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2502.13508"
+    # 测试解析器 - 使用相对路径
+    current_dir = os.path.dirname(__file__)
+    project_root = os.path.join(current_dir, '..', '..', '..')
+    test_folder = os.path.join(project_root, "data/paper_analyze/2502.13508")
     
     try:
         parser = create_paper_folder_parser(test_folder)

@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
 ### 2. 运行示例
 ```bash
-cd /mnt/nfs_share/code/homesystem
+cd homesystem  # 进入项目根目录
 python examples/workflow_example.py
 ```
 

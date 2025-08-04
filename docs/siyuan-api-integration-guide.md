@@ -695,7 +695,7 @@ API调用异常的基础异常类
 
 ```bash
 # 快速测试
-cd /mnt/nfs_share/code/homesystem
+cd homesystem  # 进入项目根目录
 python examples/siyuan_quick_test.py
 
 # 完整演示

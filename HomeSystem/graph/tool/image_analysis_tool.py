@@ -236,8 +236,10 @@ def create_image_analysis_tool(base_folder_path: str, vision_model: str = "ollam
 
 # 使用示例和测试代码
 if __name__ == "__main__":
-    # 测试代码
-    test_folder_path = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2502.13508"
+    # 测试代码 - 使用相对路径
+    current_dir = os.path.dirname(__file__)
+    project_root = os.path.join(current_dir, '..', '..', '..')
+    test_folder_path = os.path.join(project_root, "data/paper_analyze/2502.13508")
     test_image_path = "imgs/img_in_image_box_253_178_967_593.jpg"
     
     try:

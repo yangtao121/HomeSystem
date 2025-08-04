@@ -76,7 +76,7 @@ mcp:
       args: ["HomeSystem/graph/tools/local_mcp_server.py"]
       enabled: false
       description: "HomeSystem 自定义工具集"
-      working_directory: "/mnt/nfs_share/code/homesystem"
+      working_directory: "${HOMESYSTEM_ROOT:-.}"
       
     # 开发工具服务器 (SSE 模式)
     dev_tools:

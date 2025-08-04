@@ -28,7 +28,10 @@ fi
 echo "🔗 检查数据库连接..."
 python -c "
 import sys
-sys.path.append('/mnt/nfs_share/code/homesystem')
+import os
+# 添加项目根目录到路径
+project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+sys.path.append(project_root)
 from database import DatabaseManager
 try:
     db_manager = DatabaseManager()

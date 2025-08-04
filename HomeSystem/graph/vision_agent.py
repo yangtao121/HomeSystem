@@ -295,8 +295,10 @@ if __name__ == "__main__":
         print(f"VisionAgent created successfully")
         print(f"Config: {agent.get_analysis_stats()}")
         
-        # 测试图片分析（如果有测试图片）
-        test_image = "/mnt/nfs_share/code/homesystem/data/paper_analyze/2502.13508/imgs/img_in_image_box_253_178_967_593.jpg"
+        # 测试图片分析（如果有测试图片） - 使用相对路径
+        current_dir = os.path.dirname(__file__)
+        project_root = os.path.join(current_dir, '..', '..')
+        test_image = os.path.join(project_root, "data/paper_analyze/2502.13508/imgs/img_in_image_box_253_178_967_593.jpg")
         if Path(test_image).exists():
             result = agent.analyze_image(test_image, "Analyze this architecture diagram")
             print(f"Analysis result length: {len(result)}")

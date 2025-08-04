@@ -33,7 +33,8 @@ paper_service = PaperService()
 dify_service = DifyService()
 
 # 添加HomeSystem模块路径以导入LLMFactory
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+PROJECT_ROOT = os.path.join(os.path.dirname(__file__), '..', '..')
+sys.path.append(PROJECT_ROOT)
 
 # 初始化Redis连接用于配置存储
 try:
@@ -1397,7 +1398,7 @@ def serve_analysis_image(arxiv_id, filename):
             return "Invalid ArXiv ID", 400
         
         # 构建安全的文件路径
-        base_path = "/mnt/nfs_share/code/homesystem/data/paper_analyze"
+        base_path = os.path.join(PROJECT_ROOT, "data/paper_analyze")
         image_path = os.path.join(base_path, arxiv_id, "imgs", filename)
         
         # 确保路径在允许的目录内
@@ -1454,7 +1455,7 @@ def api_download_analysis(arxiv_id):
                 zip_file.writestr(f"{arxiv_id}_analysis.md", processed_markdown)
                 
                 # 添加图片文件
-                images_dir = f"/mnt/nfs_share/code/homesystem/data/paper_analyze/{arxiv_id}/imgs"
+                images_dir = os.path.join(PROJECT_ROOT, "data/paper_analyze", arxiv_id, "imgs")
                 if os.path.exists(images_dir):
                     for filename in os.listdir(images_dir):
                         if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
