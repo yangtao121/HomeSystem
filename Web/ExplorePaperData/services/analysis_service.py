@@ -434,6 +434,8 @@ class DeepAnalysisService:
             str: 处理后的Markdown内容
         """
         try:
+            logger.info(f"🖼️ Starting image path processing for {arxiv_id}")
+            
             # 使用更宽泛的正则表达式匹配各种Markdown图片语法格式
             # 匹配 ![alt](imgs/filename) 格式
             img_pattern = r'!\[([^\]]*)\]\((imgs/[^)]+)\)'
@@ -442,27 +444,90 @@ class DeepAnalysisService:
                 alt_text = match.group(1)
                 relative_path = match.group(2)
                 # 转换为Flask可访问的URL路径
-                new_path = f"/paper/{arxiv_id}/analysis_images/{relative_path.replace('imgs/', '')}"
+                filename = relative_path.replace('imgs/', '')
+                new_path = f"/paper/{arxiv_id}/analysis_images/{filename}"
+                logger.debug(f"  📸 Converting: {relative_path} → {new_path}")
                 return f"![{alt_text}]({new_path})"
             
             # 先记录原始图片数量用于调试
             original_matches = re.findall(img_pattern, content)
-            logger.info(f"Found {len(original_matches)} image references for {arxiv_id}")
+            logger.info(f"  📊 Found {len(original_matches)} image references for {arxiv_id}")
+            
             if original_matches:
-                logger.debug(f"Sample matches: {original_matches[:3]}")  # 记录前3个匹配项用于调试
+                # 记录前5个匹配项用于调试
+                sample_matches = original_matches[:5]
+                logger.debug(f"  📋 Sample matches: {sample_matches}")
+                
+                # 检查是否有重复的图片
+                unique_images = set([match[1] for match in original_matches])
+                if len(unique_images) != len(original_matches):
+                    logger.warning(f"  ⚠️ Found {len(original_matches) - len(unique_images)} duplicate image references")
             
             # 替换所有图片路径
             processed_content = re.sub(img_pattern, replace_image_path, content)
             
             # 验证处理结果
             processed_matches = re.findall(r'!\[([^\]]*)\]\((/paper/[^)]+)\)', processed_content)
-            logger.info(f"Processed {len(processed_matches)} image paths for {arxiv_id}")
+            logger.info(f"  ✅ Successfully processed {len(processed_matches)} image paths for {arxiv_id}")
             
+            # 额外验证：确保没有遗留的 imgs/ 路径
+            remaining_old_paths = re.findall(r'!\[([^\]]*)\]\((imgs/[^)]+)\)', processed_content)
+            if remaining_old_paths:
+                logger.error(f"  ❌ Found {len(remaining_old_paths)} unprocessed imgs/ paths: {remaining_old_paths[:3]}")
+                # 尝试再次处理
+                processed_content = re.sub(img_pattern, replace_image_path, processed_content)
+                remaining_after_retry = re.findall(r'!\[([^\]]*)\]\((imgs/[^)]+)\)', processed_content)
+                if remaining_after_retry:
+                    logger.error(f"  ❌ Still have {len(remaining_after_retry)} unprocessed paths after retry")
+                else:
+                    logger.info(f"  ✅ Successfully processed remaining paths after retry")
+            
+            # 验证处理是否成功
+            if len(original_matches) != len(processed_matches):
+                logger.warning(f"  ⚠️ Mismatch in image count: original={len(original_matches)}, processed={len(processed_matches)}")
+            
+            # 检查文件系统中图片是否存在（可选验证）
+            if processed_matches:
+                self._validate_image_files_exist(arxiv_id, processed_matches[:3])  # 只验证前3个
+            
+            logger.info(f"🖼️ Image path processing completed for {arxiv_id}")
             return processed_content
             
         except Exception as e:
-            logger.error(f"Failed to process image paths for {arxiv_id}: {e}")
+            logger.error(f"❌ Failed to process image paths for {arxiv_id}: {e}")
+            logger.error(f"   Content length: {len(content) if content else 0} characters")
             return content
+    
+    def _validate_image_files_exist(self, arxiv_id: str, sample_matches: list) -> None:
+        """
+        验证图片文件是否存在于文件系统中
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            sample_matches: 样本匹配结果列表
+        """
+        try:
+            import os
+            base_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'paper_analyze')
+            img_dir = os.path.join(base_path, arxiv_id, 'imgs')
+            
+            if not os.path.exists(img_dir):
+                logger.warning(f"  ⚠️ Image directory does not exist: {img_dir}")
+                return
+            
+            for alt_text, url_path in sample_matches:
+                # 从URL路径提取文件名
+                filename = url_path.split('/')[-1]
+                img_path = os.path.join(img_dir, filename)
+                
+                if os.path.exists(img_path):
+                    file_size = os.path.getsize(img_path)
+                    logger.debug(f"  ✅ Image exists: {filename} ({file_size} bytes)")
+                else:
+                    logger.warning(f"  ⚠️ Image file not found: {filename}")
+                    
+        except Exception as e:
+            logger.debug(f"  💭 Image validation skipped due to error: {e}")
     
     def get_analysis_status(self, arxiv_id: str) -> Dict[str, Any]:
         """

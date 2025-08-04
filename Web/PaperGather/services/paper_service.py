@@ -7,8 +7,11 @@ import os
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 
-# 添加HomeSystem到路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+# 添加HomeSystem到路径 - 使用更稳定的相对路径计算
+current_dir = os.path.dirname(__file__)
+homesystem_root = os.path.normpath(os.path.join(current_dir, "..", "..", ".."))
+if homesystem_root not in sys.path:
+    sys.path.insert(0, homesystem_root)
 
 from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
 from loguru import logger

@@ -10,6 +10,8 @@
 """
 
 import json
+import weakref
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated, Any, Dict, List, Optional
 from typing_extensions import TypedDict
 
@@ -105,8 +107,25 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         # 移除了结构化输出功能，简化为直接文本输出
         
-        # 设置内存管理
-        self.memory = MemorySaver() if self.config.memory_enabled else None
+        # 设置内存管理 - 使用独立的线程池配置
+        self._custom_executor = None
+        if self.config.memory_enabled:
+            try:
+                # 创建专用的线程池执行器，避免与系统默认执行器冲突
+                self._custom_executor = ThreadPoolExecutor(
+                    max_workers=2, 
+                    thread_name_prefix="deep_analysis_checkpointer"
+                )
+                self.memory = MemorySaver()
+                # 注册清理函数，确保资源释放
+                weakref.finalize(self, self._cleanup_executor, self._custom_executor)
+                logger.info("✅ 内存管理器初始化完成，使用独立线程池")
+            except Exception as e:
+                logger.warning(f"⚠️ 内存管理器初始化失败，将禁用内存功能: {e}")
+                self.memory = None
+                self._custom_executor = None
+        else:
+            self.memory = None
         
         # 图片分析工具将在运行时创建
         self.image_tool = None
@@ -116,6 +135,9 @@ class DeepPaperAnalysisAgent(BaseGraph):
         # 构建图（将在分析时动态完成）
         self._graph_template = None
         self.agent = None
+        
+        # 资源清理状态
+        self._is_cleaned_up = False
         
         logger.info("深度论文分析智能体初始化完成")
     
@@ -148,13 +170,25 @@ class DeepPaperAnalysisAgent(BaseGraph):
         # 工具调用后回到分析节点
         graph.add_edge("call_tools", "analysis_with_tools")
         
-        # 编译图
+        # 编译图 - 添加错误恢复机制
         try:
-            self.agent = graph.compile(checkpointer=self.memory)
+            # 如果内存管理器不可用，使用无状态模式
+            checkpointer = self.memory if self.memory else None
+            if checkpointer is None:
+                logger.warning("⚠️ 内存管理器不可用，将使用无状态模式")
+            
+            self.agent = graph.compile(checkpointer=checkpointer)
             logger.info("✅ LangGraph 图编译成功")
         except Exception as e:
             logger.error(f"❌ LangGraph 图编译失败: {e}")
-            raise
+            # 尝试无状态编译作为降级处理
+            try:
+                logger.info("尝试无状态编译作为降级处理...")
+                self.agent = graph.compile(checkpointer=None)
+                logger.warning("⚠️ 使用无状态模式编译成功")
+            except Exception as fallback_error:
+                logger.error(f"❌ 降级编译也失败: {fallback_error}")
+                raise
     
     def _initialize_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
         """初始化节点"""
@@ -413,6 +447,11 @@ class DeepPaperAnalysisAgent(BaseGraph):
         logger.info(f"开始分析论文文件夹: {folder_path}")
         
         try:
+            # 0. 重置 agent 实例以确保全新分析
+            reset_success = self.reset_agent_for_fresh_analysis()
+            if not reset_success:
+                logger.warning("⚠️ Agent 重置失败，但继续分析...")
+            
             # 1. 解析文件夹内容
             folder_data = self._parse_paper_folder(folder_path)
             
@@ -465,6 +504,246 @@ class DeepPaperAnalysisAgent(BaseGraph):
                 "error": f"分析失败: {str(e)}",
                 "folder_path": folder_path
             }
+        finally:
+            # 确保每次分析后清理资源
+            self._cleanup_analysis_resources()
+    
+    def cleanup(self) -> None:
+        """主动清理所有资源"""
+        if self._is_cleaned_up:
+            return
+            
+        logger.info("🧹 开始清理深度论文分析智能体资源...")
+        
+        try:
+            # 清理分析相关资源
+            self._cleanup_analysis_resources()
+            
+            # 清理线程池执行器
+            if self._custom_executor and not self._custom_executor._shutdown:
+                logger.info("关闭自定义线程池执行器...")
+                self._custom_executor.shutdown(wait=False)
+                
+            # 清理内存管理器
+            if self.memory:
+                logger.info("清理内存管理器...")
+                self.memory = None
+                
+            self._is_cleaned_up = True
+            logger.info("✅ 资源清理完成")
+        except Exception as e:
+            logger.warning(f"⚠️ 资源清理过程中出现异常: {e}")
+    
+    def _cleanup_analysis_resources(self) -> None:
+        """清理单次分析的相关资源"""
+        try:
+            # 清理 LangGraph agent
+            if self.agent:
+                self.agent = None
+                
+            # 清理工具节点
+            if self.tool_node:
+                self.tool_node = None
+                
+            # 清理绑定的 LLM
+            if self.llm_with_tools:
+                self.llm_with_tools = None
+                
+            # 清理图片工具
+            if self.image_tool:
+                self.image_tool = None
+                
+        except Exception as e:
+            logger.warning(f"⚠️ 分析资源清理异常: {e}")
+    
+    def reset_agent_for_fresh_analysis(self) -> bool:
+        """重置 agent 实例以进行全新分析，防止状态累积"""
+        try:
+            logger.info("🔄 重置 agent 实例以进行全新分析...")
+            
+            # 清理现有资源
+            self._cleanup_analysis_resources()
+            
+            # 重置内存管理器 - 创建新的实例
+            if self.config.memory_enabled and self._custom_executor and not self._custom_executor._shutdown:
+                try:
+                    self.memory = MemorySaver()
+                    logger.info("✅ 内存管理器已重置")
+                except Exception as e:
+                    logger.warning(f"⚠️ 内存管理器重置失败，将使用无状态模式: {e}")
+                    self.memory = None
+            
+            logger.info("✅ Agent 重置完成，准备进行全新分析")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Agent 重置失败: {e}")
+            return False
+    
+    def check_resource_health(self) -> Dict[str, Any]:
+        """检查资源健康状态"""
+        health_status = {
+            "overall_healthy": True,
+            "issues": [],
+            "warnings": [],
+            "custom_executor": {
+                "available": False,
+                "shutdown": True
+            },
+            "memory_manager": {
+                "available": False,
+                "enabled": self.config.memory_enabled
+            },
+            "analysis_llm": {
+                "available": False
+            }
+        }
+        
+        try:
+            # 检查自定义执行器状态
+            if self._custom_executor:
+                health_status["custom_executor"]["available"] = True
+                health_status["custom_executor"]["shutdown"] = self._custom_executor._shutdown
+                if self._custom_executor._shutdown:
+                    health_status["issues"].append("自定义线程池执行器已关闭")
+                    health_status["overall_healthy"] = False
+            else:
+                health_status["warnings"].append("未使用自定义线程池执行器")
+            
+            # 检查内存管理器状态
+            if self.memory:
+                health_status["memory_manager"]["available"] = True
+            else:
+                if self.config.memory_enabled:
+                    health_status["warnings"].append("内存管理器已禁用或不可用")
+            
+            # 检查 LLM 状态
+            if self.analysis_llm:
+                health_status["analysis_llm"]["available"] = True
+            else:
+                health_status["issues"].append("分析 LLM 不可用")
+                health_status["overall_healthy"] = False
+            
+            # 检查是否已清理
+            if self._is_cleaned_up:
+                health_status["issues"].append("Agent 已被清理，需要重新初始化")
+                health_status["overall_healthy"] = False
+        
+        except Exception as e:
+            health_status["issues"].append(f"健康检查异常: {str(e)}")
+            health_status["overall_healthy"] = False
+        
+        return health_status
+    
+    def analyze_paper_folder_with_fallback(self, folder_path: str, thread_id: str = "1") -> Dict[str, Any]:
+        """
+        带降级处理的论文分析方法
+        
+        如果标准分析失败，会尝试降级处理：
+        1. 禁用内存管理
+        2. 重新创建 agent 实例
+        3. 简化分析流程
+        """
+        # 首先检查资源健康状态
+        health = self.check_resource_health()
+        if not health["overall_healthy"]:
+            logger.warning(f"⚠️ 资源健康检查发现问题: {health['issues']}")
+            for warning in health["warnings"]:
+                logger.warning(f"⚠️ {warning}")
+        
+        try:
+            # 尝试标准分析
+            return self.analyze_paper_folder(folder_path, thread_id)
+            
+        except Exception as primary_error:
+            logger.error(f"❌ 标准分析失败: {primary_error}")
+            
+            # 尝试降级处理
+            logger.info("🔄 尝试降级处理...")
+            try:
+                return self._fallback_analysis(folder_path, thread_id, primary_error)
+            except Exception as fallback_error:
+                logger.error(f"❌ 降级处理也失败: {fallback_error}")
+                return {
+                    "error": f"分析完全失败 - 主要错误: {str(primary_error)}, 降级错误: {str(fallback_error)}",
+                    "folder_path": folder_path,
+                    "health_status": health
+                }
+    
+    def _fallback_analysis(self, folder_path: str, thread_id: str, original_error: Exception) -> Dict[str, Any]:
+        """降级分析处理"""
+        logger.info("📋 执行降级分析...")
+        
+        try:
+            # 强制清理所有资源
+            self._cleanup_analysis_resources()
+            
+            # 禁用内存管理
+            original_memory_enabled = self.config.memory_enabled
+            self.config.memory_enabled = False
+            self.memory = None
+            logger.info("✅ 已禁用内存管理器")
+            
+            # 重新解析文件夹
+            folder_data = self._parse_paper_folder(folder_path)
+            
+            # 创建简化的图片工具
+            self.image_tool = create_image_analysis_tool(folder_path, self.config.vision_model)
+            self.llm_with_tools = self.analysis_llm.bind_tools([self.image_tool])
+            
+            # 重新构建图（无状态模式）
+            self._build_graph_with_tools(self.image_tool)
+            
+            # 创建简化的初始状态
+            initial_state: DeepPaperAnalysisState = {
+                "base_folder_path": folder_path,
+                "paper_text": folder_data["paper_text"],
+                "available_images": folder_data["available_images"],
+                "image_mappings": folder_data["image_mappings"],
+                "messages": [],
+                "analysis_result": None,
+                "is_complete": False
+            }
+            
+            # 使用简化配置执行分析
+            config = RunnableConfig(
+                configurable={"thread_id": f"{thread_id}_fallback"},
+                recursion_limit=50  # 降低递归限制
+            )
+            
+            logger.info("🚀 开始降级分析...")
+            result = self.agent.invoke(initial_state, config)
+            
+            # 恢复原始配置
+            self.config.memory_enabled = original_memory_enabled
+            
+            # 添加降级标记
+            result["fallback_used"] = True
+            result["original_error"] = str(original_error)
+            
+            logger.info("✅ 降级分析完成")
+            return result
+            
+        except Exception as e:
+            # 恢复原始配置
+            self.config.memory_enabled = original_memory_enabled
+            raise e
+    
+    @staticmethod
+    def _cleanup_executor(executor):
+        """静态方法用于 weakref.finalize 清理执行器"""
+        try:
+            if executor and not executor._shutdown:
+                executor.shutdown(wait=False)
+        except Exception:
+            pass  # 忽略清理时的异常
+    
+    def __del__(self):
+        """析构函数确保资源释放"""
+        try:
+            self.cleanup()
+        except Exception:
+            pass  # 忽略析构时的异常
     
     def _parse_paper_folder(self, folder_path: str) -> Dict[str, Any]:
         """解析论文文件夹结构"""
@@ -559,6 +838,41 @@ def create_deep_paper_analysis_agent(
         **kwargs
     )
     return DeepPaperAnalysisAgent(config=config)
+
+
+def create_robust_paper_analysis_agent(
+    analysis_model: str = "deepseek.DeepSeek_V3",
+    vision_model: str = "ollama.llava",
+    enable_memory: bool = True,
+    **kwargs
+) -> DeepPaperAnalysisAgent:
+    """
+    创建带健壮性处理的深度论文分析agent
+    
+    这个版本包含：
+    - 增强的资源管理
+    - 自动降级处理
+    - 健康状态监控
+    - 推荐用于生产环境
+    """
+    config = DeepPaperAnalysisConfig(
+        analysis_model=analysis_model,
+        vision_model=vision_model,
+        memory_enabled=enable_memory,
+        **kwargs
+    )
+    
+    agent = DeepPaperAnalysisAgent(config=config)
+    
+    # 添加安全分析方法
+    def safe_analyze(folder_path: str, thread_id: str = "1") -> Dict[str, Any]:
+        """安全的分析方法，自动使用降级处理"""
+        return agent.analyze_paper_folder_with_fallback(folder_path, thread_id)
+    
+    # 替换默认分析方法
+    agent.safe_analyze_paper_folder = safe_analyze
+    
+    return agent
 
 
 # 测试代码

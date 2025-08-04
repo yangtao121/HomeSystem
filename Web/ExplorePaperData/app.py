@@ -1428,6 +1428,21 @@ def serve_analysis_image(arxiv_id, filename):
         logger.error(f"Serve image failed {arxiv_id}/{filename}: {e}")
         return "Server error", 500
 
+@app.route('/paper/<arxiv_id>/imgs/<filename>')
+def serve_analysis_image_fallback(arxiv_id, filename):
+    """
+    向后兼容的图片服务路由
+    将旧的 imgs/ 路径重定向到正确的 analysis_images/ 路径
+    """
+    try:
+        logger.info(f"Fallback route accessed for {arxiv_id}/imgs/{filename}, redirecting to analysis_images")
+        # 重定向到正确的analysis_images路由
+        from flask import redirect, url_for
+        return redirect(url_for('serve_analysis_image', arxiv_id=arxiv_id, filename=filename), code=301)
+    except Exception as e:
+        logger.error(f"Fallback route failed {arxiv_id}/{filename}: {e}")
+        return "Image redirect failed", 500
+
 @app.route('/api/paper/<arxiv_id>/download_analysis')
 def api_download_analysis(arxiv_id):
     """API接口 - 下载分析结果（Markdown + 图片打包为ZIP）"""

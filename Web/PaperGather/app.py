@@ -14,8 +14,11 @@ import json
 # 加载环境变量
 load_dotenv()
 
-# 添加HomeSystem到路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+# 添加HomeSystem到路径 - 使用更稳定的相对路径计算
+current_dir = os.path.dirname(__file__)
+homesystem_root = os.path.normpath(os.path.join(current_dir, "..", ".."))
+if homesystem_root not in sys.path:
+    sys.path.insert(0, homesystem_root)
 
 from config import Config
 from routes.main import main_bp
@@ -226,55 +229,102 @@ def handle_exception(e):
 def initialize():
     """应用首次启动时的初始化"""
     try:
-        # 清理旧的任务结果
-        paper_gather_service.cleanup_old_results(keep_last_n=100)
-        logger.info("应用初始化完成")
+        # 基础服务初始化检查
+        logger.info("🔧 开始应用基础初始化...")
+        
+        # 检查数据库连接
+        try:
+            stats = paper_data_service.get_paper_statistics()
+            logger.info(f"📊 数据库连接正常，共有 {stats.get('total_papers', 0)} 篇论文")
+        except Exception as e:
+            logger.warning(f"⚠️  数据库连接检查失败: {e}，功能可能受限")
+        
+        # 清理旧的任务结果（非阻塞）
+        try:
+            paper_gather_service.cleanup_old_results(keep_last_n=100)
+            logger.info("📋 任务结果清理完成")
+        except Exception as e:
+            logger.warning(f"⚠️  任务结果清理失败: {e}")
+        
+        logger.info("✅ 应用基础初始化完成")
+        
     except Exception as e:
-        logger.error(f"应用初始化失败: {e}")
+        logger.warning(f"⚠️  应用初始化部分失败: {e}，应用将继续启动")
+        # 不抛出异常，让应用继续启动
 
 def startup_with_timeout(timeout_seconds=60):
     """带超时保护的启动函数"""
-    def timeout_handler(signum, frame):
-        raise TimeoutError(f"应用启动超时 ({timeout_seconds} 秒)")
+    import threading
+    result = [False]  # 使用列表存储结果
     
-    # 设置超时处理
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(timeout_seconds)
+    def startup_task():
+        """在单独线程中执行启动任务"""
+        try:
+            logger.info("🚀 开始启动PaperGather Web应用...")
+            start_time = time.time()
+            
+            # 初始化应用
+            logger.info("📋 初始化应用基础设施中...")
+            initialize()
+            logger.info("✅ 应用基础设施初始化完成")
+            
+            # 测试服务连接 - 使用超时保护
+            logger.info("🔍 检查服务连接状态...")
+            
+            # LLM服务检查（可选）
+            try:
+                models = paper_gather_service.get_available_models()
+                if models:
+                    logger.info(f"📦 发现 {len(models)} 个可用的LLM模型")
+                else:
+                    logger.warning("⚠️  未发现可用的LLM模型")
+            except Exception as e:
+                logger.warning(f"⚠️  LLM模型检查失败: {e}，部分功能可能不可用")
+            
+            # 数据库服务检查（重要）
+            try:
+                stats = paper_data_service.get_paper_statistics()
+                if stats:
+                    logger.info(f"📊 数据库服务正常，共有 {stats.get('total_papers', 0)} 篇论文")
+                else:
+                    logger.warning("⚠️  数据库连接可能存在问题")
+            except Exception as e:
+                logger.warning(f"⚠️  数据库统计检查失败: {e}，数据功能可能受限")
+            
+            # 启动后台服务初始化
+            logger.info("🔧 启动后台服务初始化...")
+            paper_gather_service.initialize_background_services()
+            
+            # 计算启动时间
+            elapsed_time = time.time() - start_time
+            logger.info(f"⏱️  启动准备耗时: {elapsed_time:.2f} 秒")
+            
+            # 启动成功
+            result[0] = True
+            
+        except Exception as e:
+            logger.error(f"❌ 启动过程异常: {e}")
+            result[0] = False
     
-    try:
-        logger.info("🚀 开始启动PaperGather Web应用...")
-        start_time = time.time()
-        
-        # 初始化应用
-        logger.info("📋 初始化应用基础设施中...")
-        initialize()
-        logger.info("✅ 应用基础设施初始化完成")
-        
-        # 测试服务连接 - 使用超时保护
-        logger.info("🔍 检查服务连接状态...")
-        try:
-            models = paper_gather_service.get_available_models()
-            logger.info(f"📦 发现 {len(models)} 个可用的LLM模型")
-        except Exception as e:
-            logger.warning(f"⚠️  LLM模型检查失败: {e}，应用将继续启动")
-        
-        try:
-            stats = paper_data_service.get_paper_statistics()
-            logger.info(f"📊 数据库中有 {stats['total_papers']} 篇论文")
-        except Exception as e:
-            logger.warning(f"⚠️  数据库统计检查失败: {e}，应用将继续启动")
-        
-        # 启动后台服务初始化
-        logger.info("🔧 启动后台服务初始化...")
-        paper_gather_service.initialize_background_services()
-        
-        # 计算启动时间
-        elapsed_time = time.time() - start_time
-        logger.info(f"⏱️  启动准备耗时: {elapsed_time:.2f} 秒")
-        
-        # 取消超时警报
-        signal.alarm(0)
-        
+    # 在单独线程中执行启动任务
+    startup_thread = threading.Thread(target=startup_task)
+    startup_thread.daemon = True
+    startup_thread.start()
+    
+    # 等待启动完成或超时
+    startup_thread.join(timeout=timeout_seconds)
+    
+    if startup_thread.is_alive():
+        logger.error(f"❌ 应用启动超时 ({timeout_seconds} 秒)")
+        print("❌ 应用启动超时！可能的原因:")
+        print("1. LLM服务响应过慢或不可用")
+        print("2. 数据库连接异常")  
+        print("3. 网络连接问题")
+        print("4. 系统资源不足")
+        print("建议检查服务状态并重试")
+        return False
+    
+    if result[0]:
         # 启动应用
         logger.info("🌐 启动Web服务器...")
         logger.info(f"🚀 PaperGather Web应用启动完成！")
@@ -287,19 +337,9 @@ def startup_with_timeout(timeout_seconds=60):
             debug=app.config['DEBUG'],
             threaded=True  # 启用多线程支持
         )
-        
-    except TimeoutError as e:
-        logger.error(f"❌ {e}")
-        print("❌ 应用启动超时！可能的原因:")
-        print("1. LLM服务响应过慢或不可用")
-        print("2. 数据库连接异常")  
-        print("3. 网络连接问题")
-        print("4. 系统资源不足")
-        print("建议检查服务状态并重试")
+        return True
+    else:
         return False
-    finally:
-        # 确保取消超时警报
-        signal.alarm(0)
 
 if __name__ == '__main__':
     try:

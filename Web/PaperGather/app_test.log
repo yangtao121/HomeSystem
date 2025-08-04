@@ -1,0 +1,262 @@
+2025-08-04 20:30:16.388 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-04 20:30:16.438 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:202 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code/homesystem/data/paper_gather
+2025-08-04 20:30:16.444 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 4 个历史任务
+2025-08-04 20:30:16.444 | INFO     | services.task_service:_load_historical_data:292 - 从数据库获取到 4 个历史任务记录
+2025-08-04 20:30:16.444 | INFO     | services.task_service:_load_historical_data:355 - ✅ 成功加载了 4 个历史任务到内存
+2025-08-04 20:30:16.445 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:30:16.445 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:30:16.445 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:30:16.445 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:165 - 从持久化存储获取到 1 个定时任务
+2025-08-04 20:30:16.445 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:186 - 记录定时任务 722f18e7-63ea-44ce-8f52-80ca0d56f109，状态: error (仅显示)
+2025-08-04 20:30:16.445 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:193 - ✅ 记录了 1 个定时任务到内存缓存
+2025-08-04 20:30:16,452 - __main__ - INFO - 🚀 开始启动PaperGather Web应用...
+2025-08-04 20:30:16,452 - __main__ - INFO - 📋 初始化应用基础设施中...
+2025-08-04 20:30:16,452 - __main__ - INFO - 🔧 开始应用基础初始化...
+2025-08-04 20:30:16.456 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:49 - 创建新的 PostgreSQL 同步连接
+2025-08-04 20:30:16.457 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.457 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16.458 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.458 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16.459 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.459 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16,459 - __main__ - INFO - 📊 数据库连接正常，共有 0 篇论文
+2025-08-04 20:30:16,459 - __main__ - INFO - 📋 任务结果清理完成
+2025-08-04 20:30:16,459 - __main__ - INFO - ✅ 应用基础初始化完成
+2025-08-04 20:30:16,459 - __main__ - INFO - ✅ 应用基础设施初始化完成
+2025-08-04 20:30:16,459 - __main__ - INFO - 🔍 检查服务连接状态...
+2025-08-04 20:30:16.459 | INFO     | services.task_service:get_available_models:495 - LLMFactory未初始化，尝试初始化...
+2025-08-04 20:30:16.460 | INFO     | services.task_service:init_llm:126 - 正在初始化LLM工厂...
+2025-08-04 20:30:16.476 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-04 20:30:16.476 | INFO     | services.task_service:init_llm:129 - ✅ LLM工厂初始化成功
+2025-08-04 20:30:16.476 | INFO     | services.task_service:get_available_models:509 - ✅ 成功获取 20 个可用LLM模型
+2025-08-04 20:30:16,476 - __main__ - INFO - 📦 发现 20 个可用的LLM模型
+2025-08-04 20:30:16.476 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.477 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16.477 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.477 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16.477 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.477 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16,478 - __main__ - INFO - 📊 数据库服务正常，共有 0 篇论文
+2025-08-04 20:30:16,478 - __main__ - INFO - 🔧 启动后台服务初始化...
+2025-08-04 20:30:16.478 | INFO     | services.task_service:_restart_persistent_scheduled_tasks:254 - 🔄 开始重启 1 个持久化定时任务...
+2025-08-04 20:30:16,478 - __main__ - INFO - ⏱️  启动准备耗时: 0.03 秒
+2025-08-04 20:30:16.478 | INFO     | services.task_service:_restart_persistent_scheduled_tasks:276 - ⏭️  跳过非运行状态任务: 722f18e7-63ea-44ce-8f52-80ca0d56f109 (end2end navigation), 状态: error
+2025-08-04 20:30:16,478 - __main__ - INFO - 🌐 启动Web服务器...
+2025-08-04 20:30:16.478 | INFO     | services.task_service:_restart_persistent_scheduled_tasks:282 - 🎯 定时任务重启完成: 成功 0 个, 失败 0 个, 跳过 1 个
+2025-08-04 20:30:16,478 - __main__ - INFO - 🚀 PaperGather Web应用启动完成！
+2025-08-04 20:30:16.478 | INFO     | services.task_service:init_in_background:239 - ✅ 后台服务初始化完成
+2025-08-04 20:30:16,479 - __main__ - INFO - 📍 访问地址: http://0.0.0.0:5001
+2025-08-04 20:30:16,479 - __main__ - INFO - ============================================================
+ * Serving Flask app 'app'
+ * Debug mode: on
+2025-08-04 20:30:16,483 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.5.118:5001
+2025-08-04 20:30:16,483 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-04 20:30:16,483 - werkzeug - INFO -  * Restarting with stat
+2025-08-04 20:30:16.919 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-04 20:30:16.969 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:202 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code/homesystem/data/paper_gather
+2025-08-04 20:30:16.974 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 4 个历史任务
+2025-08-04 20:30:16.975 | INFO     | services.task_service:_load_historical_data:292 - 从数据库获取到 4 个历史任务记录
+2025-08-04 20:30:16.975 | INFO     | services.task_service:_load_historical_data:355 - ✅ 成功加载了 4 个历史任务到内存
+2025-08-04 20:30:16.975 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:30:16.975 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:30:16.976 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:30:16.976 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:165 - 从持久化存储获取到 1 个定时任务
+2025-08-04 20:30:16.976 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:186 - 记录定时任务 722f18e7-63ea-44ce-8f52-80ca0d56f109，状态: error (仅显示)
+2025-08-04 20:30:16.977 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:193 - ✅ 记录了 1 个定时任务到内存缓存
+2025-08-04 20:30:16,983 - __main__ - INFO - 🚀 开始启动PaperGather Web应用...
+2025-08-04 20:30:16,983 - __main__ - INFO - 📋 初始化应用基础设施中...
+2025-08-04 20:30:16,984 - __main__ - INFO - 🔧 开始应用基础初始化...
+2025-08-04 20:30:16.986 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:49 - 创建新的 PostgreSQL 同步连接
+2025-08-04 20:30:16.988 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.988 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16.989 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.989 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16.989 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:16.989 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:16,990 - __main__ - INFO - 📊 数据库连接正常，共有 0 篇论文
+2025-08-04 20:30:16,990 - __main__ - INFO - 📋 任务结果清理完成
+2025-08-04 20:30:16,990 - __main__ - INFO - ✅ 应用基础初始化完成
+2025-08-04 20:30:16,990 - __main__ - INFO - ✅ 应用基础设施初始化完成
+2025-08-04 20:30:16,990 - __main__ - INFO - 🔍 检查服务连接状态...
+2025-08-04 20:30:16.990 | INFO     | services.task_service:get_available_models:495 - LLMFactory未初始化，尝试初始化...
+2025-08-04 20:30:16.990 | INFO     | services.task_service:init_llm:126 - 正在初始化LLM工厂...
+2025-08-04 20:30:17.006 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-04 20:30:17.006 | INFO     | services.task_service:init_llm:129 - ✅ LLM工厂初始化成功
+2025-08-04 20:30:17.006 | INFO     | services.task_service:get_available_models:509 - ✅ 成功获取 20 个可用LLM模型
+2025-08-04 20:30:17,006 - __main__ - INFO - 📦 发现 20 个可用的LLM模型
+2025-08-04 20:30:17.007 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:17.007 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:17.007 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:17.007 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:17.008 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:30:17.008 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:30:17,008 - __main__ - INFO - 📊 数据库服务正常，共有 0 篇论文
+2025-08-04 20:30:17,009 - __main__ - INFO - 🔧 启动后台服务初始化...
+2025-08-04 20:30:17.009 | INFO     | services.task_service:_restart_persistent_scheduled_tasks:254 - 🔄 开始重启 1 个持久化定时任务...
+2025-08-04 20:30:17,009 - __main__ - INFO - ⏱️  启动准备耗时: 0.03 秒
+2025-08-04 20:30:17.009 | INFO     | services.task_service:_restart_persistent_scheduled_tasks:276 - ⏭️  跳过非运行状态任务: 722f18e7-63ea-44ce-8f52-80ca0d56f109 (end2end navigation), 状态: error
+2025-08-04 20:30:17,009 - __main__ - INFO - 🌐 启动Web服务器...
+2025-08-04 20:30:17.009 | INFO     | services.task_service:_restart_persistent_scheduled_tasks:282 - 🎯 定时任务重启完成: 成功 0 个, 失败 0 个, 跳过 1 个
+2025-08-04 20:30:17,010 - __main__ - INFO - 🚀 PaperGather Web应用启动完成！
+2025-08-04 20:30:17.010 | INFO     | services.task_service:init_in_background:239 - ✅ 后台服务初始化完成
+2025-08-04 20:30:17,011 - __main__ - INFO - 📍 访问地址: http://0.0.0.0:5001
+2025-08-04 20:30:17,011 - __main__ - INFO - ============================================================
+2025-08-04 20:30:17,015 - werkzeug - WARNING -  * Debugger is active!
+2025-08-04 20:30:17,015 - werkzeug - INFO -  * Debugger PIN: 928-627-658
+2025-08-04 20:31:31.734 | INFO     | services.task_service:get_available_models:509 - ✅ 成功获取 20 个可用LLM模型
+2025-08-04 20:31:31,735 - routes.main - INFO - ✅ 成功获取 20 个LLM模型
+2025-08-04 20:31:31,735 - routes.main - INFO - ✅ 成功获取 5 个搜索模式
+2025-08-04 20:31:31,748 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:31] "GET /config HTTP/1.1" 200 -
+2025-08-04 20:31:31,758 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:31] "[36mGET /static/js/config.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:31,779 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:31] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:31,791 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:31] "[36mGET /static/js/config.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:31,792 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:31] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:32,892 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:32] "GET /task/history HTTP/1.1" 200 -
+2025-08-04 20:31:32,922 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:32] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:32,932 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:32] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:32.959 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 4 个历史任务
+2025-08-04 20:31:32,967 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:32] "GET /api/task/history?per_page=100 HTTP/1.1" 200 -
+2025-08-04 20:31:34.372 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:31:34.373 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:31:34.373 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:31:34.374 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:31:34.374 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:31:34.374 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:31:34.375 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:58 - PostgreSQL 事务已提交
+2025-08-04 20:31:34.377 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:31:34.377 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:31:34.377 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:31:34.377 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 1 个持久化任务数据
+2025-08-04 20:31:34.377 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 1 个定时任务用于显示
+2025-08-04 20:31:34,384 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "GET / HTTP/1.1" 200 -
+2025-08-04 20:31:34,392 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:34,393 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:34,413 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:34,422 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:34.441 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:31:34.441 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:31:34.441 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:31:34.441 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:31:34.442 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-04 20:31:34.442 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-04 20:31:34,442 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "GET /api/papers/statistics HTTP/1.1" 200 -
+2025-08-04 20:31:34,447 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:34] "GET /api/running_tasks HTTP/1.1" 200 -
+2025-08-04 20:31:38,932 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:38] "[33mGET /papers HTTP/1.1[0m" 404 -
+2025-08-04 20:31:38,956 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:38] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:38,963 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:38] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:43.163 | INFO     | services.task_service:get_available_models:509 - ✅ 成功获取 20 个可用LLM模型
+2025-08-04 20:31:43,163 - routes.main - INFO - ✅ 成功获取 20 个LLM模型
+2025-08-04 20:31:43,164 - routes.main - INFO - ✅ 成功获取 5 个搜索模式
+2025-08-04 20:31:43,165 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:43] "GET /config HTTP/1.1" 200 -
+2025-08-04 20:31:43,174 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:43] "[36mGET /static/js/config.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:43,192 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:43] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:43,203 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:43] "[36mGET /static/js/config.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:43,208 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:43] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:44,229 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:44] "GET /task/history HTTP/1.1" 200 -
+2025-08-04 20:31:44,257 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:44] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:44,261 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:44] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:44.290 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 4 个历史任务
+2025-08-04 20:31:44,297 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:44] "GET /api/task/history?per_page=100 HTTP/1.1" 200 -
+2025-08-04 20:31:45.967 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:31:45.967 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:31:45.967 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:31:45.967 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 1 个持久化任务数据
+2025-08-04 20:31:45.967 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 1 个定时任务用于显示
+2025-08-04 20:31:45,978 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:45] "GET /task/scheduled HTTP/1.1" 200 -
+2025-08-04 20:31:46,003 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:46] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:31:46,011 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:46] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:31:46,039 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:46] "[33mGET /apple-touch-icon-precomposed.png HTTP/1.1[0m" 404 -
+2025-08-04 20:31:46,045 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:46] "[33mGET /apple-touch-icon.png HTTP/1.1[0m" 404 -
+2025-08-04 20:31:46,046 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:46] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-04 20:31:55.743 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:31:55.744 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:31:55.744 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:31:55.744 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:31:55,745 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:55] "GET /api/scheduled_tasks/722f18e7-63ea-44ce-8f52-80ca0d56f109 HTTP/1.1" 200 -
+2025-08-04 20:31:55.763 | INFO     | services.task_service:get_available_models:509 - ✅ 成功获取 20 个可用LLM模型
+2025-08-04 20:31:55,763 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:31:55] "GET /api/models HTTP/1.1" 200 -
+2025-08-04 20:32:07.097 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.2.0
+2025-08-04 20:32:07.097 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:32:07.097 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:update_scheduled_task:871 - 定时任务 722f18e7-63ea-44ce-8f52-80ca0d56f109 已更新
+2025-08-04 20:32:07.098 | INFO     | services.task_service:stop_scheduled_task:1135 - 后台定时任务已停止: 722f18e7-63ea-44ce-8f52-80ca0d56f109
+2025-08-04 20:32:07.098 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:delete_scheduled_task:894 - 定时任务 722f18e7-63ea-44ce-8f52-80ca0d56f109 已从持久化存储删除
+2025-08-04 20:32:07.098 | INFO     | services.task_service:delete_scheduled_task_permanently:1679 - 定时任务已永久删除: 722f18e7-63ea-44ce-8f52-80ca0d56f109
+2025-08-04 20:32:07,098 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:32:07] "DELETE /api/scheduled_tasks/722f18e7-63ea-44ce-8f52-80ca0d56f109 HTTP/1.1" 200 -
+2025-08-04 20:32:08.624 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 0 个定时任务
+2025-08-04 20:32:08.625 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 0 个持久化任务数据
+2025-08-04 20:32:08.625 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 0 个定时任务用于显示
+2025-08-04 20:32:08,625 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:32:08] "GET /task/scheduled HTTP/1.1" 200 -
+2025-08-04 20:32:08,654 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:32:08] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:32:08,660 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:32:08] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
+2025-08-04 20:32:30.125 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 0 个定时任务
+2025-08-04 20:32:30.126 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 0 个持久化任务数据
+2025-08-04 20:32:30.126 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 0 个定时任务用于显示
+2025-08-04 20:32:30,126 - werkzeug - INFO - 127.0.0.1 - - [04/Aug/2025 20:32:30] "GET /api/scheduled_tasks HTTP/1.1" 200 -
+2025-08-04 20:32:42.134 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 0 个定时任务
+2025-08-04 20:32:42.135 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 0 个持久化任务数据
+2025-08-04 20:32:42.135 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 0 个定时任务用于显示
+2025-08-04 20:32:42,135 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:32:42] "GET /api/scheduled_tasks HTTP/1.1" 200 -
+2025-08-04 20:32:51.750 | INFO     | services.task_service:get_available_models:509 - ✅ 成功获取 20 个可用LLM模型
+2025-08-04 20:32:51.750 | INFO     | services.task_service:validate_config:779 - ✅ 配置验证通过
+2025-08-04 20:32:51.750 | INFO     | services.task_service:start_scheduled_task:942 - 🚀 开始创建定时任务: 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b
+2025-08-04 20:32:51.750 | DEBUG    | services.task_service:start_scheduled_task:943 - 任务配置: {'task_name': '测试定时任务', 'search_query': 'computer vision', 'max_papers_per_search': 10, 'user_requirements': '寻找计算机视觉相关的研究论文', 'llm_model_name': 'deepseek.DeepSeek_V3', 'relevance_threshold': 0.7, 'interval_seconds': 3600, 'search_mode': 'latest', 'deep_analysis_threshold': 0.8, 'ocr_char_limit_for_analysis': 10000}
+2025-08-04 20:32:51.751 | INFO     | services.task_service:start_scheduled_task:946 - 📁 保存任务到持久化存储: 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b
+2025-08-04 20:32:51.752 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:save_scheduled_task:755 - 定时任务 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b 已保存到持久化存储
+2025-08-04 20:32:51.752 | INFO     | services.task_service:start_scheduled_task:953 - ✅ 任务已保存到持久化存储: 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b
+2025-08-04 20:32:51.752 | INFO     | services.task_service:start_scheduled_task:956 - ⚙️  创建运行时任务: 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b
+2025-08-04 20:32:51.753 | INFO     | HomeSystem.workflow.paper_gather_task.paper_gather_task:__init__:79 - 论文收集任务配置初始化完成: 间隔=3600秒, 查询='computer vision', 搜索模式=latest, 最大论文数=10, 启用深度分析=True, 深度分析阈值=0.8
+2025-08-04 20:32:51.753 | INFO     | HomeSystem.graph.llm_factory:create_llm:165 - 创建LLM: deepseek.DeepSeek_V3 (DeepSeek V3)
+2025-08-04 20:32:51.870 | INFO     | HomeSystem.workflow.paper_gather_task.llm_config:__init__:57 - Initialized abstract analysis LLM: deepseek.DeepSeek_V3
+2025-08-04 20:32:51.871 | INFO     | HomeSystem.graph.llm_factory:create_llm:165 - 创建LLM: deepseek.DeepSeek_V3 (DeepSeek V3)
+2025-08-04 20:32:51.892 | INFO     | HomeSystem.workflow.paper_gather_task.llm_config:__init__:121 - Initialized full paper analysis LLM: deepseek.DeepSeek_V3
+2025-08-04 20:32:51.892 | INFO     | HomeSystem.workflow.paper_gather_task.paper_gather_task:__init__:171 - 初始化论文收集任务，配置: {'interval_seconds': 3600, 'search_query': 'computer vision', 'max_papers_per_search': 10, 'user_requirements': '寻找计算机视觉相关的研究论文', 'llm_model_name': 'deepseek.DeepSeek_V3', 'abstract_analysis_model': 'deepseek.DeepSeek_V3', 'full_paper_analysis_model': 'deepseek.DeepSeek_V3', 'relevance_threshold': 0.7, 'max_papers_in_response': 50, 'max_relevant_papers_in_response': 10, 'enable_deep_analysis': True, 'deep_analysis_threshold': 0.8, 'deep_analysis_model': 'deepseek.DeepSeek_V3', 'vision_model': 'ollama.Qwen2_5_VL_7B', 'ocr_char_limit_for_analysis': 10000, 'search_mode': 'latest', 'start_year': None, 'end_year': None, 'after_year': None, 'task_name': '测试定时任务', 'task_id': '83d0e1e3-6a73-4b0f-a958-2e39fc37e39b', 'custom_settings': {}}
+2025-08-04 20:32:51.893 | INFO     | services.task_service:run_scheduler:1078 - TaskScheduler已启动
+2025-08-04 20:32:51,893 - HomeSystem.workflow.scheduler - INFO - 启动任务调度器
+2025-08-04 20:32:51,993 - HomeSystem.workflow.scheduler - INFO - 添加任务: paper_gather
+2025-08-04 20:32:51.993 | INFO     | services.task_service:_create_scheduled_task_internal:1058 - 运行时定时任务已创建: 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b, 间隔: 3600秒
+2025-08-04 20:32:51.994 | INFO     | services.task_service:start_scheduled_task:973 - 🎉 定时任务创建成功: 83d0e1e3-6a73-4b0f-a958-2e39fc37e39b (名称: 测试定时任务)
+2025-08-04 20:32:51,994 - werkzeug - INFO - 127.0.0.1 - - [04/Aug/2025 20:32:51] "POST /task/execute HTTP/1.1" 200 -
+2025-08-04 20:32:57.927 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.0.0
+2025-08-04 20:32:57.928 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 start_year = None
+2025-08-04 20:32:57.928 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 end_year = None
+2025-08-04 20:32:57.928 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 after_year = None
+2025-08-04 20:32:57.928 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 abstract_analysis_model = None
+2025-08-04 20:32:57.928 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 full_paper_analysis_model = None
+2025-08-04 20:32:57.929 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 translation_model = None
+2025-08-04 20:32:57.929 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 paper_analysis_model = None
+2025-08-04 20:32:57.929 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:32:57.929 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:32:57.929 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 1 个持久化任务数据
+2025-08-04 20:32:57.930 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 1 个定时任务用于显示
+2025-08-04 20:32:57,930 - werkzeug - INFO - 127.0.0.1 - - [04/Aug/2025 20:32:57] "GET /api/scheduled_tasks HTTP/1.1" 200 -
+2025-08-04 20:33:12.231 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.0.0
+2025-08-04 20:33:12.231 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 start_year = None
+2025-08-04 20:33:12.232 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 end_year = None
+2025-08-04 20:33:12.232 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 after_year = None
+2025-08-04 20:33:12.232 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 abstract_analysis_model = None
+2025-08-04 20:33:12.233 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 full_paper_analysis_model = None
+2025-08-04 20:33:12.233 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 translation_model = None
+2025-08-04 20:33:12.233 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 paper_analysis_model = None
+2025-08-04 20:33:12.234 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:33:12.234 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:33:12.234 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 1 个持久化任务数据
+2025-08-04 20:33:12.235 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 1 个定时任务用于显示
+2025-08-04 20:33:12,236 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:33:12] "GET /api/scheduled_tasks HTTP/1.1" 200 -
+2025-08-04 20:33:12.259 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:138 - 检测到配置版本: 1.0.0
+2025-08-04 20:33:12.259 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 start_year = None
+2025-08-04 20:33:12.259 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 end_year = None
+2025-08-04 20:33:12.259 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 after_year = None
+2025-08-04 20:33:12.260 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 abstract_analysis_model = None
+2025-08-04 20:33:12.260 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 full_paper_analysis_model = None
+2025-08-04 20:33:12.260 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 translation_model = None
+2025-08-04 20:33:12.260 | DEBUG    | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:150 - 配置升级: 添加字段 paper_analysis_model = None
+2025-08-04 20:33:12.261 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:ensure_config_compatibility:163 - 配置已升级到版本: 1.2.0
+2025-08-04 20:33:12.261 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_scheduled_tasks:797 - 加载了 1 个定时任务
+2025-08-04 20:33:12.261 | DEBUG    | services.task_service:_refresh_persistent_tasks:223 - 刷新了 1 个持久化任务数据
+2025-08-04 20:33:12.261 | INFO     | services.task_service:get_scheduled_tasks:1211 - 获取到 1 个定时任务用于显示
+2025-08-04 20:33:12,262 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:33:12] "GET /task/scheduled HTTP/1.1" 200 -
+2025-08-04 20:33:12,309 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:33:12] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-08-04 20:33:12,314 - werkzeug - INFO - 192.168.5.135 - - [04/Aug/2025 20:33:12] "[36mGET /static/js/main.js HTTP/1.1[0m" 304 -
