@@ -55,6 +55,7 @@ async def main():
         search_query="learning navigation locomotion",
         user_requirements="The thesis simultaneously focuses on navigation and robot control, and also incorporates obstacle avoidance functionality.",
         max_papers_per_search= 50,
+        interval_seconds=30,  # 每30秒执行一次
     )
     
     # 添加任务

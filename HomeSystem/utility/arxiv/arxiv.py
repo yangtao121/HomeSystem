@@ -718,12 +718,14 @@ class ArxivData:
         获取论文的标准目录路径
         
         Returns:
-            Path: 论文目录路径 - /mnt/nfs_share/code/homesystem/data/paper_analyze/{arxiv_id}/
+            Path: 论文目录路径 - data/paper_analyze/{arxiv_id}/
         """
         if not self.arxiv_id or self.arxiv_id == "":
             raise ValueError("无法创建目录：ArXiv ID 为空")
         
-        base_dir = Path("/mnt/nfs_share/code/homesystem/data/paper_analyze")
+        # 使用相对路径，基于项目根目录
+        project_root = Path(__file__).parent.parent.parent.parent  # 回到项目根目录
+        base_dir = project_root / "data" / "paper_analyze"
         paper_dir = base_dir / self.arxiv_id
         
         return paper_dir
