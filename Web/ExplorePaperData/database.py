@@ -322,7 +322,7 @@ class PaperService:
                 SELECT arxiv_id, title, authors, categories, processing_status, 
                        created_at, research_objectives, keywords, task_name, task_id,
                        full_paper_relevance_score, full_paper_relevance_justification,
-                       dify_document_id
+                       dify_document_id, deep_analysis_result, deep_analysis_status
                 FROM arxiv_papers 
                 {where_clause}
                 ORDER BY created_at DESC
@@ -330,6 +330,10 @@ class PaperService:
             """
             cursor.execute(data_query, params + [per_page, offset])
             papers = [dict(row) for row in cursor.fetchall()]
+            
+            # 为每个论文添加深度分析标识
+            for paper in papers:
+                paper['has_deep_analysis'] = bool(paper.get('deep_analysis_result'))
             
             return papers, total
     

@@ -339,6 +339,15 @@
                     {% endif %}
                 </div>
                 
+                <!-- AI深度分析状态 -->
+                {% if paper.has_deep_analysis %}
+                <div class="mb-2">
+                    <span class="badge bg-gradient-primary ai-analysis-badge">
+                        <i class="bi bi-lightbulb-fill"></i> AI深度分析
+                    </span>
+                </div>
+                {% endif %}
+                
                 <!-- 操作按钮 -->
                 <div class="d-grid gap-2">
                     <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
@@ -351,8 +360,8 @@
                         {% if paper.dify_document_id %}
                             <button class="btn btn-sm btn-outline-danger" 
                                     onclick="removePaperFromDifyList('{{ paper.arxiv_id }}')"
-                                    title="从知识库移除">
-                                <i class="bi bi-trash"></i> 移除
+                                    title="从Dify知识库中移除此论文">
+                                <i class="bi bi-cloud-minus"></i> 从知识库移除
                             </button>
                         {% else %}
                             <button class="btn btn-sm btn-outline-success" 
@@ -374,7 +383,7 @@
                     </button>
                     <button class="btn btn-sm btn-outline-danger" 
                             onclick="deletePaper('{{ paper.arxiv_id }}', '{{ paper.title[:30] }}...')"
-                            title="删除论文">
+                            title="从数据库中永久删除此论文">
                         <i class="bi bi-trash"></i> 删除
                     </button>
                 </div>
@@ -843,6 +852,30 @@
         border-color: #28a745;
         color: white;
         transform: scale(1.05);
+    }
+    
+    /* AI深度分析徽章特殊样式 */
+    .ai-analysis-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border: none;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        animation: subtle-glow 2s ease-in-out infinite alternate;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    
+    .ai-analysis-badge i {
+        animation: pulse-light 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes subtle-glow {
+        0% { box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); }
+        100% { box-shadow: 0 2px 12px rgba(102, 126, 234, 0.5); }
+    }
+    
+    @keyframes pulse-light {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
     }
     
     /* 搜索框改进 */
