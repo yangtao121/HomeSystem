@@ -1088,6 +1088,172 @@ class ArxivTool:
         """
         # 保留参数但不再使用，避免破坏现有调用代码
         self.search_host = search_host
+        
+        # 大规模搜索的默认配置
+        self.default_chunk_size = 2000  # 每批次大小
+        self.default_delay_seconds = 1.0  # 请求间延时（秒）
+        self.default_max_retries = 3  # 重试次数
+
+    def _paginated_search(self, query: str, total_results: int,
+                         sort_by: str = "relevance", order: str = "descending",
+                         chunk_size: int = None, delay_seconds: float = None,
+                         max_retries: int = None, show_progress: bool = False) -> ArxivResult:
+        """
+        内部分页搜索方法，透明处理大量结果获取
+        
+        :param query: 搜索查询
+        :param total_results: 总目标结果数量
+        :param sort_by: 排序方式
+        :param order: 排序顺序
+        :param chunk_size: 每批次大小，默认使用self.default_chunk_size
+        :param delay_seconds: 请求间延时，默认使用self.default_delay_seconds
+        :param max_retries: 重试次数，默认使用self.default_max_retries
+        :param show_progress: 是否显示进度条
+        :return: 合并的搜索结果
+        """
+        # 使用默认配置
+        if chunk_size is None:
+            chunk_size = self.default_chunk_size
+        if delay_seconds is None:
+            delay_seconds = self.default_delay_seconds
+        if max_retries is None:
+            max_retries = self.default_max_retries
+        
+        # 确保chunk_size不超过ArXiv API限制
+        chunk_size = min(chunk_size, 2000)
+        
+        logger.info(f"开始分页搜索，目标: {total_results} 篇，分块大小: {chunk_size}")
+        
+        all_results = []
+        total_fetched = 0
+        
+        # 初始化进度条
+        progress_bar = None
+        if show_progress:
+            try:
+                progress_bar = tqdm(total=total_results, desc="ArXiv搜索进度", unit="篇")
+            except:
+                # 如果tqdm不可用，忽略进度条
+                pass
+        
+        try:
+            # 分批获取结果
+            while total_fetched < total_results:
+                # 计算当前批次大小
+                current_chunk = min(chunk_size, total_results - total_fetched)
+                
+                # 尝试获取当前批次
+                retry_count = 0
+                batch_results = None
+                
+                while retry_count <= max_retries:
+                    try:
+                        # 构建API请求
+                        base_url = "http://export.arxiv.org/api/query"
+                        sort_map = {
+                            "relevance": "relevance",
+                            "lastUpdatedDate": "lastUpdatedDate", 
+                            "submittedDate": "submittedDate"
+                        }
+                        
+                        params = {
+                            "search_query": query,
+                            "start": total_fetched,
+                            "max_results": current_chunk,
+                            "sortBy": sort_map.get(sort_by, "relevance"),
+                            "sortOrder": order
+                        }
+                        
+                        logger.debug(f"请求批次: start={total_fetched}, max_results={current_chunk}")
+                        
+                        # 发起请求
+                        response = requests.get(base_url, params=params, timeout=30)
+                        response.raise_for_status()
+                        
+                        # 解析响应
+                        feed = feedparser.parse(response.content)
+                        
+                        if not feed.entries:
+                            logger.warning(f"批次 {total_fetched}-{total_fetched+current_chunk} 无结果，可能已到达结果集末尾")
+                            break
+                        
+                        # 转换结果格式
+                        batch_results = []
+                        for entry in feed.entries:
+                            # 提取分类
+                            categories = []
+                            if hasattr(entry, 'tags'):
+                                categories = [tag.term for tag in entry.tags]
+                            elif hasattr(entry, 'arxiv_primary_category'):
+                                categories = [entry.arxiv_primary_category['term']]
+                            
+                            # 提取作者信息
+                            authors = []
+                            if hasattr(entry, 'authors'):
+                                authors = [author.name for author in entry.authors]
+                            elif hasattr(entry, 'author'):
+                                authors = [entry.author]
+                            
+                            result = {
+                                'title': entry.title,
+                                'link': entry.link,
+                                'snippet': entry.summary,
+                                'categories': ', '.join(categories) if categories else 'Unknown',
+                                'authors': ', '.join(authors) if authors else 'Unknown'
+                            }
+                            batch_results.append(result)
+                        
+                        # 成功获取批次，跳出重试循环
+                        break
+                        
+                    except requests.exceptions.RequestException as e:
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            logger.warning(f"请求失败，重试 {retry_count}/{max_retries}: {str(e)}")
+                            time.sleep(delay_seconds * retry_count)  # 递增延时
+                        else:
+                            logger.error(f"批次请求失败，已达最大重试次数: {str(e)}")
+                            raise Exception(f"分页搜索失败: {str(e)}")
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            logger.warning(f"解析失败，重试 {retry_count}/{max_retries}: {str(e)}")
+                            time.sleep(delay_seconds * retry_count)
+                        else:
+                            logger.error(f"批次解析失败，已达最大重试次数: {str(e)}")
+                            raise Exception(f"分页搜索解析失败: {str(e)}")
+                
+                # 如果没有获取到结果，可能已到达结果集末尾
+                if not batch_results:
+                    logger.info(f"已获取所有可用结果，总计: {total_fetched} 篇")
+                    break
+                
+                # 添加到总结果集
+                all_results.extend(batch_results)
+                total_fetched += len(batch_results)
+                
+                # 更新进度条
+                if progress_bar:
+                    progress_bar.update(len(batch_results))
+                
+                logger.debug(f"已获取 {total_fetched}/{total_results} 篇文章")
+                
+                # 如果获取的结果少于请求数量，可能已到达结果集末尾
+                if len(batch_results) < current_chunk:
+                    logger.info(f"结果集已耗尽，总计获取: {total_fetched} 篇")
+                    break
+                
+                # 请求间延时（除了最后一次请求）
+                if total_fetched < total_results and delay_seconds > 0:
+                    time.sleep(delay_seconds)
+            
+            logger.info(f"分页搜索完成，总计获取: {len(all_results)} 篇文章")
+            return ArxivResult(all_results)
+            
+        finally:
+            # 关闭进度条
+            if progress_bar:
+                progress_bar.close()
 
     def arxivSearch(self, query: str,
                     num_results: int = 20,
@@ -1095,14 +1261,18 @@ class ArxivTool:
                     order: str = "desc",
                     max_results: int = None,
                     kwargs: dict = None,
-                    use_direct_api: bool = True
+                    use_direct_api: bool = True,
+                    chunk_size: int = None,
+                    delay_seconds: float = None,
+                    max_retries: int = None,
+                    show_progress: bool = False
                     ) -> ArxivResult:
         """
-        使用 ArXiv API 直接搜索，无限制且获取最新数据。
+        使用 ArXiv API 直接搜索，现在支持大规模搜索（1000+/10000+篇文章）
 
         :param query: 搜索的查询
         :type query: str
-        :param num_results: 返回的结果数量
+        :param num_results: 返回的结果数量（无上限，自动分页处理）
         :type num_results: int
         :param sort_by: 排序方式，可选 "relevance", "lastUpdatedDate", "submittedDate"
         :type sort_by: str
@@ -1114,18 +1284,30 @@ class ArxivTool:
         :type kwargs: dict
         :param use_direct_api: 保留参数以兼容现有代码，总是使用直接API
         :type use_direct_api: bool
+        :param chunk_size: 分页块大小，仅在大规模搜索时使用
+        :type chunk_size: int
+        :param delay_seconds: 请求间延时，仅在大规模搜索时使用
+        :type delay_seconds: float
+        :param max_retries: 重试次数，仅在大规模搜索时使用
+        :type max_retries: int
+        :param show_progress: 是否显示进度条，大规模搜索时推荐启用
+        :type show_progress: bool
         :return: 搜索结果
         :rtype: ArxivResult
         """
         
-        # 现在总是使用直接ArXiv API
-        logger.info(f"使用直接ArXiv API搜索: {query}")
+        # 现在总是使用直接ArXiv API，支持大规模搜索
+        logger.info(f"使用直接ArXiv API搜索: {query} ({num_results}篇)")
         
         return self.directArxivSearch(
             query=query,
             num_results=num_results,
             sort_by=sort_by,
-            order="descending" if order == "desc" else "ascending"
+            order="descending" if order == "desc" else "ascending",
+            chunk_size=chunk_size,
+            delay_seconds=delay_seconds,
+            max_retries=max_retries,
+            show_progress=show_progress
         )
 
     # 移除分页搜索方法，直接API支持大量结果
@@ -1164,35 +1346,79 @@ class ArxivTool:
 
     def searchWithHighLimit(self, query: str, num_results: int = 50, 
                            sort_by: str = "relevance", order: str = "desc",
-                           max_single_request: int = 20) -> ArxivResult:
+                           max_single_request: int = 20,
+                           chunk_size: int = None,
+                           delay_seconds: float = None,
+                           max_retries: int = None,
+                           show_progress: bool = True) -> ArxivResult:
         """
-        高限制搜索方法，可以获取更多结果
+        高限制搜索方法，专门优化大规模搜索（1000+/10000+篇文章）
         
         :param query: 搜索查询
-        :param num_results: 目标结果数量（可以很大）
+        :param num_results: 目标结果数量（无上限，自动分页处理）
         :param sort_by: 排序方式
         :param order: 排序顺序
-        :param max_single_request: 单次请求的最大结果数
+        :param max_single_request: 保留参数以兼容现有代码，但不再使用
+        :param chunk_size: 分页块大小，默认使用优化后的大块（1500）
+        :param delay_seconds: 请求间延时，默认使用更短延时（0.5秒）
+        :param max_retries: 重试次数，默认更多重试（5次）
+        :param show_progress: 是否显示进度条，默认开启
         :return: 搜索结果
         """
-        return self.arxivSearch(query=query, 
-                               num_results=num_results,
-                               sort_by=sort_by,
-                               order=order,
-                               max_results=max_single_request)
+        # 为大规模搜索优化的默认配置
+        if chunk_size is None:
+            chunk_size = 1500  # 更大的分页块，减少请求次数
+        if delay_seconds is None:
+            delay_seconds = 0.5  # 更短的延时，提高效率
+        if max_retries is None:
+            max_retries = 5  # 更多重试，确保稳定性
+        
+        logger.info(f"高限制搜索模式，目标: {num_results} 篇文章")
+        
+        return self.arxivSearch(
+            query=query, 
+            num_results=num_results,
+            sort_by=sort_by,
+            order=order,
+            chunk_size=chunk_size,
+            delay_seconds=delay_seconds,
+            max_retries=max_retries,
+            show_progress=show_progress
+        )
 
     def directArxivSearch(self, query: str, num_results: int = 20,
-                         sort_by: str = "relevance", order: str = "descending") -> ArxivResult:
+                         sort_by: str = "relevance", order: str = "descending",
+                         chunk_size: int = None, delay_seconds: float = None,
+                         max_retries: int = None, show_progress: bool = False) -> ArxivResult:
         """
         直接使用ArXiv API进行搜索，获取最新数据
+        现在支持大规模搜索（1000+/10000+篇文章）
         
         :param query: 搜索查询
-        :param num_results: 结果数量
+        :param num_results: 结果数量（无上限，自动分页处理）
         :param sort_by: 排序方式 ("relevance", "lastUpdatedDate", "submittedDate")
         :param order: 排序顺序 ("ascending", "descending")
+        :param chunk_size: 分页块大小，默认使用类配置
+        :param delay_seconds: 请求间延时，默认使用类配置
+        :param max_retries: 重试次数，默认使用类配置
+        :param show_progress: 是否显示进度条（大规模搜索时推荐）
         :return: 搜索结果
         """
-        # ArXiv API URL
+        # 判断是否需要分页搜索
+        if num_results > 2000:
+            logger.info(f"检测到大规模搜索请求({num_results}篇)，启用分页模式")
+            return self._paginated_search(
+                query=query,
+                total_results=num_results,
+                sort_by=sort_by,
+                order=order,
+                chunk_size=chunk_size,
+                delay_seconds=delay_seconds,
+                max_retries=max_retries,
+                show_progress=show_progress
+            )
+        
+        # 标准单次请求（<=2000篇）
         base_url = "http://export.arxiv.org/api/query"
         
         # 映射排序参数
@@ -1205,13 +1431,13 @@ class ArxivTool:
         params = {
             "search_query": query,
             "start": 0,
-            "max_results": min(num_results, 2000),  # ArXiv API限制
+            "max_results": min(num_results, 2000),  # ArXiv API单次限制
             "sortBy": sort_map.get(sort_by, "relevance"),
             "sortOrder": order
         }
         
         try:
-            logger.info(f"直接调用ArXiv API搜索: {query}")
+            logger.info(f"直接调用ArXiv API搜索: {query} (单次请求，{num_results}篇)")
             response = requests.get(base_url, params=params, timeout=30)
             response.raise_for_status()
             
