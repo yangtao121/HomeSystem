@@ -29,6 +29,7 @@ class DeepAnalysisService:
     def __init__(self, paper_service: PaperService, redis_client=None):
         self.paper_service = paper_service
         self.analysis_threads = {}  # 存储正在进行的分析线程
+        self.correction_threads = {}  # 存储正在进行的公式纠错线程
         self.redis_client = redis_client  # Redis客户端用于读取配置
         
         # 默认配置
@@ -693,6 +694,308 @@ class DeepAnalysisService:
             
         except Exception as e:
             logger.error(f"Failed to get active analyses: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    # === 公式纠错相关方法 ===
+    
+    def start_formula_correction(self, arxiv_id: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        启动公式纠错
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            config: 纠错配置（可选）
+            
+        Returns:
+            Dict: 操作结果
+        """
+        try:
+            logger.info(f"🔧 开始启动公式纠错 - ArXiv ID: {arxiv_id}")
+            
+            # 检查论文是否存在
+            paper = self.paper_service.get_paper_detail(arxiv_id)
+            if not paper:
+                logger.error(f"❌ 论文不存在: {arxiv_id}")
+                return {
+                    'success': False,
+                    'error': f'论文 {arxiv_id} 不存在'
+                }
+            
+            # 检查分析文件是否存在
+            project_root = Path(__file__).parent.parent.parent.parent
+            paper_folder = project_root / "data" / "paper_analyze" / arxiv_id
+            analysis_file = paper_folder / f"{arxiv_id}_analysis.md"
+            ocr_file = paper_folder / f"{arxiv_id}_paddleocr.md"
+            
+            if not analysis_file.exists():
+                logger.error(f"❌ 分析文件不存在: {analysis_file}")
+                return {
+                    'success': False,
+                    'error': '分析文件不存在，请先进行深度分析'
+                }
+            
+            if not ocr_file.exists():
+                logger.error(f"❌ OCR文件不存在: {ocr_file}")
+                return {
+                    'success': False,
+                    'error': 'OCR文件不存在，无法进行公式纠错'
+                }
+            
+            logger.info(f"✅ 文件检查通过: {arxiv_id}")
+            
+            # 检查是否已在纠错中
+            if arxiv_id in self.correction_threads:
+                thread = self.correction_threads[arxiv_id]
+                if thread.is_alive():
+                    logger.warning(f"⚠️ 论文已在纠错中: {arxiv_id}")
+                    return {
+                        'success': False,
+                        'error': '该论文正在进行公式纠错，请稍后'
+                    }
+                else:
+                    # 清理已完成的线程
+                    del self.correction_threads[arxiv_id]
+                    logger.info(f"🧹 清理了已完成的纠错线程: {arxiv_id}")
+            
+            # 创建并启动纠错线程
+            thread = threading.Thread(
+                target=self._run_formula_correction,
+                args=(arxiv_id, str(analysis_file), str(ocr_file), config or {}),
+                daemon=True
+            )
+            thread.start()
+            
+            # 保存线程引用
+            self.correction_threads[arxiv_id] = thread
+            
+            logger.info(f"Started formula correction for paper {arxiv_id}")
+            
+            return {
+                'success': True,
+                'message': '公式纠错已启动',
+                'status': 'processing'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to start formula correction for {arxiv_id}: {e}")
+            return {
+                'success': False,
+                'error': f'启动公式纠错失败: {str(e)}'
+            }
+    
+    def _run_formula_correction(self, arxiv_id: str, analysis_file_path: str, 
+                               ocr_file_path: str, config: Dict[str, Any]):
+        """
+        执行公式纠错（在后台线程中运行）
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            analysis_file_path: 分析文件路径
+            ocr_file_path: OCR文件路径
+            config: 纠错配置
+        """
+        try:
+            logger.info(f"🔧 开始执行公式纠错 - ArXiv ID: {arxiv_id}")
+            
+            # 创建备份文件
+            backup_success = self._create_analysis_backup(arxiv_id, analysis_file_path)
+            if not backup_success:
+                logger.error(f"❌ 创建备份文件失败: {arxiv_id}")
+                return
+            
+            logger.info(f"✅ 备份文件创建成功: {arxiv_id}")
+            
+            # 动态导入公式纠错智能体
+            try:
+                from HomeSystem.graph.formula_correction_agent import create_formula_correction_agent
+                logger.info("✅ Successfully imported formula correction agent")
+            except Exception as import_error:
+                logger.error(f"❌ Failed to import formula correction agent: {import_error}")
+                return
+            
+            # 创建公式纠错智能体
+            correction_model = config.get('correction_model', 'ollama.Qwen3_30B')
+            logger.info(f"🤖 Creating formula correction agent with model: {correction_model}")
+            
+            agent = create_formula_correction_agent(
+                correction_model=correction_model
+            )
+            logger.info("✅ Formula correction agent created successfully")
+            
+            # 执行公式纠错
+            correction_result = agent.correct_formulas(
+                analysis_file_path=analysis_file_path,
+                ocr_file_path=ocr_file_path,
+                thread_id=f"web_correction_{arxiv_id}_{int(time.time())}"
+            )
+            
+            # 检查纠错是否成功
+            if 'error' in correction_result:
+                logger.error(f"Formula correction failed for {arxiv_id}: {correction_result['error']}")
+                return
+            
+            # 处理纠错结果
+            corrected_content = correction_result.get('corrected_content')
+            if corrected_content:
+                # 处理图片路径
+                processed_content = self._process_image_paths(corrected_content, arxiv_id)
+                
+                # 保存纠错后的内容到原分析文件
+                with open(analysis_file_path, 'w', encoding='utf-8') as f:
+                    f.write(processed_content)
+                
+                # 更新数据库中的分析结果
+                self.paper_service.save_analysis_result(arxiv_id, processed_content)
+                
+                corrections_applied = correction_result.get('corrections_applied', [])
+                logger.info(f"Formula correction completed for {arxiv_id}, applied {len(corrections_applied)} corrections")
+                
+                # 记录纠错历史（如果需要的话）
+                self._record_correction_history(arxiv_id, corrections_applied)
+                
+            else:
+                logger.info(f"No corrections needed for {arxiv_id}")
+                
+        except Exception as e:
+            logger.error(f"💥 公式纠错过程失败 {arxiv_id}: {e}")
+        finally:
+            # 清理线程引用
+            if arxiv_id in self.correction_threads:
+                del self.correction_threads[arxiv_id]
+    
+    def _create_analysis_backup(self, arxiv_id: str, analysis_file_path: str) -> bool:
+        """
+        创建分析文件的备份
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            analysis_file_path: 分析文件路径
+            
+        Returns:
+            bool: 备份是否成功
+        """
+        try:
+            import shutil
+            from datetime import datetime
+            
+            # 生成备份文件名
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_filename = f"{arxiv_id}_analysis_backup_{timestamp}.md"
+            backup_file_path = os.path.join(os.path.dirname(analysis_file_path), backup_filename)
+            
+            # 复制文件
+            shutil.copy2(analysis_file_path, backup_file_path)
+            
+            logger.info(f"📋 Created backup file: {backup_file_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to create backup for {arxiv_id}: {e}")
+            return False
+    
+    def _record_correction_history(self, arxiv_id: str, corrections_applied: list):
+        """
+        记录纠错历史（可选功能）
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            corrections_applied: 应用的纠错列表
+        """
+        try:
+            # 这里可以记录到数据库或日志文件
+            # 目前只记录到日志
+            logger.info(f"📝 Correction history for {arxiv_id}: {len(corrections_applied)} corrections applied")
+            for i, correction in enumerate(corrections_applied):
+                logger.info(f"  [{i+1}] {correction.get('operation', 'unknown')}: {correction.get('message', 'N/A')}")
+                
+        except Exception as e:
+            logger.debug(f"Failed to record correction history: {e}")
+    
+    def get_formula_correction_status(self, arxiv_id: str) -> Dict[str, Any]:
+        """
+        获取公式纠错状态
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            Dict: 状态信息
+        """
+        try:
+            # 检查是否有正在运行的纠错线程
+            if arxiv_id in self.correction_threads:
+                thread = self.correction_threads[arxiv_id]
+                if thread.is_alive():
+                    return {
+                        'success': True,
+                        'status': 'processing',
+                        'message': '正在进行公式纠错',
+                        'is_running': True
+                    }
+                else:
+                    # 清理已完成的线程
+                    del self.correction_threads[arxiv_id]
+                    return {
+                        'success': True,
+                        'status': 'completed',
+                        'message': '公式纠错已完成',
+                        'is_running': False
+                    }
+            else:
+                return {
+                    'success': True,
+                    'status': 'not_started',
+                    'message': '尚未开始公式纠错',
+                    'is_running': False
+                }
+            
+        except Exception as e:
+            logger.error(f"Failed to get formula correction status for {arxiv_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def cancel_formula_correction(self, arxiv_id: str) -> Dict[str, Any]:
+        """
+        取消正在进行的公式纠错
+        
+        Args:
+            arxiv_id: ArXiv论文ID
+            
+        Returns:
+            Dict: 操作结果
+        """
+        try:
+            if arxiv_id not in self.correction_threads:
+                return {
+                    'success': False,
+                    'error': '没有正在进行的公式纠错'
+                }
+            
+            thread = self.correction_threads[arxiv_id]
+            if not thread.is_alive():
+                del self.correction_threads[arxiv_id]
+                return {
+                    'success': False,
+                    'error': '公式纠错已完成或已停止'
+                }
+            
+            # 注意：Python线程无法强制停止，这里只能标记状态
+            del self.correction_threads[arxiv_id]
+            
+            logger.info(f"Formula correction cancelled for {arxiv_id}")
+            
+            return {
+                'success': True,
+                'message': '公式纠错已取消'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to cancel formula correction for {arxiv_id}: {e}")
             return {
                 'success': False,
                 'error': str(e)

@@ -1536,6 +1536,75 @@ def api_active_analyses():
         }), 500
 
 
+# === 公式纠错API接口 ===
+
+@app.route('/api/paper/<arxiv_id>/correct_formulas', methods=['POST'])
+def api_correct_formulas(arxiv_id):
+    """API接口 - 启动公式纠错"""
+    try:
+        logger.info(f"🔧 收到公式纠错请求 - ArXiv ID: {arxiv_id}")
+        
+        # 获取配置参数
+        data = request.get_json() if request.is_json else {}
+        config = data.get('config', {})
+        logger.info(f"📋 纠错配置: {config}")
+        
+        # 启动公式纠错
+        logger.info(f"🔄 调用公式纠错服务...")
+        result = analysis_service.start_formula_correction(arxiv_id, config)
+        logger.info(f"📤 公式纠错服务返回结果: {result}")
+        
+        if result['success']:
+            logger.info(f"✅ 公式纠错启动成功: {arxiv_id}")
+            return jsonify(result)
+        else:
+            logger.error(f"❌ 公式纠错启动失败: {arxiv_id}, 错误: {result.get('error')}")
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"启动公式纠错失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"启动公式纠错失败: {str(e)}"
+        }), 500
+
+@app.route('/api/paper/<arxiv_id>/formula_correction_status')
+def api_formula_correction_status(arxiv_id):
+    """API接口 - 查询公式纠错状态"""
+    try:
+        result = analysis_service.get_formula_correction_status(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        logger.error(f"获取公式纠错状态失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"获取状态失败: {str(e)}"
+        }), 500
+
+@app.route('/api/paper/<arxiv_id>/cancel_formula_correction', methods=['POST'])
+def api_cancel_formula_correction(arxiv_id):
+    """API接口 - 取消正在进行的公式纠错"""
+    try:
+        result = analysis_service.cancel_formula_correction(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"取消公式纠错失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"取消失败: {str(e)}"
+        }), 500
+
+
 @app.template_filter('truncate_text')
 def truncate_text(text, length=100):
     """截断文本过滤器"""

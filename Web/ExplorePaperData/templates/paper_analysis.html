@@ -298,6 +298,10 @@ window.MathJax = {
                     <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" class="btn btn-light">
                         <i class="bi bi-arrow-left"></i> 返回详情
                     </a>
+                    <button id="formulaCorrectionBtn" class="btn btn-warning" onclick="startFormulaCorrection()" 
+                            title="修复分析报告中的公式错误">
+                        <i class="bi bi-gear-fill"></i> 公式纠错
+                    </button>
                     <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" class="btn btn-primary">
                         <i class="bi bi-download"></i> 下载分析
                     </a>
@@ -335,6 +339,14 @@ window.MathJax = {
                 <tr>
                     <td><strong>分析时间:</strong></td>
                     <td>{{ analysis.updated_at|format_date }}</td>
+                </tr>
+                <tr id="formulaCorrectionStatusRow" style="display: none;">
+                    <td><strong>公式纠错状态:</strong></td>
+                    <td id="formulaCorrectionStatus">
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-question-circle"></i> 未开始
+                        </span>
+                    </td>
                 </tr>
             </table>
         </div>
@@ -429,6 +441,52 @@ window.MathJax = {
             <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
         <div class="toast-body"></div>
+    </div>
+    
+    <!-- 公式纠错通知 -->
+    <div id="formulaCorrectionToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="bi bi-gear-fill me-2 text-warning"></i>
+            <strong class="me-auto">公式纠错</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="formulaCorrectionToastBody">
+            <!-- 纠错状态信息 -->
+        </div>
+    </div>
+</div>
+
+<!-- 公式纠错进度模态框 -->
+<div class="modal fade" id="formulaCorrectionModal" tabindex="-1" aria-labelledby="formulaCorrectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="formulaCorrectionModalLabel">
+                    <i class="bi bi-gear-fill text-warning me-2"></i>
+                    公式纠错进行中
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-border text-warning mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h6 id="formulaCorrectionModalStatus">正在启动公式纠错...</h6>
+                <p class="text-muted" id="formulaCorrectionModalMessage">
+                    系统正在分析论文中的公式并进行纠错，请稍等片刻。
+                </p>
+                <div class="progress mb-3" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cancelFormulaCorrection()">
+                    <i class="bi bi-x-circle"></i> 取消纠错
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -833,6 +891,336 @@ document.addEventListener('keydown', function(e) {
         if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
             toggleFullscreen();
         }
+    }
+});
+
+// === 公式纠错相关函数 ===
+
+// 全局变量
+let formulaCorrectionPollingInterval = null;
+let formulaCorrectionModal = null;
+let formulaCorrectionToast = null;
+
+// 获取ArXiv ID
+function getArxivId() {
+    // 从页面中的多个位置尝试获取ArXiv ID
+    const codeElements = document.querySelectorAll('code');
+    for (let code of codeElements) {
+        const text = code.textContent || code.innerText || '';
+        const match = text.match(/(?:arxiv:)?(\d+\.\d+v?\d*)/i);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    // 从URL获取
+    const urlMatch = window.location.pathname.match(/\/paper\/([^\/]+)/);
+    if (urlMatch) {
+        return urlMatch[1];
+    }
+    
+    return null;
+}
+
+// 启动公式纠错
+function startFormulaCorrection() {
+    const arxivId = getArxivId();
+    if (!arxivId) {
+        showFormulaCorrectionToast('无法获取论文ID', 'error');
+        return;
+    }
+    
+    console.log('启动公式纠错:', arxivId);
+    
+    // 禁用纠错按钮
+    const btn = document.getElementById('formulaCorrectionBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 启动中...';
+    }
+    
+    // 显示进度模态框
+    formulaCorrectionModal = new bootstrap.Modal(document.getElementById('formulaCorrectionModal'), {
+        backdrop: 'static',
+        keyboard: false
+    });
+    formulaCorrectionModal.show();
+    
+    // 显示状态行
+    const statusRow = document.getElementById('formulaCorrectionStatusRow');
+    if (statusRow) {
+        statusRow.style.display = '';
+    }
+    
+    // 发送启动请求
+    fetch(`/api/paper/${arxivId}/correct_formulas`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            config: {
+                correction_model: 'ollama.Qwen3_30B'
+            }
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('公式纠错启动成功:', data);
+            updateFormulaCorrectionStatus('processing', '公式纠错已启动');
+            
+            // 开始轮询状态
+            startFormulaCorrectionPolling(arxivId);
+            
+            showFormulaCorrectionToast('公式纠错已启动，正在后台处理...', 'info');
+        } else {
+            console.error('公式纠错启动失败:', data);
+            handleFormulaCorrectionError(data.error || '启动失败');
+        }
+    })
+    .catch(error => {
+        console.error('启动公式纠错请求失败:', error);
+        handleFormulaCorrectionError('网络请求失败: ' + error.message);
+    });
+}
+
+// 开始状态轮询
+function startFormulaCorrectionPolling(arxivId) {
+    if (formulaCorrectionPollingInterval) {
+        clearInterval(formulaCorrectionPollingInterval);
+    }
+    
+    formulaCorrectionPollingInterval = setInterval(() => {
+        checkFormulaCorrectionStatus(arxivId);
+    }, 3000); // 每3秒检查一次
+}
+
+// 检查纠错状态
+function checkFormulaCorrectionStatus(arxivId) {
+    fetch(`/api/paper/${arxivId}/formula_correction_status`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const status = data.status;
+            const message = data.message || '正在处理...';
+            
+            console.log('公式纠错状态:', status, message);
+            
+            if (status === 'processing') {
+                updateFormulaCorrectionStatus('processing', message);
+            } else if (status === 'completed') {
+                handleFormulaCorrectionCompleted();
+            } else if (status === 'failed') {
+                handleFormulaCorrectionError(message);
+            }
+        } else {
+            console.error('获取状态失败:', data);
+        }
+    })
+    .catch(error => {
+        console.error('状态检查请求失败:', error);
+    });
+}
+
+// 更新纠错状态显示
+function updateFormulaCorrectionStatus(status, message) {
+    const statusElement = document.getElementById('formulaCorrectionStatus');
+    const modalStatus = document.getElementById('formulaCorrectionModalStatus');
+    const modalMessage = document.getElementById('formulaCorrectionModalMessage');
+    
+    let badgeClass = 'bg-secondary';
+    let icon = 'bi-question-circle';
+    
+    if (status === 'processing') {
+        badgeClass = 'bg-warning';
+        icon = 'bi-gear-fill';
+    } else if (status === 'completed') {
+        badgeClass = 'bg-success';
+        icon = 'bi-check-circle';
+    } else if (status === 'failed') {
+        badgeClass = 'bg-danger';
+        icon = 'bi-exclamation-triangle';
+    }
+    
+    if (statusElement) {
+        statusElement.innerHTML = `
+            <span class="badge ${badgeClass}">
+                <i class="${icon}"></i> ${message}
+            </span>
+        `;
+    }
+    
+    if (modalStatus) {
+        modalStatus.textContent = message;
+    }
+    
+    if (modalMessage && status === 'processing') {
+        modalMessage.textContent = '正在分析论文中的公式并进行纠错，这可能需要几分钟时间。';
+    }
+}
+
+// 处理纠错完成
+function handleFormulaCorrectionCompleted() {
+    console.log('公式纠错已完成');
+    
+    // 停止轮询
+    if (formulaCorrectionPollingInterval) {
+        clearInterval(formulaCorrectionPollingInterval);
+        formulaCorrectionPollingInterval = null;
+    }
+    
+    // 更新状态
+    updateFormulaCorrectionStatus('completed', '公式纠错已完成');
+    
+    // 关闭模态框
+    if (formulaCorrectionModal) {
+        formulaCorrectionModal.hide();
+    }
+    
+    // 恢复按钮
+    resetFormulaCorrectionButton();
+    
+    // 显示成功通知
+    showFormulaCorrectionToast('公式纠错已完成！正在刷新页面...', 'success');
+    
+    // 延时刷新页面以显示更新后的内容
+    setTimeout(() => {
+        window.location.reload();
+    }, 2000);
+}
+
+// 处理纠错错误
+function handleFormulaCorrectionError(errorMessage) {
+    console.error('公式纠错失败:', errorMessage);
+    
+    // 停止轮询
+    if (formulaCorrectionPollingInterval) {
+        clearInterval(formulaCorrectionPollingInterval);
+        formulaCorrectionPollingInterval = null;
+    }
+    
+    // 更新状态
+    updateFormulaCorrectionStatus('failed', '纠错失败');
+    
+    // 关闭模态框
+    if (formulaCorrectionModal) {
+        formulaCorrectionModal.hide();
+    }
+    
+    // 恢复按钮
+    resetFormulaCorrectionButton();
+    
+    // 显示错误通知
+    showFormulaCorrectionToast('公式纠错失败: ' + errorMessage, 'error');
+}
+
+// 取消公式纠错
+function cancelFormulaCorrection() {
+    const arxivId = getArxivId();
+    if (!arxivId) {
+        return;
+    }
+    
+    console.log('取消公式纠错:', arxivId);
+    
+    fetch(`/api/paper/${arxivId}/cancel_formula_correction`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('公式纠错已取消:', data);
+            handleFormulaCorrectionCancelled();
+        } else {
+            console.error('取消失败:', data);
+            showFormulaCorrectionToast('取消失败: ' + (data.error || '未知错误'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('取消请求失败:', error);
+        showFormulaCorrectionToast('取消请求失败: ' + error.message, 'error');
+    });
+}
+
+// 处理纠错取消
+function handleFormulaCorrectionCancelled() {
+    console.log('公式纠错已取消');
+    
+    // 停止轮询
+    if (formulaCorrectionPollingInterval) {
+        clearInterval(formulaCorrectionPollingInterval);
+        formulaCorrectionPollingInterval = null;
+    }
+    
+    // 更新状态
+    updateFormulaCorrectionStatus('cancelled', '已取消');
+    
+    // 关闭模态框
+    if (formulaCorrectionModal) {
+        formulaCorrectionModal.hide();
+    }
+    
+    // 恢复按钮
+    resetFormulaCorrectionButton();
+    
+    // 显示取消通知
+    showFormulaCorrectionToast('公式纠错已取消', 'info');
+}
+
+// 重置纠错按钮
+function resetFormulaCorrectionButton() {
+    const btn = document.getElementById('formulaCorrectionBtn');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-gear-fill"></i> 公式纠错';
+    }
+}
+
+// 显示纠错通知
+function showFormulaCorrectionToast(message, type = 'info') {
+    const toastElement = document.getElementById('formulaCorrectionToast');
+    const toastBody = document.getElementById('formulaCorrectionToastBody');
+    
+    if (toastBody) {
+        toastBody.textContent = message;
+    }
+    
+    // 设置图标颜色
+    const iconElement = toastElement.querySelector('.bi-gear-fill');
+    if (iconElement) {
+        iconElement.className = 'bi bi-gear-fill me-2';
+        if (type === 'success') {
+            iconElement.className += ' text-success';
+        } else if (type === 'error') {
+            iconElement.className += ' text-danger';
+        } else if (type === 'warning') {
+            iconElement.className += ' text-warning';
+        } else {
+            iconElement.className += ' text-info';
+        }
+    }
+    
+    // 显示Toast
+    if (!formulaCorrectionToast) {
+        formulaCorrectionToast = new bootstrap.Toast(toastElement, {
+            autohide: true,
+            delay: type === 'error' ? 8000 : 5000
+        });
+    }
+    
+    formulaCorrectionToast.show();
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否有正在进行的纠错任务
+    const arxivId = getArxivId();
+    if (arxivId) {
+        checkFormulaCorrectionStatus(arxivId);
     }
 });
 </script>
