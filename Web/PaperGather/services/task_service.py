@@ -668,7 +668,7 @@ class PaperGatherService:
                     'field': 'max_papers_per_search',
                     'default': 20,
                     'min': 1,
-                    'max': 100,
+                    'max': 30000,
                     'type': int,
                     'description': '每次搜索的最大论文数'
                 },
