@@ -1,0 +1,866 @@
+/* PaperAnalysis - 统一样式文件 */
+/* 整合了PaperGather和ExplorePaperData的样式 */
+
+:root {
+    /* 主色调 - 使用蓝色系统 */
+    --primary-color: #007bff;
+    --primary-light: #66b3ff;
+    --primary-dark: #0056b3;
+    
+    /* 辅助颜色 */
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --info-color: #17a2b8;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
+    --background-color: #f8f9fa;
+    --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --border-radius: 8px;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--background-color);
+    line-height: 1.6;
+}
+
+/* 导航栏样式 */
+.navbar {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    box-shadow: var(--card-shadow);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.3rem;
+}
+
+.navbar-nav .nav-link {
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.navbar-nav .nav-link:hover {
+    color: var(--light-color) !important;
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 4px;
+}
+
+/* 卡片样式 */
+.card {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    font-weight: 600;
+}
+
+/* 统计卡片 */
+.stats-card {
+    text-align: center;
+    padding: 1.5rem;
+    border-left: 4px solid var(--secondary-color);
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.stats-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 搜索框样式 */
+.search-container {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 2rem;
+}
+
+.search-input {
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.search-input:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+/* 论文列表样式 */
+.paper-item {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease;
+}
+
+.paper-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.paper-title {
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    text-decoration: none;
+}
+
+.paper-title:hover {
+    color: var(--secondary-color);
+    text-decoration: none;
+}
+
+.paper-meta {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+}
+
+.paper-abstract {
+    color: #495057;
+    line-height: 1.5;
+}
+
+/* 状态徽章 */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.4em 0.6em;
+    border-radius: 4px;
+}
+
+.badge-pending {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.badge-completed {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.badge-failed {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+/* 分页样式 */
+.pagination {
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.page-link {
+    color: var(--primary-color);
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+}
+
+.page-link:hover {
+    color: var(--secondary-color);
+    background-color: #e9ecef;
+    border-color: #dee2e6;
+}
+
+.page-item.active .page-link {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    color: white;
+}
+
+/* 图表容器 */
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin: 1rem 0;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
+/* 表格样式 */
+.table {
+    background: white;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: var(--primary-color);
+    border-top: none;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+/* 详情页面样式 */
+.paper-detail {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    box-shadow: var(--card-shadow);
+}
+
+.detail-section {
+    margin-bottom: 2rem;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.detail-content {
+    color: #495057;
+    line-height: 1.6;
+}
+
+/* 标签样式 */
+.tag {
+    display: inline-block;
+    background-color: var(--light-color);
+    color: var(--primary-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin: 0.2rem;
+    border: 1px solid #dee2e6;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 1rem;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+    }
+    
+    .paper-item {
+        padding: 1rem;
+    }
+    
+    .search-container {
+        padding: 1rem;
+    }
+    
+    .paper-detail {
+        padding: 1rem;
+    }
+}
+
+/* 加载动画 */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(52, 152, 219, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--secondary-color);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 错误页面样式 */
+.error-container {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.error-icon {
+    color: var(--danger-color);
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.error-message {
+    color: #6c757d;
+    font-size: 1.1rem;
+}
+
+/* 空状态样式 */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #dee2e6;
+}
+
+/* 工具提示样式 */
+.tooltip-inner {
+    background-color: var(--primary-color);
+    color: white;
+    font-size: 0.875rem;
+}
+
+.tooltip.bs-tooltip-top .arrow::before {
+    border-top-color: var(--primary-color);
+}
+
+/* 按钮样式增强 */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    border: none;
+    font-weight: 500;
+    transition: transform 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+}
+
+/* 进度条样式 */
+.progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, var(--success-color) 0%, var(--secondary-color) 100%);
+    border-radius: 4px;
+}
+
+/* Markdown内容样式 */
+.markdown-content {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.7;
+    color: #333;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.3;
+}
+
+.markdown-content h1 {
+    font-size: 1.8rem;
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 0.5rem;
+}
+
+.markdown-content h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 0.3rem;
+}
+
+.markdown-content h3 {
+    font-size: 1.3rem;
+}
+
+.markdown-content h4 {
+    font-size: 1.1rem;
+}
+
+.markdown-content h5,
+.markdown-content h6 {
+    font-size: 1rem;
+}
+
+.markdown-content p {
+    margin-bottom: 1rem;
+    text-align: justify;
+}
+
+.markdown-content strong {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.markdown-content em {
+    font-style: italic;
+    color: #555;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.markdown-content li {
+    margin-bottom: 0.25rem;
+}
+
+.markdown-content ul li {
+    list-style-type: disc;
+}
+
+.markdown-content ol li {
+    list-style-type: decimal;
+}
+
+.markdown-content ul ul li,
+.markdown-content ol ul li {
+    list-style-type: circle;
+}
+
+.markdown-content ul ol li,
+.markdown-content ol ol li {
+    list-style-type: lower-alpha;
+}
+
+.markdown-content blockquote {
+    border-left: 4px solid var(--secondary-color);
+    background-color: #f8f9fa;
+    padding: 1rem 1.5rem;
+    margin: 1rem 0;
+    font-style: italic;
+    border-radius: 0 4px 4px 0;
+}
+
+.markdown-content blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+.markdown-content code {
+    background-color: #f1f3f4;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #d63384;
+}
+
+.markdown-content pre {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+    color: #333;
+    border-radius: 0;
+}
+
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    background-color: white;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.markdown-content th,
+.markdown-content td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.markdown-content th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.markdown-content tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.markdown-content a {
+    color: var(--secondary-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s ease;
+}
+
+.markdown-content a:hover {
+    color: var(--primary-color);
+    border-bottom-color: var(--secondary-color);
+    text-decoration: none;
+}
+
+.markdown-content hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--secondary-color), transparent);
+    margin: 2rem 0;
+}
+
+.markdown-content del {
+    color: #999;
+    text-decoration: line-through;
+}
+
+.markdown-content mark {
+    background-color: #fff3cd;
+    padding: 0.1rem 0.2rem;
+    border-radius: 2px;
+}
+
+.markdown-content sup {
+    font-size: 0.75em;
+    vertical-align: super;
+}
+
+.markdown-content sub {
+    font-size: 0.75em;
+    vertical-align: sub;
+}
+
+/* 任务列表样式 */
+.markdown-content input[type="checkbox"] {
+    margin-right: 0.5rem;
+    transform: scale(1.1);
+}
+
+.markdown-content .task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+}
+
+/* 定义列表样式 */
+.markdown-content dl {
+    margin-bottom: 1rem;
+}
+
+.markdown-content dt {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-top: 0.5rem;
+}
+
+.markdown-content dd {
+    margin-left: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* 脚注样式 */
+.markdown-content .footnote-def {
+    border-top: 1px solid #e9ecef;
+    padding-top: 0.5rem;
+    margin-top: 2rem;
+    font-size: 0.875rem;
+    color: #666;
+}
+
+.markdown-content .footnote-ref {
+    color: var(--secondary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.markdown-content .footnote-ref:hover {
+    color: var(--primary-color);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .markdown-content {
+        font-size: 0.9rem;
+    }
+    
+    .markdown-content h1 {
+        font-size: 1.5rem;
+    }
+    
+    .markdown-content h2 {
+        font-size: 1.3rem;
+    }
+    
+    .markdown-content h3 {
+        font-size: 1.1rem;
+    }
+    
+    .markdown-content pre {
+        font-size: 0.8rem;
+        padding: 0.75rem;
+    }
+    
+    .markdown-content table {
+        font-size: 0.85rem;
+    }
+    
+    .markdown-content th,
+    .markdown-content td {
+        padding: 0.5rem;
+    }
+}
+
+/* ========== 深度分析配置模态框样式 ========== */
+
+/* 设置按钮样式 */
+.btn-outline-light {
+    transition: all 0.3s ease;
+}
+
+.btn-outline-light:hover {
+    background-color: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.8);
+    transform: translateY(-1px);
+}
+
+/* 配置模态框样式 */
+#analysisConfigModal .modal-content {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+#analysisConfigModal .modal-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+}
+
+#analysisConfigModal .modal-title {
+    font-weight: 600;
+}
+
+/* 表单样式 */
+#analysisConfigForm .form-label {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+}
+
+#analysisConfigForm .form-select,
+#analysisConfigForm .form-range {
+    border-radius: 8px;
+    border: 2px solid #e1e8ed;
+    transition: all 0.3s ease;
+}
+
+#analysisConfigForm .form-select:focus,
+#analysisConfigForm .form-range:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+/* 模型详情卡片样式 */
+#modelDetails .card {
+    border: 1px solid #e1e8ed;
+    transition: all 0.3s ease;
+}
+
+#modelDetails .card:hover {
+    border-color: var(--secondary-color);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+}
+
+#modelDetails .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e1e8ed;
+    font-weight: 600;
+}
+
+/* 智能推荐样式 */
+#modelRecommendations .card {
+    transition: all 0.3s ease;
+}
+
+#modelRecommendations .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+#modelRecommendations .btn {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+#modelRecommendations .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* 推荐按钮颜色 */
+.btn-outline-success:hover {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+.btn-outline-info:hover {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+/* 状态提示样式 */
+#configSaveStatus {
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+#configLoadingState .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+#configErrorState .bi-exclamation-triangle-fill {
+    color: var(--danger-color);
+}
+
+/* 模态框按钮样式 */
+#analysisConfigModal .modal-footer .btn {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.6rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+#analysisConfigModal .modal-footer .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 超时时间滑块样式 */
+#timeoutRange {
+    height: 6px;
+    background: #e1e8ed;
+    border-radius: 3px;
+    outline: none;
+}
+
+#timeoutRange::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--secondary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+    transition: all 0.3s ease;
+}
+
+#timeoutRange::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(52, 152, 219, 0.4);
+}
+
+#timeoutRange::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: var(--secondary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    #analysisConfigModal .modal-lg {
+        max-width: 95%;
+        margin: 1rem auto;
+    }
+    
+    #modelDetails .col-md-6 {
+        margin-bottom: 1rem;
+    }
+    
+    #modelRecommendations .col-md-6 {
+        margin-bottom: 1rem;
+    }
+    
+    #analysisConfigModal .modal-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    #analysisConfigModal .modal-footer .btn {
+        width: 100%;
+    }
+}
+
+/* 动画效果 */
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#analysisConfigForm,
+#modelDetails,
+#modelRecommendations {
+    animation: slideInDown 0.4s ease-out;
+}
+
+/* 加载状态动画 */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+#configLoadingState p {
+    animation: pulse 2s infinite;
+}

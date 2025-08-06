@@ -1,0 +1,781 @@
+{% extends "base.html" %}
+
+{% block title %}定时任务管理 - PaperGather{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-clock me-2"></i>定时任务管理</h1>
+            <div>
+                <a href="{{ url_for('main.config') }}" class="btn btn-primary me-2">
+                    <i class="fas fa-plus me-1"></i>新建任务
+                </a>
+                <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-home me-1"></i>返回首页
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if tasks %}
+                <!-- 任务统计信息 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            当前共有 <strong>{{ tasks|length }}</strong> 个定时任务正在运行
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 定时任务列表 -->
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>任务ID</th>
+                                <th>任务名称</th>
+                                <th>状态</th>
+                                <th>执行间隔</th>
+                                <th>搜索查询</th>
+                                <th>LLM模型</th>
+                                <th>执行统计</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in tasks %}
+                            <tr id="task-{{ task.task_id }}" class="task-row" data-status="{{ task.status }}">
+                                <td>
+                                    <code class="text-primary">{{ task.task_id[:8] }}...</code>
+                                </td>
+                                <td>
+                                    <strong>{{ task.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">创建于 {{ task.created_at | format_date if task.created_at else '未知' }}</small>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge bg-{{ 'success' if task.status == 'running' else 'warning' if task.status == 'paused' else 'danger' if task.status == 'error' else 'secondary' }}">
+                                            {{ {'running': '运行中', 'paused': '已暂停', 'stopped': '已停止', 'error': '错误'}[task.status] or task.status }}
+                                        </span>
+                                        {% if task.is_running %}
+                                        <i class="fas fa-circle text-success ms-1" title="运行时活跃"></i>
+                                        {% endif %}
+                                    </div>
+                                    {% if task.error_message %}
+                                    <small class="text-danger" title="{{ task.error_message }}">
+                                        <i class="fas fa-exclamation-triangle"></i> 有错误
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        {{ task.interval_seconds | format_duration }}
+                                    </span>
+                                    {% if task.next_execution_at %}
+                                    <br>
+                                    <small class="text-muted">
+                                        下次: {{ task.next_execution_at | format_date }}
+                                    </small>
+                                    {% if task.next_run_in_seconds %}
+                                    <br>
+                                    <small class="badge badge-outline-primary">
+                                        {{ task.next_run_in_seconds | format_seconds_to_time }} 后执行
+                                    </small>
+                                    {% endif %}
+                                    {% elif task.is_running %}
+                                    <br>
+                                    <small class="text-info">
+                                        <i class="fas fa-clock"></i> 计算下次执行时间中...
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="text-truncate d-inline-block" style="max-width: 150px;" 
+                                          title="{{ task.config.search_query if task.config.search_query else '未配置' }}">
+                                        {{ task.config.search_query if task.config.search_query else '未配置' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ task.config.llm_model_name if task.config.llm_model_name else '默认模型' }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <span class="badge bg-secondary mb-1">
+                                            执行 {{ task.execution_count or 0 }} 次
+                                        </span>
+                                        {% if task.last_executed_at %}
+                                        <small class="text-muted">
+                                            上次: {{ task.last_executed_at | format_date }}
+                                        </small>
+                                        {% else %}
+                                        <small class="text-muted">未执行过</small>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-info" 
+                                                onclick="showTaskConfig('{{ task.task_id }}')" 
+                                                title="查看配置">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                        {% if task.status == 'running' and task.is_running %}
+                                        <button class="btn btn-success btn-sm" 
+                                                onclick="triggerScheduledTask('{{ task.task_id }}', '{{ task.name }}')" 
+                                                title="立即执行"
+                                                {% if task.task_is_executing %}disabled{% endif %}>
+                                            {% if task.task_is_executing %}
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            {% elif task.manual_trigger_requested %}
+                                            <i class="fas fa-clock"></i>
+                                            {% else %}
+                                            <i class="fas fa-play"></i>
+                                            {% endif %}
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-primary" 
+                                                onclick="editTaskConfig('{{ task.task_id }}')" 
+                                                title="编辑配置">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% if task.status == 'running' %}
+                                        <button class="btn btn-outline-warning" 
+                                                onclick="pauseScheduledTask('{{ task.task_id }}', '{{ task.name }}')" 
+                                                title="暂停任务">
+                                            <i class="fas fa-pause"></i>
+                                        </button>
+                                        {% elif task.status == 'paused' %}
+                                        <button class="btn btn-outline-success" 
+                                                onclick="resumeScheduledTask('{{ task.task_id }}', '{{ task.name }}')" 
+                                                title="恢复任务">
+                                            <i class="fas fa-play"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-danger" 
+                                                onclick="deleteScheduledTask('{{ task.task_id }}', '{{ task.name }}')" 
+                                                title="删除任务">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% else %}
+                <!-- 空状态 -->
+                <div class="text-center py-5">
+                    <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">暂无定时任务</h4>
+                    <p class="text-muted mb-4">
+                        您还没有创建任何定时任务。定时任务可以定期自动执行论文收集工作。
+                    </p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i>创建定时任务
+                        </a>
+                        <a href="{{ url_for('task.task_history') }}" class="btn btn-outline-info">
+                            <i class="fas fa-history me-1"></i>查看历史任务
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务配置查看模态框 -->
+<div class="modal fade" id="taskConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog me-2"></i>任务配置详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="taskConfigContent">
+                    <!-- 配置内容将通过JavaScript填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务配置编辑模态框 -->
+<div class="modal fade" id="taskEditModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>编辑定时任务配置
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="taskEditContent">
+                    <!-- 编辑表单将通过JavaScript填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveTaskConfig()">保存配置</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block head %}
+<style>
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+}
+
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.alert-info {
+    border-left: 4px solid #0dcaf0;
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .d-flex.justify-content-between {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .d-flex.justify-content-between .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 全局任务数据存储
+let tasksData = {{ tasks | tojson }};
+
+// 显示任务配置
+function showTaskConfig(taskId) {
+    const task = tasksData.find(t => t.task_id === taskId);
+    if (!task) {
+        showAlert('任务不存在', 'danger');
+        return;
+    }
+    
+    const config = task.config || {};
+    
+    const configHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6><i class="fas fa-search me-2"></i>搜索配置</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">搜索查询:</td>
+                        <td><code>${config.search_query || '未配置'}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">搜索模式:</td>
+                        <td><span class="badge bg-info">${config.search_mode || 'latest'}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">最大论文数:</td>
+                        <td><span class="badge bg-secondary">${config.max_papers_per_search || 20}</span></td>
+                    </tr>
+                    ${config.start_year ? `<tr><td class="text-muted">开始年份:</td><td>${config.start_year}</td></tr>` : ''}
+                    ${config.end_year ? `<tr><td class="text-muted">结束年份:</td><td>${config.end_year}</td></tr>` : ''}
+                    ${config.after_year ? `<tr><td class="text-muted">指定年份后:</td><td>${config.after_year}</td></tr>` : ''}
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="fas fa-robot me-2"></i>LLM配置</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">主模型:</td>
+                        <td><code>${config.llm_model_name || '默认'}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">摘要分析模型:</td>
+                        <td><code>${config.abstract_analysis_model || '同主模型'}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">论文分析模型:</td>
+                        <td><code>${config.paper_analysis_model || '同主模型'}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">相关性阈值:</td>
+                        <td><span class="badge bg-warning">${config.relevance_threshold ? (config.relevance_threshold * 100).toFixed(1) + '%' : '70%'}</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6><i class="fas fa-clock me-2"></i>执行配置</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">执行间隔:</td>
+                        <td><span class="badge bg-info">${formatDuration(task.interval_seconds)}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">启用翻译:</td>
+                        <td><span class="badge bg-${config.enable_translation ? 'success' : 'secondary'}">${config.enable_translation ? '是' : '否'}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">启用总结:</td>
+                        <td><span class="badge bg-${config.enable_paper_summarization ? 'success' : 'secondary'}">${config.enable_paper_summarization ? '是' : '否'}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">最大响应论文数:</td>
+                        <td><span class="badge bg-secondary">${config.max_papers_in_response || 50}</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        ${config.user_requirements ? `
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6><i class="fas fa-user me-2"></i>用户需求</h6>
+                <div class="alert alert-light">
+                    ${config.user_requirements}
+                </div>
+            </div>
+        </div>` : ''}
+    `;
+    
+    document.getElementById('taskConfigContent').innerHTML = configHtml;
+    new bootstrap.Modal(document.getElementById('taskConfigModal')).show();
+}
+
+// === 新增任务管理功能 ===
+
+// 手动触发定时任务
+function triggerScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要立即执行定时任务 "${taskName}" 吗？\n\n任务将在几秒内开始执行，但不会影响正常的定时调度。`)) {
+        return;
+    }
+    
+    performTaskAction(`/task/trigger_scheduled/${taskId}`, 'POST', 
+        `定时任务 "${taskName}" 已触发执行`, 
+        `触发任务 "${taskName}" 失败`);
+}
+
+// 暂停定时任务
+function pauseScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要暂停定时任务 "${taskName}" 吗？\n\n暂停后可以随时恢复执行。`)) {
+        return;
+    }
+    
+    performTaskAction(`/api/scheduled_tasks/${taskId}/pause`, 'POST', 
+        `定时任务 "${taskName}" 已暂停`, 
+        `暂停任务 "${taskName}" 失败`);
+}
+
+// 恢复定时任务
+function resumeScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要恢复定时任务 "${taskName}" 吗？\n\n任务将重新开始自动执行。`)) {
+        return;
+    }
+    
+    performTaskAction(`/api/scheduled_tasks/${taskId}/resume`, 'POST', 
+        `定时任务 "${taskName}" 已恢复`, 
+        `恢复任务 "${taskName}" 失败`);
+}
+
+// 删除定时任务
+function deleteScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要永久删除定时任务 "${taskName}" 吗？\n\n⚠️ 此操作不可恢复，任务的所有配置都将被删除。`)) {
+        return;
+    }
+    
+    performTaskAction(`/api/scheduled_tasks/${taskId}`, 'DELETE', 
+        `定时任务 "${taskName}" 已删除`, 
+        `删除任务 "${taskName}" 失败`);
+}
+
+// 通用任务操作函数
+function performTaskAction(url, method, successMessage, errorMessage) {
+    const loadingAlert = showAlert('操作进行中...', 'info', 10000);
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // 移除加载提示
+        if (loadingAlert && loadingAlert.parentNode) {
+            loadingAlert.parentNode.removeChild(loadingAlert);
+        }
+        
+        if (data.success) {
+            showAlert(successMessage, 'success');
+            // 刷新页面以显示最新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert(`${errorMessage}: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        // 移除加载提示
+        if (loadingAlert && loadingAlert.parentNode) {
+            loadingAlert.parentNode.removeChild(loadingAlert);
+        }
+        
+        console.error('任务操作请求失败:', error);
+        showAlert(`${errorMessage}，请检查网络连接`, 'danger');
+    });
+}
+
+// 编辑任务配置
+let currentEditTaskId = null;
+
+function editTaskConfig(taskId) {
+    currentEditTaskId = taskId;
+    
+    // 获取任务详情
+    fetch(`/api/scheduled_tasks/${taskId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showTaskEditForm(data.data);
+            } else {
+                showAlert(`获取任务配置失败: ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('获取任务配置失败:', error);
+            showAlert('获取任务配置失败，请检查网络连接', 'danger');
+        });
+}
+
+function showTaskEditForm(taskData) {
+    const config = taskData.config || {};
+    
+    const editFormHtml = `
+        <form id="taskEditForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="task_name" class="form-label">任务名称 *</label>
+                        <input type="text" class="form-control" id="task_name" 
+                               value="${config.task_name || ''}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="search_query" class="form-label">搜索查询 *</label>
+                        <input type="text" class="form-control" id="search_query" 
+                               value="${config.search_query || ''}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="interval_seconds" class="form-label">执行间隔（秒）*</label>
+                        <input type="number" class="form-control" id="interval_seconds" 
+                               value="${config.interval_seconds || 3600}" min="60" required>
+                        <div class="form-text">最小间隔为60秒（1分钟）</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="llm_model_name" class="form-label">LLM模型 *</label>
+                        <select class="form-select" id="llm_model_name" required>
+                            <option value="">请选择模型...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="max_papers_per_search" class="form-label">每次搜索最大论文数</label>
+                        <input type="number" class="form-control" id="max_papers_per_search" 
+                               value="${config.max_papers_per_search || 20}" min="1" max="30000">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="relevance_threshold" class="form-label">相关性阈值</label>
+                        <input type="number" class="form-control" id="relevance_threshold" 
+                               value="${config.relevance_threshold || 0.7}" min="0" max="1" step="0.1">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enable_paper_summarization" 
+                                   ${config.enable_paper_summarization ? 'checked' : ''}>
+                            <label class="form-check-label" for="enable_paper_summarization">
+                                启用论文摘要生成
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="enable_translation" 
+                                   ${config.enable_translation ? 'checked' : ''}>
+                            <label class="form-check-label" for="enable_translation">
+                                启用翻译
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <div class="mb-3">
+                        <label for="user_requirements" class="form-label">用户需求描述</label>
+                        <textarea class="form-control" id="user_requirements" rows="3">${config.user_requirements || ''}</textarea>
+                        <div class="form-text">详细描述您的研究需求和关注重点</div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    `;
+    
+    document.getElementById('taskEditContent').innerHTML = editFormHtml;
+    
+    // 加载模型列表
+    loadModelsForEdit(config.llm_model_name);
+    
+    // 显示模态框
+    new bootstrap.Modal(document.getElementById('taskEditModal')).show();
+}
+
+function loadModelsForEdit(selectedModel) {
+    fetch('/api/models')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('llm_model_name');
+                select.innerHTML = '<option value="">请选择模型...</option>';
+                
+                data.data.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    if (model === selectedModel) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('加载模型列表失败:', error);
+        });
+}
+
+function saveTaskConfig() {
+    if (!currentEditTaskId) {
+        showAlert('无效的任务ID', 'danger');
+        return;
+    }
+    
+    // 收集表单数据
+    const formData = {
+        task_name: document.getElementById('task_name').value.trim(),
+        search_query: document.getElementById('search_query').value.trim(),
+        interval_seconds: parseInt(document.getElementById('interval_seconds').value),
+        llm_model_name: document.getElementById('llm_model_name').value,
+        max_papers_per_search: parseInt(document.getElementById('max_papers_per_search').value),
+        relevance_threshold: parseFloat(document.getElementById('relevance_threshold').value),
+        enable_paper_summarization: document.getElementById('enable_paper_summarization').checked,
+        enable_translation: document.getElementById('enable_translation').checked,
+        user_requirements: document.getElementById('user_requirements').value.trim()
+    };
+    
+    // 表单验证
+    if (!formData.task_name || !formData.search_query || !formData.llm_model_name) {
+        showAlert('请填写所有必需字段', 'warning');
+        return;
+    }
+    
+    if (formData.interval_seconds < 60) {
+        showAlert('执行间隔不能少于60秒', 'warning');
+        return;
+    }
+    
+    // 显示加载状态
+    const saveButton = document.querySelector('#taskEditModal .btn-primary');
+    const originalText = saveButton.textContent;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+    saveButton.disabled = true;
+    
+    // 发送更新请求
+    fetch(`/api/scheduled_tasks/${currentEditTaskId}/config`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            config: formData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('任务配置已更新', 'success');
+            // 关闭模态框
+            bootstrap.Modal.getInstance(document.getElementById('taskEditModal')).hide();
+            // 刷新页面
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert(`更新配置失败: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('更新配置失败:', error);
+        showAlert('更新配置失败，请检查网络连接', 'danger');
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        saveButton.textContent = originalText;
+        saveButton.disabled = false;
+    });
+}
+
+// 停止定时任务（保留原有功能作为快速停止）
+function stopScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要停止定时任务 "${taskName}" 吗？\n\n停止后该任务将不再自动执行。`)) {
+        return;
+    }
+    
+    const button = document.querySelector(`button[onclick*="${taskId}"]`);
+    const originalHtml = button.innerHTML;
+    
+    // 显示加载状态
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.disabled = true;
+    
+    fetch(`/task/stop_scheduled/${taskId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`定时任务 "${taskName}" 已成功停止`, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert(`停止任务失败: ${data.error}`, 'danger');
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('停止任务请求失败:', error);
+        showAlert('停止任务失败，请检查网络连接', 'danger');
+        button.innerHTML = originalHtml;
+        button.disabled = false;
+    });
+}
+
+// 格式化持续时间
+function formatDuration(seconds) {
+    if (!seconds) return "0秒";
+    
+    if (seconds < 60) {
+        return `${seconds}秒`;
+    } else if (seconds < 3600) {
+        const minutes = Math.round(seconds / 60);
+        return `${minutes}分钟`;
+    } else if (seconds < 86400) {
+        const hours = Math.round(seconds / 3600);
+        return `${hours}小时`;
+    } else {
+        const days = Math.round(seconds / 86400);
+        return `${days}天`;
+    }
+}
+
+// 显示提示信息
+function showAlert(message, type = 'info', duration = 5000) {
+    const alertContainer = document.createElement('div');
+    alertContainer.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertContainer.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    
+    alertContainer.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertContainer);
+    
+    // 自动移除提示
+    if (duration > 0) {
+        setTimeout(() => {
+            if (alertContainer.parentNode) {
+                alertContainer.parentNode.removeChild(alertContainer);
+            }
+        }, duration);
+    }
+    
+    return alertContainer;
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 定期刷新页面数据（每30秒）
+    setInterval(() => {
+        // 静默获取最新的任务状态
+        fetch('/api/scheduled_tasks')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.length !== tasksData.length) {
+                    // 任务数量发生变化，刷新页面
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('获取任务状态失败:', error);
+            });
+    }, 30000);
+});
+</script>
+{% endblock %}

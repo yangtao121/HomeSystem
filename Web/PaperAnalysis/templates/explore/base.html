@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ArXiv论文数据探索{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-journal-text"></i>
+                ArXiv论文探索
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" 
+                           href="{{ url_for('index') }}">
+                            <i class="bi bi-house"></i> 仪表板
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'papers' %}active{% endif %}" 
+                           href="{{ url_for('papers') }}">
+                            <i class="bi bi-search"></i> 论文浏览
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'statistics' %}active{% endif %}" 
+                           href="{{ url_for('statistics') }}">
+                            <i class="bi bi-bar-chart"></i> 统计分析
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'insights' %}active{% endif %}" 
+                           href="{{ url_for('insights') }}">
+                            <i class="bi bi-lightbulb"></i> 研究洞察
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" 
+                           href="{{ url_for('tasks') }}">
+                            <i class="bi bi-briefcase"></i> 任务管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'unassigned_papers' %}active{% endif %}" 
+                           href="{{ url_for('unassigned_papers') }}">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> 无任务论文
+                            {% if unassigned_papers_count > 0 %}
+                            <span class="badge bg-warning text-dark ms-1">{{ unassigned_papers_count }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- 快速搜索 -->
+                <form class="d-flex me-2" method="GET" action="{{ url_for('papers') }}">
+                    <input class="form-control me-2" type="search" name="q" 
+                           placeholder="快速搜索..." aria-label="搜索"
+                           value="{{ request.args.get('q', '') }}">
+                    <button class="btn btn-outline-light" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </form>
+                
+                <!-- 设置按钮 -->
+                <button class="btn btn-outline-light" type="button" 
+                        data-bs-toggle="modal" data-bs-target="#analysisConfigModal"
+                        title="深度分析设置">
+                    <i class="bi bi-gear"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 警告容器 -->
+    <div id="alertContainer" class="container mt-3"></div>
+
+    <!-- 深度分析配置模态框 -->
+    <div class="modal fade" id="analysisConfigModal" tabindex="-1" aria-labelledby="analysisConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="analysisConfigModalLabel">
+                        <i class="bi bi-gear"></i> 深度论文分析设置
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- 加载状态 -->
+                    <div id="configLoadingState" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2 text-muted">正在加载配置...</p>
+                    </div>
+                    
+                    <!-- 配置表单 -->
+                    <form id="analysisConfigForm" style="display: none;">
+                        <!-- 分析模型选择 -->
+                        <div class="mb-4">
+                            <label for="analysisModelSelect" class="form-label">
+                                <i class="bi bi-cpu"></i> 分析模型
+                            </label>
+                            <select class="form-select" id="analysisModelSelect" required>
+                                <option value="">请选择分析模型...</option>
+                            </select>
+                            <div class="form-text">
+                                用于论文文本分析和内容理解的主要模型
+                            </div>
+                        </div>
+                        
+                        <!-- 视觉模型选择 -->
+                        <div class="mb-4">
+                            <label for="visionModelSelect" class="form-label">
+                                <i class="bi bi-eye"></i> 视觉模型
+                            </label>
+                            <select class="form-select" id="visionModelSelect" required>
+                                <option value="">请选择视觉模型...</option>
+                            </select>
+                            <div class="form-text">
+                                用于图片、图表和公式识别的视觉模型（仅支持本地模型）
+                            </div>
+                        </div>
+                        
+                        <!-- 超时设置 -->
+                        <div class="mb-4">
+                            <label for="timeoutRange" class="form-label">
+                                <i class="bi bi-clock"></i> 分析超时时间: <span id="timeoutValue">600</span> 秒
+                            </label>
+                            <input type="range" class="form-range" id="timeoutRange" 
+                                   min="300" max="1800" step="60" value="600">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">5分钟</small>
+                                <small class="text-muted">30分钟</small>
+                            </div>
+                        </div>
+                        
+                        <!-- 模型详情展示 -->
+                        <div id="modelDetails" class="row" style="display: none;">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> 分析模型详情</h6>
+                                    </div>
+                                    <div class="card-body" id="analysisModelDetails">
+                                        <!-- 动态内容 -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-eye"></i> 视觉模型详情</h6>
+                                    </div>
+                                    <div class="card-body" id="visionModelDetails">
+                                        <!-- 动态内容 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 智能推荐 -->
+                        <div id="modelRecommendations" class="mt-4" style="display: none;">
+                            <h6><i class="bi bi-lightbulb"></i> 智能推荐</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-success">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-success">推理任务</h6>
+                                            <p class="card-text small">适合复杂逻辑推理和数学问题分析</p>
+                                            <div id="reasoningModels" class="d-grid gap-1">
+                                                <!-- 动态内容 -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-info">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-info">代码分析</h6>
+                                            <p class="card-text small">适合代码理解和技术文档分析</p>
+                                            <div id="codingModels" class="d-grid gap-1">
+                                                <!-- 动态内容 -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 保存状态提示 -->
+                        <div id="configSaveStatus" class="alert" style="display: none;" role="alert">
+                            <span id="configSaveMessage"></span>
+                        </div>
+                    </form>
+                    
+                    <!-- 错误状态 -->
+                    <div id="configErrorState" class="text-center py-4" style="display: none;">
+                        <div class="text-danger">
+                            <i class="bi bi-exclamation-triangle-fill fs-1"></i>
+                            <h5 class="mt-2">加载配置失败</h5>
+                            <p id="configErrorMessage" class="text-muted"></p>
+                            <button type="button" class="btn btn-outline-primary" onclick="loadAnalysisConfig()">
+                                <i class="bi bi-arrow-repeat"></i> 重试
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> 取消
+                    </button>
+                    <button type="button" class="btn btn-outline-info" id="resetConfigBtn" style="display: none;">
+                        <i class="bi bi-arrow-clockwise"></i> 重置为默认
+                    </button>
+                    <button type="button" class="btn btn-primary" id="saveConfigBtn" style="display: none;">
+                        <i class="bi bi-check-circle"></i> 保存设置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <main class="container my-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-light text-center py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6 text-md-start">
+                    <small class="text-muted">
+                        <i class="bi bi-database"></i>
+                        数据库: PostgreSQL + Redis | 
+                        <i class="bi bi-clock"></i>
+                        更新时间: {{ now.strftime('%Y-%m-%d %H:%M') }}
+                    </small>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small class="text-muted">
+                        <i class="bi bi-github"></i>
+                        <a href="#" class="text-decoration-none">HomeSystem</a> |
+                        <i class="bi bi-info-circle"></i>
+                        <a href="#" class="text-decoration-none">关于</a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <!-- Moment.js for date formatting -->
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/locale/zh-cn.js"></script>
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- 设置moment.js语言 -->
+    <script>
+        moment.locale('zh-cn');
+    </script>
+</body>
+</html>

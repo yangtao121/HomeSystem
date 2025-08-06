@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+
+{% block title %}执行历史 - PaperGather{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-history me-2"></i>执行历史</h1>
+            <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>新建任务
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if results %}
+                <!-- 批量操作工具栏 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                    <label class="form-check-label" for="selectAll">
+                                        全选
+                                    </label>
+                                </div>
+                                <button class="btn btn-outline-danger" id="batchDeleteBtn" style="display: none;">
+                                    <i class="fas fa-trash me-1"></i>批量删除 (<span id="selectedCount">0</span>)
+                                </button>
+                            </div>
+                            <small class="text-muted">共 {{ results|length }} 个任务</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th width="50px">
+                                    <input class="form-check-input" type="checkbox" id="selectAllHeader" style="margin: 0;">
+                                </th>
+                                <th>任务ID</th>
+                                <th>开始时间</th>
+                                <th>结束时间</th>
+                                <th>执行时间</th>
+                                <th>状态</th>
+                                <th>进度</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in results %}
+                            <tr data-task-id="{{ result.task_id }}">
+                                <td>
+                                    <input class="form-check-input row-checkbox" type="checkbox" 
+                                           value="{{ result.task_id }}" style="margin: 0;">
+                                </td>
+                                <td>
+                                    <code>{{ result.task_id[:8] }}...</code>
+                                </td>
+                                <td>{{ result.start_time | format_date }}</td>
+                                <td>
+                                    {% if result.end_time %}
+                                        {{ result.end_time | format_date }}
+                                    {% else %}
+                                        <span class="text-muted">运行中</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if result.duration %}
+                                        {{ result.duration | format_duration }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ result.status | status_badge }}">
+                                        {{ result.status | upper }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="progress" style="width: 100px; height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ (result.progress * 100) | round(1) }}%">
+                                            {{ (result.progress * 100) | round(1) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('task.task_status', task_id=result.task_id) }}" 
+                                           class="btn btn-outline-primary" title="查看详情">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if result.status == 'completed' %}
+                                        <a href="{{ url_for('task.task_results', task_id=result.task_id) }}" 
+                                           class="btn btn-outline-success" title="查看结果">
+                                            <i class="fas fa-search-plus"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if result.status in ['pending', 'running'] %}
+                                        <button class="btn btn-outline-warning" 
+                                                onclick="cancelTask('{{ result.task_id }}')" title="取消任务">
+                                            <i class="fas fa-stop"></i>
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-outline-danger" 
+                                                onclick="deleteTask('{{ result.task_id }}', '{{ result.task_id[:8] }}')" 
+                                                title="删除任务">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if pagination.total_pages > 1 %}
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.prev_num }}">上一页</a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in range(1, pagination.total_pages + 1) %}
+                            {% if page_num == pagination.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% elif page_num <= 3 or page_num > pagination.total_pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                            </li>
+                            {% elif page_num == 4 and pagination.page > 6 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% elif page_num == pagination.total_pages - 3 and pagination.page < pagination.total_pages - 5 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.next_num }}">下一页</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">暂无执行历史</h5>
+                    <p class="text-muted">还没有执行过任何任务</p>
+                    <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+                        立即创建任务
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 页面加载时验证任务数据完整性
+    validateTaskData();
+    
+    // 全选/取消全选功能
+    $('#selectAll, #selectAllHeader').change(function() {
+        const isChecked = $(this).prop('checked');
+        $('.row-checkbox').prop('checked', isChecked);
+        $('#selectAll, #selectAllHeader').prop('checked', isChecked);
+        updateBatchDeleteButton();
+    });
+    
+    // 单行复选框变化
+    $('.row-checkbox').change(function() {
+        const totalRows = $('.row-checkbox').length;
+        const checkedRows = $('.row-checkbox:checked').length;
+        
+        $('#selectAll, #selectAllHeader').prop('checked', checkedRows === totalRows);
+        updateBatchDeleteButton();
+    });
+    
+    // 批量删除按钮点击
+    $('#batchDeleteBtn').click(function() {
+        const selectedIds = $('.row-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selectedIds.length === 0) {
+            PaperGather.Utils.showNotification('请先选择要删除的任务', 'warning');
+            return;
+        }
+        
+        batchDeleteTasks(selectedIds);
+    });
+});
+
+// 更新批量删除按钮状态
+function updateBatchDeleteButton() {
+    const checkedCount = $('.row-checkbox:checked').length;
+    $('#selectedCount').text(checkedCount);
+    
+    if (checkedCount > 0) {
+        $('#batchDeleteBtn').show();
+    } else {
+        $('#batchDeleteBtn').hide();
+    }
+}
+
+// 单个任务删除
+function deleteTask(taskId, taskName) {
+    const confirmMessage = `确定要删除历史任务"${taskName}..."吗？\n\n注意：此操作不可撤销，任务记录将被永久删除。`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // 显示删除中状态
+    const deleteBtn = $(`button[onclick*="deleteTask('${taskId}'"]`);
+    const originalHtml = deleteBtn.html();
+    deleteBtn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+    
+    PaperGather.API.delete(`/api/task/history/${taskId}`)
+        .then(response => {
+            if (response.success) {
+                PaperGather.Utils.showNotification('历史任务删除成功', 'success');
+                // 移除表格行
+                $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
+                    $(this).remove();
+                    updateBatchDeleteButton();
+                    
+                    // 如果表格为空，显示空状态
+                    if ($('tbody tr').length === 0) {
+                        $('tbody').html(`
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">暂无历史任务</p>
+                                    <a href="/" class="btn btn-primary">返回首页</a>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                });
+            } else {
+                throw new Error(response.error || '删除失败');
+            }
+        })
+        .catch(error => {
+            console.error('删除任务失败:', error);
+            // 根据HTTP状态码或错误类型显示不同信息
+            let errorMessage = error.message || '删除失败';
+            let shouldRemoveFromPage = false;
+            
+            // 检查是否是404错误或"不存在"相关错误
+            if (error.status === 404 || 
+                errorMessage.includes('未找到') || 
+                errorMessage.includes('不存在') ||
+                errorMessage.includes('TASK_NOT_FOUND')) {
+                errorMessage = '任务已被删除或不存在';
+                shouldRemoveFromPage = true;
+            }
+            
+            if (shouldRemoveFromPage) {
+                // 如果任务不存在，从页面移除显示并显示成功消息
+                $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
+                    $(this).remove();
+                    updateBatchDeleteButton();
+                    
+                    // 如果表格为空，显示空状态
+                    if ($('tbody tr').length === 0) {
+                        $('tbody').html(`
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">暂无历史任务</p>
+                                    <a href="/" class="btn btn-primary">返回首页</a>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                });
+                PaperGather.Utils.showNotification('任务已被清理', 'info');
+            } else {
+                PaperGather.Utils.showNotification(`删除失败: ${errorMessage}`, 'danger');
+                deleteBtn.html(originalHtml).prop('disabled', false);
+            }
+        });
+}
+
+// 批量删除任务
+function batchDeleteTasks(taskIds) {
+    const confirmMessage = `确定要删除选中的 ${taskIds.length} 个历史任务吗？\n\n注意：此操作不可撤销，所有选中的任务记录将被永久删除。`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // 显示删除进度
+    const batchBtn = $('#batchDeleteBtn');
+    const originalHtml = batchBtn.html();
+    let deletedCount = 0;
+    let failedCount = 0;
+    
+    batchBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>删除中...').prop('disabled', true);
+    
+    // 串行删除（避免并发问题）
+    let deletePromise = Promise.resolve();
+    
+    taskIds.forEach(taskId => {
+        deletePromise = deletePromise.then(() => {
+            return PaperGather.API.delete(`/api/task/history/${taskId}`)
+                .then(response => {
+                    if (response.success) {
+                        deletedCount++;
+                        // 移除表格行
+                        $(`tr[data-task-id="${taskId}"]`).fadeOut(200, function() {
+                            $(this).remove();
+                        });
+                        // 更新进度
+                        batchBtn.html(`<i class="fas fa-spinner fa-spin me-1"></i>删除中... (${deletedCount}/${taskIds.length})`);
+                    } else {
+                        throw new Error(response.error || '删除失败');
+                    }
+                })
+                .catch(error => {
+                    console.error(`删除任务 ${taskId} 失败:`, error);
+                    
+                    // 检查是否是404错误或"不存在"相关错误
+                    const isNotFoundError = error.status === 404 || 
+                        (error.message && (
+                            error.message.includes('未找到') || 
+                            error.message.includes('不存在') ||
+                            error.message.includes('TASK_NOT_FOUND')
+                        ));
+                    
+                    if (isNotFoundError) {
+                        // 不算作失败，从页面移除
+                        $(`tr[data-task-id="${taskId}"]`).fadeOut(200, function() {
+                            $(this).remove();
+                        });
+                        console.info(`任务 ${taskId} 已被清理（不存在）`);
+                    } else {
+                        failedCount++;
+                    }
+                });
+        });
+    });
+    
+    deletePromise.finally(() => {
+        // 重置按钮状态
+        batchBtn.html(originalHtml).prop('disabled', false);
+        
+        // 更新全选状态
+        $('#selectAll, #selectAllHeader').prop('checked', false);
+        updateBatchDeleteButton();
+        
+        // 显示结果通知
+        if (failedCount === 0) {
+            PaperGather.Utils.showNotification(`成功删除 ${deletedCount} 个历史任务`, 'success');
+        } else {
+            PaperGather.Utils.showNotification(
+                `删除完成：成功 ${deletedCount} 个，失败 ${failedCount} 个`, 
+                failedCount > deletedCount ? 'danger' : 'warning'
+            );
+        }
+        
+        // 如果页面没有任务了，刷新页面
+        if ($('tbody tr').length === 0) {
+            setTimeout(() => location.reload(), 1500);
+        }
+    });
+}
+
+// 取消任务（保持原有功能）
+function cancelTask(taskId) {
+    if (!confirm('确定要取消任务 ' + taskId.substring(0, 8) + '... 吗？')) {
+        return;
+    }
+    
+    $.post('/task/cancel/' + taskId, function(response) {
+        if (response.success) {
+            location.reload();
+        } else {
+            alert('取消任务失败: ' + response.error);
+        }
+    });
+}
+
+// 验证任务数据完整性
+function validateTaskData() {
+    // 获取页面上显示的所有任务ID
+    const displayedTaskIds = [];
+    $('tr[data-task-id]').each(function() {
+        const taskId = $(this).data('task-id');
+        if (taskId) {
+            displayedTaskIds.push(taskId);
+        }
+    });
+    
+    if (displayedTaskIds.length === 0) {
+        return; // 没有任务显示，无需验证
+    }
+    
+    // 通过API验证这些任务是否真实存在
+    $.get('/api/task/history?per_page=100', function(response) {
+        if (response.success) {
+            const actualTaskIds = response.data.map(task => task.task_id);
+            
+            // 检查页面显示的任务是否在实际数据中
+            const orphanedTasks = displayedTaskIds.filter(id => !actualTaskIds.includes(id));
+            
+            if (orphanedTasks.length > 0) {
+                console.warn('发现 ' + orphanedTasks.length + ' 个不存在的任务，将自动移除');
+                
+                // 移除不存在的任务行
+                orphanedTasks.forEach(taskId => {
+                    $(`tr[data-task-id="${taskId}"]`).fadeOut(300, function() {
+                        $(this).remove();
+                        updateBatchDeleteButton();
+                    });
+                });
+                
+                // 显示通知
+                setTimeout(() => {
+                    PaperGather.Utils.showNotification(
+                        `已清理 ${orphanedTasks.length} 个无效的任务记录`, 
+                        'info'
+                    );
+                }, 1000);
+                
+                // 检查是否需要显示空状态
+                setTimeout(() => {
+                    if ($('tbody tr').length === 0) {
+                        $('tbody').html(`
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">暂无历史任务</p>
+                                    <a href="/" class="btn btn-primary">返回首页</a>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                }, 1500);
+            }
+        }
+    }).fail(function() {
+        console.warn('任务数据验证失败，可能存在网络问题');
+    });
+}
+</script>
+{% endblock %}

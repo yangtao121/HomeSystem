@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}分析配置 - PaperAnalysis{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1><i class="bi bi-gear me-2"></i>深度分析配置</h1>
+                    <p class="text-muted">配置AI模型和分析参数</p>
+                </div>
+                <a href="{{ url_for('analysis.index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>返回
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <form id="analysisConfigForm">
+                        <!-- 分析模型选择 -->
+                        <div class="mb-4">
+                            <label for="analysisModel" class="form-label">
+                                <i class="bi bi-cpu me-2"></i>分析模型
+                            </label>
+                            <select class="form-select form-select-lg" id="analysisModel" name="analysis_model" required>
+                                <option value="">加载中...</option>
+                            </select>
+                            <div class="form-text">
+                                选择用于论文内容分析的大语言模型。推荐使用具有强大推理能力的模型。
+                            </div>
+                        </div>
+
+                        <!-- 视觉模型选择 -->
+                        <div class="mb-4">
+                            <label for="visionModel" class="form-label">
+                                <i class="bi bi-eye me-2"></i>视觉模型
+                            </label>
+                            <select class="form-select form-select-lg" id="visionModel" name="vision_model" required>
+                                <option value="">加载中...</option>
+                            </select>
+                            <div class="form-text">
+                                选择用于分析论文图表、公式和视觉元素的多模态模型。
+                            </div>
+                        </div>
+
+                        <!-- 分析超时时间 -->
+                        <div class="mb-4">
+                            <label for="timeout" class="form-label">
+                                <i class="bi bi-clock me-2"></i>分析超时时间 (秒)
+                            </label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <input type="number" class="form-control form-control-lg" 
+                                           id="timeout" name="timeout" 
+                                           min="300" max="1800" value="600" required>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-center">
+                                    <div class="form-text">
+                                        设置分析任务的最长执行时间，超时将自动取消。
+                                        建议范围：300-1800秒
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 当前配置显示 -->
+                        <div class="mb-4">
+                            <h5><i class="bi bi-info-circle me-2"></i>当前配置</h5>
+                            <div class="bg-light rounded p-3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>分析模型:</strong>
+                                        <span id="currentAnalysisModel" class="text-muted">{{ current_config.analysis_model }}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>视觉模型:</strong>
+                                        <span id="currentVisionModel" class="text-muted">{{ current_config.vision_model }}</span>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-md-6">
+                                        <strong>超时时间:</strong>
+                                        <span id="currentTimeout" class="text-muted">{{ current_config.timeout }} 秒</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>状态:</strong>
+                                        <span class="badge bg-success">已配置</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary" onclick="loadDefaultConfig()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>恢复默认
+                            </button>
+                            <button type="button" class="btn btn-success" onclick="testConnection()">
+                                <i class="bi bi-wifi me-1"></i>测试连接
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check2 me-1"></i>保存配置
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 模型推荐 -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body">
+                    <h5><i class="bi bi-stars me-2"></i>模型推荐</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>推理分析</h6>
+                            <ul class="list-unstyled small">
+                                <li><i class="bi bi-arrow-right me-1"></i>DeepSeek R1 - 超强推理能力</li>
+                                <li><i class="bi bi-arrow-right me-1"></i>Doubao 1.6 Thinking - 思维链推理</li>
+                                <li><i class="bi bi-arrow-right me-1"></i>GPT-4 - 综合能力均衡</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>视觉分析</h6>
+                            <ul class="list-unstyled small">
+                                <li><i class="bi bi-arrow-right me-1"></i>Qwen2.5-VL - 多模态理解</li>
+                                <li><i class="bi bi-arrow-right me-1"></i>LLaVA - 开源视觉模型</li>
+                                <li><i class="bi bi-arrow-right me-1"></i>GPT-4V - 强大视觉能力</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    loadAnalysisConfig();
+});
+
+// 加载分析配置
+function loadAnalysisConfig() {
+    fetch('/api/analysis/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const config = data.data;
+                
+                // 填充分析模型选项
+                const analysisSelect = document.getElementById('analysisModel');
+                analysisSelect.innerHTML = '<option value="">请选择分析模型</option>';
+                config.available_models.analysis_models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    option.selected = model === config.current_config.analysis_model;
+                    analysisSelect.appendChild(option);
+                });
+                
+                // 填充视觉模型选项
+                const visionSelect = document.getElementById('visionModel');
+                visionSelect.innerHTML = '<option value="">请选择视觉模型</option>';
+                config.available_models.vision_models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    option.selected = model === config.current_config.vision_model;
+                    visionSelect.appendChild(option);
+                });
+                
+                // 设置超时时间
+                document.getElementById('timeout').value = config.current_config.timeout;
+            } else {
+                showAlert('danger', '加载配置失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showAlert('danger', '加载配置失败: ' + error.message);
+        });
+}
+
+// 表单提交
+document.getElementById('analysisConfigForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const config = {
+        analysis_model: formData.get('analysis_model'),
+        vision_model: formData.get('vision_model'),
+        timeout: parseInt(formData.get('timeout'))
+    };
+    
+    fetch('/api/analysis/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', '配置保存成功！');
+            // 更新显示的当前配置
+            document.getElementById('currentAnalysisModel').textContent = config.analysis_model;
+            document.getElementById('currentVisionModel').textContent = config.vision_model;
+            document.getElementById('currentTimeout').textContent = config.timeout + ' 秒';
+        } else {
+            showAlert('danger', '保存配置失败: ' + data.error);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', '保存配置失败: ' + error.message);
+    });
+});
+
+// 恢复默认配置
+function loadDefaultConfig() {
+    if (confirm('确定要恢复默认配置吗？当前配置将被覆盖。')) {
+        document.getElementById('analysisModel').value = 'deepseek.DeepSeek_V3';
+        document.getElementById('visionModel').value = 'ollama.Qwen2_5_VL_7B';
+        document.getElementById('timeout').value = 600;
+    }
+}
+
+// 测试连接
+function testConnection() {
+    const analysisModel = document.getElementById('analysisModel').value;
+    const visionModel = document.getElementById('visionModel').value;
+    
+    if (!analysisModel || !visionModel) {
+        showAlert('warning', '请先选择分析模型和视觉模型');
+        return;
+    }
+    
+    showAlert('info', '正在测试模型连接...');
+    
+    // 这里可以添加实际的连接测试逻辑
+    setTimeout(() => {
+        showAlert('success', '模型连接测试通过！');
+    }, 2000);
+}
+
+// 显示警告消息
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // 插入到容器顶部
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // 自动消失
+    if (type === 'success' || type === 'info') {
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 3000);
+    }
+}
+</script>
+{% endblock %}

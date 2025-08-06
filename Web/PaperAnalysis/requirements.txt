@@ -1,0 +1,23 @@
+# PaperAnalysis 应用依赖包
+# 合并了PaperGather和ExplorePaperData的所有依赖
+
+# Web框架
+Flask>=3.0.0
+Flask-Moment>=1.0.5
+Jinja2>=3.1.0
+
+# 数据库依赖
+psycopg2-binary>=2.9.9
+redis>=5.0.1
+
+# 环境管理
+python-dotenv>=1.0.0
+
+# 日志工具
+loguru>=0.7.2
+
+# 工具库
+python-dateutil>=2.8.0
+
+# Markdown支持
+mistune>=3.0.0

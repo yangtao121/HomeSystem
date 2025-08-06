@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PaperAnalysis - 论文收集与分析系统{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Font Awesome (兼容两个应用) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Flask-Moment -->
+    {{ moment.include_moment() }}
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="bi bi-journal-text me-2"></i>PaperAnalysis
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- 首页 -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" 
+                           href="{{ url_for('main.index') }}">
+                            <i class="bi bi-house me-1"></i>首页
+                        </a>
+                    </li>
+                    
+                    <!-- 论文收集功能区 -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.blueprint == 'collect' %}active{% endif %}" 
+                           href="#" id="collectDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-download me-1"></i>论文收集
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('collect.index') }}">
+                                <i class="bi bi-house-door me-1"></i>收集首页
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('collect.config') }}">
+                                <i class="fas fa-cog me-1"></i>任务配置
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('collect.task_history') }}">
+                                <i class="fas fa-history me-1"></i>执行历史
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('collect.scheduled_tasks') }}">
+                                <i class="fas fa-clock me-1"></i>定时任务
+                            </a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- 论文浏览功能区 -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.blueprint == 'explore' %}active{% endif %}" 
+                           href="#" id="exploreDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-search me-1"></i>论文浏览
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('explore.index') }}">
+                                <i class="bi bi-house-door me-1"></i>浏览首页
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('explore.papers') }}">
+                                <i class="bi bi-search me-1"></i>论文搜索
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('explore.stats') }}">
+                                <i class="bi bi-bar-chart me-1"></i>统计分析
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('explore.insights') }}">
+                                <i class="bi bi-lightbulb me-1"></i>研究洞察
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('explore.tasks') }}">
+                                <i class="bi bi-briefcase me-1"></i>任务管理
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('explore.unassigned_papers') }}">
+                                <i class="bi bi-exclamation-triangle me-1"></i>无任务论文
+                                {% if unassigned_papers_count > 0 %}
+                                <span class="badge bg-warning text-dark ms-1">{{ unassigned_papers_count }}</span>
+                                {% endif %}
+                            </a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- 深度分析功能区 -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.blueprint == 'analysis' %}active{% endif %}" 
+                           href="#" id="analysisDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-cpu me-1"></i>深度分析
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('analysis.index') }}">
+                                <i class="bi bi-house-door me-1"></i>分析首页
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('analysis.config') }}">
+                                <i class="bi bi-gear me-1"></i>分析配置
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <!-- 快速搜索 -->
+                <form class="d-flex me-3" method="GET" action="{{ url_for('explore.papers') }}">
+                    <input class="form-control me-2" type="search" name="q" 
+                           placeholder="快速搜索论文..." aria-label="搜索"
+                           value="{{ request.args.get('q', '') }}">
+                    <button class="btn btn-outline-light" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </form>
+                
+                <ul class="navbar-nav">
+                    <!-- 系统状态 -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="systemDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-gear me-1"></i>系统
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('main.about') }}">
+                                <i class="bi bi-info-circle me-1"></i>关于系统
+                            </a></li>
+                            <li><a class="dropdown-item" href="/api/explore/stats" target="_blank">
+                                <i class="bi bi-activity me-1"></i>系统状态
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" 
+                                   data-bs-toggle="modal" data-bs-target="#analysisConfigModal">
+                                <i class="bi bi-sliders me-1"></i>深度分析设置
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 警告容器 -->
+    <div id="alertContainer" class="container mt-3"></div>
+
+    <!-- 主要内容 -->
+    <main class="container-fluid py-4">
+        <!-- Flash消息 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 深度分析配置模态框 -->
+    <div class="modal fade" id="analysisConfigModal" tabindex="-1" aria-labelledby="analysisConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="analysisConfigModalLabel">
+                        <i class="bi bi-gear me-2"></i>深度分析配置
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="analysisConfigForm">
+                        <div class="mb-3">
+                            <label for="analysisModel" class="form-label">分析模型</label>
+                            <select class="form-select" id="analysisModel" name="analysis_model" required>
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="visionModel" class="form-label">视觉模型</label>
+                            <select class="form-select" id="visionModel" name="vision_model" required>
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="timeout" class="form-label">分析超时时间 (秒)</label>
+                            <input type="number" class="form-control" id="timeout" name="timeout" 
+                                   min="300" max="1800" value="600" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveAnalysisConfig()">保存配置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-light mt-5 py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-0">
+                        <i class="bi bi-copyright me-1"></i>
+                        {{ now.year }} PaperAnalysis - HomeSystem 论文收集与分析系统
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small class="text-muted">
+                        集成论文收集、浏览和深度分析功能
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

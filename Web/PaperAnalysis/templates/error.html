@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}错误 - PaperAnalysis{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <!-- 错误图标 -->
+                    <div class="mb-4">
+                        {% if error_code == 404 %}
+                            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 4rem;"></i>
+                        {% elif error_code == 500 %}
+                            <i class="bi bi-x-circle text-danger" style="font-size: 4rem;"></i>
+                        {% else %}
+                            <i class="bi bi-bug text-danger" style="font-size: 4rem;"></i>
+                        {% endif %}
+                    </div>
+
+                    <!-- 错误标题 -->
+                    <h2 class="mb-3">
+                        {% if error_code == 404 %}
+                            页面不存在
+                        {% elif error_code == 500 %}
+                            服务器内部错误
+                        {% else %}
+                            系统异常
+                        {% endif %}
+                    </h2>
+
+                    <!-- 错误描述 -->
+                    <p class="text-muted mb-4">
+                        {% if error %}
+                            {{ error }}
+                        {% else %}
+                            {% if error_code == 404 %}
+                                抱歉，您访问的页面不存在或已被移除。
+                            {% elif error_code == 500 %}
+                                服务器遇到了一个内部错误，请稍后重试。
+                            {% else %}
+                                系统发生了未知错误，请联系管理员。
+                            {% endif %}
+                        {% endif %}
+                    </p>
+
+                    <!-- 操作按钮 -->
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                            <i class="bi bi-house me-2"></i>返回首页
+                        </a>
+                        <button onclick="history.back()" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>返回上页
+                        </button>
+                    </div>
+
+                    <!-- 额外帮助 -->
+                    <div class="mt-4 pt-4 border-top">
+                        <small class="text-muted">
+                            如果问题持续存在，请尝试：<br>
+                            • 刷新页面 (Ctrl+F5)<br>
+                            • 检查网络连接<br>
+                            • 清除浏览器缓存<br>
+                            • 联系系统管理员
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

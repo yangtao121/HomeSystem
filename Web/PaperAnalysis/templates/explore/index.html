@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板 - ArXiv论文数据探索{% endblock %}
+
+{% block content %}
+<!-- 页面标题 -->
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="display-6 mb-2">
+            <i class="bi bi-speedometer2"></i>
+            数据仪表板
+        </h1>
+        <p class="text-muted">ArXiv论文数据概览与实时统计</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary" id="refreshBtn" onclick="refreshData()">
+            <i class="bi bi-arrow-clockwise"></i>
+            刷新数据
+        </button>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stats-card">
+            <div class="stats-number">{{ stats.basic.total_papers }}</div>
+            <div class="stats-label">总论文数量</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stats-card">
+            <div class="stats-number text-success">{{ stats.basic.completed }}</div>
+            <div class="stats-label">已完成处理</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stats-card">
+            <div class="stats-number text-warning">{{ stats.basic.pending }}</div>
+            <div class="stats-label">待处理</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stats-card">
+            <div class="stats-number text-info">{{ stats.basic.structured_count }}</div>
+            <div class="stats-label">结构化分析</div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="row mb-4">
+    <!-- 处理状态分布 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-pie-chart"></i>
+                    处理状态分布
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 热门分类 -->
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-bar-chart"></i>
+                    热门分类 (Top 10)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 最近趋势 -->
+<div class="row mb-4">
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i>
+                    最近7天新增趋势
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 快速操作 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning"></i>
+                    快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('papers') }}" class="btn btn-primary">
+                        <i class="bi bi-search"></i>
+                        浏览所有论文
+                    </a>
+                    <a href="{{ url_for('papers', status='pending') }}" class="btn btn-warning">
+                        <i class="bi bi-clock"></i>
+                        查看待处理论文
+                    </a>
+                    <a href="{{ url_for('statistics') }}" class="btn btn-info">
+                        <i class="bi bi-bar-chart-line"></i>
+                        详细统计分析
+                    </a>
+                    <a href="{{ url_for('insights') }}" class="btn btn-success">
+                        <i class="bi bi-lightbulb"></i>
+                        研究洞察
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 最近添加的论文 -->
+{% if stats.recent %}
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history"></i>
+                    最近7天添加统计
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>新增数量</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in stats.recent %}
+                            <tr>
+                                <td>{{ item.date }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ item.count }}</span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('papers') }}?created_date={{ item.date }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        查看详情
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 数据脚本（供JavaScript使用） -->
+<script type="application/json" id="statusData">
+{
+    "labels": ["已完成", "待处理", "失败"],
+    "values": [{{ stats.basic.completed }}, {{ stats.basic.pending }}, {{ stats.basic.failed }}]
+}
+</script>
+
+<script type="application/json" id="categoryData">
+{
+    "labels": [
+        {% for cat in stats.categories[:10] %}
+        "{{ cat.categories|truncate(15) }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ],
+    "values": [
+        {% for cat in stats.categories[:10] %}
+        {{ cat.count }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+</script>
+
+<script type="application/json" id="trendData">
+{
+    "labels": [
+        {% for item in stats.recent %}
+        "{{ item.date }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ],
+    "values": [
+        {% for item in stats.recent %}
+        {{ item.count }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+}
+</script>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 页面加载完成后初始化图表
+    document.addEventListener('DOMContentLoaded', function() {
+        // 图表将通过main.js中的代码自动初始化
+        console.log('仪表板加载完成');
+    });
+</script>
+{% endblock %}

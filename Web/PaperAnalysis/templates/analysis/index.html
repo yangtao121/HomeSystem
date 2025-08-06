@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}深度分析 - PaperAnalysis{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1><i class="bi bi-cpu me-2"></i>深度分析</h1>
+                    <p class="text-muted">使用AI模型对论文进行深度分析和理解</p>
+                </div>
+                <a href="{{ url_for('analysis.config') }}" class="btn btn-primary">
+                    <i class="bi bi-gear me-1"></i>分析配置
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-3 bg-primary bg-opacity-10 p-3">
+                                <i class="bi bi-activity text-primary fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="card-title mb-1">活跃分析任务</h6>
+                            <h4 class="mb-0">{{ stats.active_analyses }}</h4>
+                            <small class="text-muted">正在运行</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="rounded-3 bg-success bg-opacity-10 p-3">
+                                <i class="bi bi-files text-success fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="card-title mb-1">可分析论文</h6>
+                            <h4 class="mb-0">{{ stats.total_papers }}</h4>
+                            <small class="text-muted">论文总数</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 活跃分析任务 -->
+    {% if active_analyses.success and active_analyses.data %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="mb-0"><i class="bi bi-activity me-2"></i>正在进行的分析</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>论文ID</th>
+                                    <th>状态</th>
+                                    <th>开始时间</th>
+                                    <th>进度</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for analysis in active_analyses.data %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('explore.paper_detail', arxiv_id=analysis.arxiv_id) }}" 
+                                           class="text-decoration-none">
+                                            {{ analysis.arxiv_id }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ analysis.status }}</span>
+                                    </td>
+                                    <td>{{ moment(analysis.start_time).fromNow() }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" style="width: {{ analysis.progress }}%">
+                                                {{ analysis.progress }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="cancelAnalysis('{{ analysis.arxiv_id }}')">
+                                            取消
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 功能介绍 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="mb-4 text-center">深度分析功能</h3>
+                    
+                    <div class="row">
+                        <div class="col-lg-4 mb-4">
+                            <div class="text-center">
+                                <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                                     style="width: 80px; height: 80px;">
+                                    <i class="bi bi-eye text-primary fs-2"></i>
+                                </div>
+                                <h5>视觉理解</h5>
+                                <p class="text-muted">
+                                    使用视觉模型分析论文中的图表、公式和视觉元素，
+                                    提供全面的内容理解。
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 mb-4">
+                            <div class="text-center">
+                                <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                                     style="width: 80px; height: 80px;">
+                                    <i class="bi bi-calculator text-success fs-2"></i>
+                                </div>
+                                <h5>公式纠错</h5>
+                                <p class="text-muted">
+                                    智能识别并纠正论文中的数学公式错误，
+                                    提高论文质量和可读性。
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 mb-4">
+                            <div class="text-center">
+                                <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                                     style="width: 80px; height: 80px;">
+                                    <i class="bi bi-file-text text-warning fs-2"></i>
+                                </div>
+                                <h5>内容分析</h5>
+                                <p class="text-muted">
+                                    深度分析论文内容结构、关键观点和研究方法，
+                                    生成详细的分析报告。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <p class="text-muted mb-3">
+                            要开始分析论文，请先在论文浏览页面选择论文，然后点击"深度分析"按钮。
+                        </p>
+                        <a href="{{ url_for('explore.papers') }}" class="btn btn-primary me-2">
+                            <i class="bi bi-search me-1"></i>浏览论文
+                        </a>
+                        <a href="{{ url_for('analysis.config') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-gear me-1"></i>配置分析
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 取消分析任务
+function cancelAnalysis(arxivId) {
+    if (confirm('确定要取消该分析任务吗？')) {
+        fetch(`/api/analysis/paper/${arxivId}/cancel`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', '分析任务已取消');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert('danger', '取消失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showAlert('danger', '取消失败: ' + error.message);
+        });
+    }
+}
+
+// 显示警告消息
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.getElementById('alertContainer').appendChild(alertDiv);
+}
+</script>
+{% endblock %}

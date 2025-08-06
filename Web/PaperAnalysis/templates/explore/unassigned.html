@@ -1,0 +1,743 @@
+{% extends "base.html" %}
+
+{% block title %}无任务论文管理 - ArXiv论文数据探索{% endblock %}
+
+{% block content %}
+<!-- 页面标题 -->
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="display-6 mb-2">
+            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+            无任务论文管理
+        </h1>
+        <p class="text-muted">集中管理和分配尚未分配任务的论文</p>
+    </div>
+</div>
+
+<!-- 统计概览 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <div class="display-6 text-warning">
+                    <i class="bi bi-file-earmark-text"></i>
+                </div>
+                <h5 class="card-title mt-2">无任务论文</h5>
+                <h3 class="text-warning">{{ stats.basic.total_unassigned }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <div class="display-6 text-success">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <h5 class="card-title mt-2">已完成处理</h5>
+                <h3 class="text-success">{{ stats.basic.completed_unassigned }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <div class="display-6 text-info">
+                    <i class="bi bi-clock"></i>
+                </div>
+                <h5 class="card-title mt-2">待处理</h5>
+                <h3 class="text-info">{{ stats.basic.pending_unassigned }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-danger">
+            <div class="card-body text-center">
+                <div class="display-6 text-danger">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+                <h5 class="card-title mt-2">处理失败</h5>
+                <h3 class="text-danger">{{ stats.basic.failed_unassigned }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速操作工具栏 -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning"></i> 快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="selectAllVisible()">
+                            <i class="bi bi-check-all"></i> 全选当前页
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearSelection()">
+                            <i class="bi bi-x-square"></i> 清除选择
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('papers', task_name='') }}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-eye"></i> 查看所有论文
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量操作工具栏 -->
+<div class="batch-operations-toolbar mb-3" style="display: none;" id="batchToolbar">
+    <div class="card border-primary">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <small class="text-muted">
+                        已选择 <span id="selectedCount">0</span> 篇论文
+                    </small>
+                </div>
+                <div class="col-md-9">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="batchTaskName" 
+                                   placeholder="任务名称" maxlength="255">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control form-control-sm" id="batchTaskId" 
+                                   placeholder="任务ID (可选)" maxlength="100">
+                        </div>
+                        <div class="col-md-5">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="batchAssignTasks()">
+                                <i class="bi bi-check-square"></i> 批量分配任务
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="batchDeletePapers()">
+                                <i class="bi bi-trash"></i> 批量删除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 论文列表 -->
+{% if papers %}
+<div class="papers-list">
+    {% for paper in papers %}
+    <div class="paper-item unassigned-paper">
+        <div class="row">
+            <!-- 批量选择复选框 -->
+            <div class="col-md-1 d-flex align-items-start pt-2">
+                <div class="form-check">
+                    <input class="form-check-input paper-checkbox" type="checkbox" 
+                           data-arxiv-id="{{ paper.arxiv_id }}" 
+                           data-title="{{ paper.title|truncate_text(50) }}"
+                           onchange="updateBatchToolbar()">
+                </div>
+            </div>
+            <div class="col-md-8">
+                <!-- 论文标题 -->
+                <h5 class="paper-title">
+                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}">
+                        {{ paper.title }}
+                    </a>
+                </h5>
+                
+                <!-- 论文元数据 -->
+                <div class="paper-meta">
+                    <span class="me-3">
+                        <i class="bi bi-person"></i>
+                        {{ paper.authors|truncate_text(100) }}
+                    </span>
+                    <span class="me-3">
+                        <i class="bi bi-tag"></i>
+                        {{ paper.categories }}
+                    </span>
+                    <span class="me-3">
+                        <i class="bi bi-calendar"></i>
+                        {{ paper.created_at|format_date }}
+                    </span>
+                </div>
+                
+                <!-- 无任务警告 -->
+                <div class="paper-task-info mt-2">
+                    <div class="alert alert-warning alert-sm py-1">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <small>
+                            <strong>尚未分配任务</strong>
+                            <button class="btn btn-sm btn-outline-primary ms-2" 
+                                    onclick="showAssignTaskModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')"
+                                    title="分配任务">
+                                <i class="bi bi-plus-square"></i> 立即分配
+                            </button>
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- 研究目标（如果有） -->
+                {% if paper.research_objectives %}
+                <div class="paper-abstract mt-2">
+                    <strong>研究目标:</strong> {{ paper.research_objectives|truncate_text(200) }}
+                </div>
+                {% endif %}
+                
+                <!-- 关键词（如果有） -->
+                {% if paper.keywords %}
+                <div class="paper-keywords mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-key"></i>
+                        <strong>关键词:</strong> {{ paper.keywords|truncate_text(100) }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-3 text-end">
+                <!-- 状态徽章 -->
+                <span class="badge badge-{{ paper.processing_status|status_badge }} mb-2">
+                    {% if paper.processing_status == 'pending' %}
+                        <i class="bi bi-clock"></i> 待处理
+                    {% elif paper.processing_status == 'completed' %}
+                        <i class="bi bi-check-circle"></i> 已完成
+                    {% elif paper.processing_status == 'failed' %}
+                        <i class="bi bi-x-circle"></i> 失败
+                    {% endif %}
+                </span>
+                
+                <!-- 操作按钮 -->
+                <div class="d-grid gap-2">
+                    <button class="btn btn-sm btn-primary" 
+                            onclick="showAssignTaskModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')">
+                        <i class="bi bi-plus-square"></i> 分配任务
+                    </button>
+                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                       class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> 查看详情
+                    </a>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="copyToClipboard('{{ paper.arxiv_id }}')">
+                        <i class="bi bi-clipboard"></i> 复制ID
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" 
+                            onclick="deletePaper('{{ paper.arxiv_id }}', '{{ paper.title[:30] }}...')"
+                            title="删除论文">
+                        <i class="bi bi-trash"></i> 删除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 分页导航 -->
+{% if pagination.pages > 1 %}
+<nav aria-label="无任务论文分页导航">
+    <ul class="pagination justify-content-center">
+        <!-- 上一页 -->
+        {% if pagination.page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('unassigned_papers', page=pagination.page-1) }}">
+                <i class="bi bi-chevron-left"></i> 上一页
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">
+                <i class="bi bi-chevron-left"></i> 上一页
+            </span>
+        </li>
+        {% endif %}
+        
+        <!-- 页码 -->
+        {% for page_num in range(1, pagination.pages + 1) %}
+            {% if page_num == pagination.page %}
+            <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+            </li>
+            {% elif page_num == 1 or page_num == pagination.pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('unassigned_papers', page=page_num) }}">{{ page_num }}</a>
+            </li>
+            {% elif page_num == pagination.page - 3 or page_num == pagination.page + 3 %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        <!-- 下一页 -->
+        {% if pagination.page < pagination.pages %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('unassigned_papers', page=pagination.page+1) }}">
+                下一页 <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">
+                下一页 <i class="bi bi-chevron-right"></i>
+            </span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+
+<!-- 分页信息 -->
+<div class="text-center text-muted">
+    <small>
+        第 {{ pagination.page }} 页，共 {{ pagination.pages }} 页 |
+        每页显示 {{ pagination.per_page }} 条 |
+        共 {{ pagination.total }} 篇无任务论文
+    </small>
+</div>
+{% endif %}
+
+{% else %}
+<!-- 空状态 -->
+<div class="empty-state">
+    <i class="bi bi-check-circle-fill text-success"></i>
+    <h4>太好了！没有未分配任务的论文</h4>
+    <p>所有论文都已经分配了任务</p>
+    <a href="{{ url_for('papers') }}" class="btn btn-primary">
+        <i class="bi bi-eye"></i> 查看所有论文
+    </a>
+</div>
+{% endif %}
+
+<!-- 任务分配模态框 -->
+<div class="modal fade" id="assignTaskModal" tabindex="-1" aria-labelledby="assignTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignTaskModalLabel">
+                    <i class="bi bi-plus-square"></i> 分配任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>论文:</strong> <span id="assignPaperTitle"></span>
+                </div>
+                <div class="mb-3">
+                    <label for="assignTaskName" class="form-label">任务名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="assignTaskName" 
+                           placeholder="输入任务名称" maxlength="255" required>
+                    <div class="form-text">请输入描述性的任务名称</div>
+                </div>
+                <div class="mb-3">
+                    <label for="assignTaskId" class="form-label">任务ID</label>
+                    <input type="text" class="form-control" id="assignTaskId" 
+                           placeholder="输入任务ID (可选)" maxlength="100">
+                    <div class="form-text">可选的任务标识符</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmAssignTask()" id="confirmAssignBtn">
+                    <i class="bi bi-check"></i> 确认分配
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量确认模态框 -->
+<div class="modal fade" id="batchConfirmModal" tabindex="-1" aria-labelledby="batchConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchConfirmModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> 确认操作
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="batchConfirmContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmBatchOperation()" id="confirmBatchBtn">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    /* 无任务论文的视觉指示 */
+    .unassigned-paper {
+        border-left: 4px solid #ffc107;
+        background-color: #fefcf3;
+    }
+    
+    .unassigned-paper .paper-title {
+        position: relative;
+    }
+    
+    .unassigned-paper .paper-title::after {
+        content: '未分配';
+        position: absolute;
+        top: -5px;
+        right: 0;
+        background-color: #ffc107;
+        color: #000;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: normal;
+    }
+    
+    /* 批量操作工具栏样式 */
+    .batch-operations-toolbar {
+        position: sticky;
+        top: 20px;
+        z-index: 100;
+    }
+    
+    .batch-operations-toolbar .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 2px solid #007bff;
+    }
+    
+    /* 论文选择复选框样式 */
+    .paper-checkbox {
+        transform: scale(1.2);
+    }
+    
+    /* 警告提示样式 */
+    .alert-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    
+    /* 统计卡片悬停效果 */
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transition: all 0.3s ease;
+    }
+    
+    /* 空状态样式 */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 全局变量
+    let currentAssignArxivId = null;
+    let batchOperationType = null;
+    
+    // 全选当前页面的论文
+    function selectAllVisible() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox');
+        checkboxes.forEach(checkbox => checkbox.checked = true);
+        updateBatchToolbar();
+    }
+    
+    // 更新批量操作工具栏
+    function updateBatchToolbar() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox:checked');
+        const selectedCount = checkboxes.length;
+        const toolbar = document.getElementById('batchToolbar');
+        const countSpan = document.getElementById('selectedCount');
+        
+        if (selectedCount > 0) {
+            toolbar.style.display = 'block';
+            countSpan.textContent = selectedCount;
+        } else {
+            toolbar.style.display = 'none';
+        }
+    }
+    
+    // 清除选择
+    function clearSelection() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox');
+        checkboxes.forEach(checkbox => checkbox.checked = false);
+        updateBatchToolbar();
+    }
+    
+    // 显示任务分配模态框
+    function showAssignTaskModal(arxivId, paperTitle) {
+        currentAssignArxivId = arxivId;
+        document.getElementById('assignPaperTitle').textContent = paperTitle;
+        document.getElementById('assignTaskName').value = '';
+        document.getElementById('assignTaskId').value = '';
+        
+        const modal = new bootstrap.Modal(document.getElementById('assignTaskModal'));
+        modal.show();
+    }
+    
+    // 确认分配任务
+    function confirmAssignTask() {
+        const taskName = document.getElementById('assignTaskName').value.trim();
+        const taskId = document.getElementById('assignTaskId').value.trim();
+        
+        if (!taskName) {
+            showToast('请输入任务名称', 'error');
+            return;
+        }
+        
+        const confirmBtn = document.getElementById('confirmAssignBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 分配中...';
+        
+        fetch('/api/assign_task_to_paper', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                arxiv_id: currentAssignArxivId,
+                task_name: taskName,
+                task_id: taskId || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('任务分配成功');
+                // 关闭模态框并刷新页面
+                bootstrap.Modal.getInstance(document.getElementById('assignTaskModal')).hide();
+                location.reload();
+            } else {
+                showToast('分配失败: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('分配失败，请稍后重试', 'error');
+        })
+        .finally(() => {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="bi bi-check"></i> 确认分配';
+        });
+    }
+    
+    // 批量分配任务
+    function batchAssignTasks() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox:checked');
+        if (checkboxes.length === 0) {
+            showToast('请先选择要分配任务的论文', 'error');
+            return;
+        }
+        
+        const taskName = document.getElementById('batchTaskName').value.trim();
+        const taskId = document.getElementById('batchTaskId').value.trim();
+        
+        if (!taskName) {
+            showToast('请输入任务名称', 'error');
+            return;
+        }
+        
+        const arxivIds = Array.from(checkboxes).map(cb => cb.dataset.arxivId);
+        const paperTitles = Array.from(checkboxes).map(cb => cb.dataset.title);
+        
+        // 显示确认对话框
+        batchOperationType = 'assign';
+        const confirmContent = document.getElementById('batchConfirmContent');
+        confirmContent.innerHTML = `
+            <p><strong>确定要为以下 ${arxivIds.length} 篇论文分配任务吗？</strong></p>
+            <p><strong>任务名称:</strong> ${taskName}</p>
+            ${taskId ? `<p><strong>任务ID:</strong> ${taskId}</p>` : ''}
+            <div class="mt-3">
+                <strong>选中的论文:</strong>
+                <ul class="list-unstyled mt-2" style="max-height: 200px; overflow-y: auto;">
+                    ${paperTitles.map(title => `<li><small>• ${title}</small></li>`).join('')}
+                </ul>
+            </div>
+        `;
+        
+        // 保存数据以便确认时使用
+        window.batchAssignData = { arxivIds, taskName, taskId };
+        
+        const modal = new bootstrap.Modal(document.getElementById('batchConfirmModal'));
+        modal.show();
+    }
+    
+    // 批量删除论文
+    function batchDeletePapers() {
+        const checkboxes = document.querySelectorAll('.paper-checkbox:checked');
+        if (checkboxes.length === 0) {
+            showToast('请先选择要删除的论文', 'error');
+            return;
+        }
+        
+        const arxivIds = Array.from(checkboxes).map(cb => cb.dataset.arxivId);
+        const paperTitles = Array.from(checkboxes).map(cb => cb.dataset.title);
+        
+        // 显示确认对话框
+        batchOperationType = 'delete';
+        const confirmContent = document.getElementById('batchConfirmContent');
+        confirmContent.innerHTML = `
+            <div class="alert alert-danger">
+                <p><strong>警告：确定要删除以下 ${arxivIds.length} 篇论文吗？</strong></p>
+                <p><strong>此操作不可恢复！</strong></p>
+            </div>
+            <div class="mt-3">
+                <strong>选中的论文:</strong>
+                <ul class="list-unstyled mt-2" style="max-height: 200px; overflow-y: auto;">
+                    ${paperTitles.map(title => `<li><small>• ${title}</small></li>`).join('')}
+                </ul>
+            </div>
+        `;
+        
+        // 保存数据以便确认时使用
+        window.batchDeleteData = { arxivIds };
+        
+        const modal = new bootstrap.Modal(document.getElementById('batchConfirmModal'));
+        modal.show();
+    }
+    
+    // 确认批量操作
+    function confirmBatchOperation() {
+        const confirmBtn = document.getElementById('confirmBatchBtn');
+        confirmBtn.disabled = true;
+        
+        if (batchOperationType === 'assign') {
+            confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 分配中...';
+            
+            const { arxivIds, taskName, taskId } = window.batchAssignData;
+            
+            fetch('/api/batch_assign_task', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    arxiv_ids: arxivIds,
+                    task_name: taskName,
+                    task_id: taskId || null
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`成功为 ${data.affected_rows} 篇论文分配任务`);
+                    bootstrap.Modal.getInstance(document.getElementById('batchConfirmModal')).hide();
+                    location.reload();
+                } else {
+                    showToast('批量分配失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('批量分配失败，请稍后重试', 'error');
+            })
+            .finally(() => {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '确认';
+            });
+            
+        } else if (batchOperationType === 'delete') {
+            confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 删除中...';
+            
+            const { arxivIds } = window.batchDeleteData;
+            
+            // 逐个删除论文
+            let deletedCount = 0;
+            let errors = 0;
+            
+            const deletePromises = arxivIds.map(arxivId => 
+                fetch(`/api/delete_paper/${arxivId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            deletedCount++;
+                        } else {
+                            errors++;
+                        }
+                    })
+                    .catch(() => errors++)
+            );
+            
+            Promise.all(deletePromises).then(() => {
+                if (deletedCount > 0) {
+                    showToast(`成功删除 ${deletedCount} 篇论文${errors > 0 ? `，${errors} 篇失败` : ''}`);
+                    bootstrap.Modal.getInstance(document.getElementById('batchConfirmModal')).hide();
+                    location.reload();
+                } else {
+                    showToast('批量删除失败', 'error');
+                }
+            }).finally(() => {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '确认';
+            });
+        }
+    }
+    
+    // 复制到剪贴板
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('已复制 ' + text + ' 到剪贴板');
+        }, function(err) {
+            console.error('复制失败: ', err);
+            showToast('复制失败', 'error');
+        });
+    }
+    
+    // 删除论文
+    function deletePaper(arxivId, paperTitle) {
+        if (confirm(`确定要删除论文 "${paperTitle}" 吗？\n此操作不可恢复！`)) {
+            fetch(`/api/delete_paper/${arxivId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('论文删除成功');
+                    location.reload();
+                } else {
+                    showToast('删除失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('删除失败，请稍后重试', 'error');
+            });
+        }
+    }
+    
+    // 简单的提示函数
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 3秒后自动删除
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 3000);
+    }
+</script>
+{% endblock %}
