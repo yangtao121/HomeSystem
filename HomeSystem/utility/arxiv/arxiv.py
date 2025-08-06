@@ -285,13 +285,14 @@ class ArxivData:
         """
         self.pdf = None
     
-    def performOCR(self, max_pages: int = 25, use_paddleocr: bool = False, auto_save: bool = False, save_path: Optional[str] = None) -> tuple[Optional[str], dict]:
+    def performOCR(self, max_pages: int = 25, use_paddleocr: bool = False, use_remote_ocr: bool = False, auto_save: bool = False, save_path: Optional[str] = None) -> tuple[Optional[str], dict]:
         """
-        对PDF进行OCR文字识别，默认使用PyMuPDF快速提取，可选使用PaddleOCR结构化识别
+        对PDF进行OCR文字识别，支持本地PyMuPDF/PaddleOCR或远程PaddleOCR服务
         
         Args:
             max_pages: 最大处理页数，默认25页（涵盖大部分正常论文）
-            use_paddleocr: 是否使用PaddleOCR进行结构化识别，默认False使用PyMuPDF
+            use_paddleocr: 是否使用本地PaddleOCR进行结构化识别，默认False使用PyMuPDF
+            use_remote_ocr: 是否使用远程PaddleOCR服务，默认False
             auto_save: 是否自动保存OCR结果到标准目录（当save_path为None时生效）
             save_path: 指定OCR结果保存目录（优先级高于auto_save）
             
@@ -303,7 +304,7 @@ class ArxivData:
                     - 'processed_pages': 实际处理页数
                     - 'is_oversized': 是否超过页数限制（可能是毕业论文等长文档）
                     - 'char_count': 实际提取的字符数
-                    - 'method': 使用的OCR方法 ('pymupdf' 或 'paddleocr')
+                    - 'method': 使用的OCR方法 ('pymupdf', 'paddleocr', 或 'remote_paddleocr')
                     - 'saved_files': 保存的文件路径列表（当启用保存时）
             
         Raises:
@@ -327,10 +328,15 @@ class ArxivData:
             except ValueError as e:
                 logger.warning(f"无法使用标准保存路径: {e}")
         
-        # 如果明确要求使用PaddleOCR，或者PyMuPDF方法失败时回退
-        if use_paddleocr:
+        # 选择OCR方法：远程PaddleOCR > 本地PaddleOCR > 本地PyMuPDF
+        if use_remote_ocr:
+            # 使用远程PaddleOCR服务
+            ocr_result, status_info = self._performOCR_remote(max_pages, ocr_save_path)
+        elif use_paddleocr:
+            # 使用本地PaddleOCR
             ocr_result, status_info = self._performOCR_paddleocr(max_pages, ocr_save_path)
         else:
+            # 使用本地PyMuPDF（默认）
             try:
                 ocr_result, status_info = self._performOCR_pymupdf(max_pages)
                 # 如果需要保存PyMuPDF结果
@@ -467,6 +473,162 @@ class ArxivData:
             logger.error(error_msg)
             raise Exception(error_msg)
     
+    def _performOCR_remote(self, max_pages: int = 25, output_path: Optional[str] = None) -> tuple[Optional[str], dict]:
+        """
+        使用远程PaddleOCR服务进行结构化文档解析
+        
+        Args:
+            max_pages: 最大处理页数，默认25页
+            output_path: 输出目录路径，用于保存结果
+            
+        Returns:
+            tuple: (Markdown文本, 状态信息字典)
+        """
+        import tempfile
+        import json
+        
+        logger.info(f"开始使用远程PaddleOCR服务进行结构化文档解析，最大处理{max_pages}页")
+        
+        # 获取远程OCR服务配置
+        remote_endpoint = os.getenv('REMOTE_OCR_ENDPOINT')
+        if not remote_endpoint:
+            error_msg = "远程OCR服务未配置，请设置REMOTE_OCR_ENDPOINT环境变量"
+            logger.error(error_msg)
+            return None, {
+                'error': error_msg,
+                'total_pages': 0,
+                'processed_pages': 0,
+                'is_oversized': False,
+                'char_count': 0,
+                'method': 'remote_paddleocr',
+                'saved_files': []
+            }
+        
+        remote_timeout = int(os.getenv('REMOTE_OCR_TIMEOUT', '300'))
+        api_key = os.getenv('REMOTE_OCR_API_KEY')
+        
+        try:
+            # 准备请求数据
+            files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
+            data = {
+                'max_pages': max_pages,
+                'arxiv_id': self.arxiv_id or 'unknown'
+            }
+            
+            # 准备请求头
+            headers = {}
+            if api_key:
+                headers['X-API-Key'] = api_key
+            
+            # 发送请求到远程服务
+            logger.info(f"发送请求到远程OCR服务: {remote_endpoint}")
+            response = requests.post(
+                f"{remote_endpoint.rstrip('/')}/api/ocr/process",
+                files=files,
+                data=data,
+                headers=headers,
+                timeout=remote_timeout
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                if result.get('success', False):
+                    ocr_result = result.get('ocr_result')
+                    status_info = result.get('status_info', {})
+                    
+                    # 更新方法标识
+                    status_info['method'] = 'remote_paddleocr'
+                    
+                    # 如果指定了保存路径，保存结果到本地
+                    if output_path and ocr_result:
+                        try:
+                            from pathlib import Path
+                            save_dir = Path(output_path)
+                            save_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            # 保存主要结果文件
+                            result_file = save_dir / f"{self.arxiv_id or 'unknown'}_analysis.md"
+                            with open(result_file, 'w', encoding='utf-8') as f:
+                                f.write(ocr_result)
+                            
+                            # 更新保存文件列表
+                            local_saved_files = [str(result_file)]
+                            status_info['saved_files'] = local_saved_files
+                            
+                            logger.info(f"远程OCR结果已保存到本地: {result_file}")
+                            
+                        except Exception as e:
+                            logger.warning(f"保存远程OCR结果到本地失败: {str(e)}")
+                    
+                    logger.info(f"远程OCR处理成功，提取字符数: {status_info.get('char_count', 0)}")
+                    return ocr_result, status_info
+                    
+                else:
+                    error_msg = result.get('error', '远程OCR服务处理失败')
+                    logger.error(f"远程OCR处理失败: {error_msg}")
+                    return None, {
+                        'error': error_msg,
+                        'total_pages': 0,
+                        'processed_pages': 0,
+                        'is_oversized': False,
+                        'char_count': 0,
+                        'method': 'remote_paddleocr',
+                        'saved_files': []
+                    }
+                    
+            else:
+                error_msg = f"远程OCR服务请求失败: HTTP {response.status_code}"
+                logger.error(error_msg)
+                return None, {
+                    'error': error_msg,
+                    'total_pages': 0,
+                    'processed_pages': 0,
+                    'is_oversized': False,
+                    'char_count': 0,
+                    'method': 'remote_paddleocr',
+                    'saved_files': []
+                }
+                
+        except requests.exceptions.Timeout:
+            error_msg = f"远程OCR服务请求超时 (>{remote_timeout}秒)"
+            logger.error(error_msg)
+            return None, {
+                'error': error_msg,
+                'total_pages': 0,
+                'processed_pages': 0,
+                'is_oversized': False,
+                'char_count': 0,
+                'method': 'remote_paddleocr',
+                'saved_files': []
+            }
+            
+        except requests.exceptions.ConnectionError:
+            error_msg = f"无法连接到远程OCR服务: {remote_endpoint}"
+            logger.error(error_msg)
+            return None, {
+                'error': error_msg,
+                'total_pages': 0,
+                'processed_pages': 0,
+                'is_oversized': False,
+                'char_count': 0,
+                'method': 'remote_paddleocr',
+                'saved_files': []
+            }
+            
+        except Exception as e:
+            error_msg = f"远程OCR处理异常: {str(e)}"
+            logger.error(error_msg)
+            return None, {
+                'error': error_msg,
+                'total_pages': 0,
+                'processed_pages': 0,
+                'is_oversized': False,
+                'char_count': 0,
+                'method': 'remote_paddleocr',
+                'saved_files': []
+            }
+
     def _performOCR_paddleocr(self, max_pages: int = 25, output_path: Optional[str] = None) -> tuple[Optional[str], dict]:
         """
         使用PaddleOCR 3.0 PPStructureV3进行结构化文档解析

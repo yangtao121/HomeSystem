@@ -1,0 +1,9 @@
+flask==2.3.3
+paddlepaddle==2.5.2
+paddleocr==2.7.3
+Pillow==10.0.1
+opencv-python==4.8.1.78
+numpy==1.24.3
+pymupdf==1.23.5
+requests==2.31.0
+werkzeug==2.3.7
