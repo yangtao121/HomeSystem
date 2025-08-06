@@ -501,18 +501,33 @@ class PaperGatherTask(Task):
                 # 使用分析结果或报告内容
                 final_content = analysis_result.get('analysis_result') or report_content
                 
+                # 添加论文发表时间和HomeSystem生成标识到markdown末尾
+                publication_date = getattr(paper, 'published_date', '未知')
+                footer_content = f"""
+
+---
+
+**论文发表时间**: {publication_date}
+
+---
+*此分析由 HomeSystem 生成*
+"""
+                
+                # 将footer添加到分析内容末尾
+                final_content_with_footer = final_content + footer_content
+                
                 # 保存到文件
                 import os
                 analysis_file = os.path.join(paper_folder_str, f"{paper.arxiv_id}_analysis.md")
                 with open(analysis_file, 'w', encoding='utf-8') as f:
-                    f.write(final_content)
+                    f.write(final_content_with_footer)
                 
-                # 将深度分析结果保存到paper对象中
-                paper.deep_analysis_result = final_content
+                # 将深度分析结果保存到paper对象中（包含footer）
+                paper.deep_analysis_result = final_content_with_footer
                 paper.deep_analysis_completed = True
                 paper.deep_analysis_file_path = analysis_file
                 
-                logger.info(f"深度分析完成: {paper.arxiv_id}, 保存了 {len(final_content)} 字符")
+                logger.info(f"深度分析完成: {paper.arxiv_id}, 保存了 {len(final_content_with_footer)} 字符")
                 logger.info(f"分析结果已保存到: {analysis_file}")
                 
                 return True
