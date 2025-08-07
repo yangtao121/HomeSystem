@@ -158,41 +158,54 @@ class DeepAnalysisService:
         try:
             logger.info(f"🚀 开始执行深度分析 - ArXiv ID: {arxiv_id}")
             
-            # 第一步：准备论文数据和文件夹
-            paper_folder = self._prepare_paper_folder(arxiv_id, paper)
-            if not paper_folder:
-                logger.error(f"❌ 论文文件夹准备失败: {arxiv_id}")
-                self.paper_service.update_analysis_status(arxiv_id, 'failed')
-                return
-                
-            logger.info(f"✅ 论文文件夹准备完成: {paper_folder}")
+            # 导入统一的分析服务
+            from HomeSystem.integrations.paper_analysis import PaperAnalysisService
             
-            # 第二步：下载论文PDF（如果尚未下载）
-            success = self._download_paper_pdf(arxiv_id, paper, paper_folder)
-            if not success:
-                logger.error(f"❌ 论文PDF下载失败: {arxiv_id}")
-                self.paper_service.update_analysis_status(arxiv_id, 'failed')
-                return
-                
-            logger.info(f"✅ 论文PDF下载完成: {arxiv_id}")
+            # 创建分析服务实例
+            analysis_service = PaperAnalysisService(default_config=config)
             
-            # 第三步：执行OCR处理（如果尚未处理）
-            success = self._perform_paper_ocr(arxiv_id, paper_folder)
-            if not success:
-                logger.error(f"❌ 论文OCR处理失败: {arxiv_id}")
-                self.paper_service.update_analysis_status(arxiv_id, 'failed')
-                return
-                
-            logger.info(f"✅ 论文OCR处理完成: {arxiv_id}")
+            # 计算论文文件夹路径
+            project_root = Path(__file__).parent.parent.parent.parent
+            paper_folder_path = str(project_root / "data" / "paper_analyze" / arxiv_id)
             
-            # 第四步：执行深度分析
-            success = self._execute_deep_analysis(arxiv_id, paper_folder, config)
-            if not success:
-                logger.error(f"❌ 深度分析执行失败: {arxiv_id}")
-                self.paper_service.update_analysis_status(arxiv_id, 'failed')
-                return
+            # 准备论文数据（用于PDF下载）
+            paper_data = {
+                'title': paper.get('title', ''),
+                'link': f"https://arxiv.org/abs/{arxiv_id}",
+                'snippet': paper.get('abstract', ''),
+                'categories': paper.get('categories', ''),
+                'arxiv_id': arxiv_id
+            }
+            
+            # 执行完整的深度分析流程
+            result = analysis_service.perform_deep_analysis(
+                arxiv_id=arxiv_id,
+                paper_folder_path=paper_folder_path,
+                config=config,
+                paper_data=paper_data
+            )
+            
+            if result['success']:
+                # 使用Web应用特有的图片路径处理
+                processed_content = self._process_image_paths(
+                    result['analysis_result'], 
+                    arxiv_id
+                )
                 
-            logger.info(f"✅ 深度分析执行完成: {arxiv_id}")
+                # 保存分析结果到数据库
+                self.paper_service.save_analysis_result(arxiv_id, processed_content)
+                
+                # 重新保存处理后的内容到文件
+                with open(result['analysis_file_path'], 'w', encoding='utf-8') as f:
+                    f.write(processed_content)
+                
+                logger.info(f"Analysis completed for {arxiv_id}, saved {len(processed_content)} characters")
+                
+                # 更新状态为完成
+                self.paper_service.update_analysis_status(arxiv_id, 'completed')
+            else:
+                logger.error(f"❌ 深度分析失败: {arxiv_id}: {result.get('error', '未知错误')}")
+                self.paper_service.update_analysis_status(arxiv_id, 'failed')
             
         except Exception as e:
             logger.error(f"💥 分析过程失败 {arxiv_id}: {e}")
@@ -205,152 +218,6 @@ class DeepAnalysisService:
             # 清理线程引用
             if arxiv_id in self.analysis_threads:
                 del self.analysis_threads[arxiv_id]
-    
-    def _prepare_paper_folder(self, arxiv_id: str, paper: Dict[str, Any]) -> Optional[str]:
-        """
-        准备论文分析文件夹
-        
-        Args:
-            arxiv_id: ArXiv论文ID
-            paper: 论文信息字典
-            
-        Returns:
-            str: 论文文件夹路径，失败返回None
-        """
-        try:
-            # 使用相对路径获取项目根目录
-            project_root = Path(__file__).parent.parent.parent.parent
-            paper_folder = project_root / "data" / "paper_analyze" / arxiv_id
-            
-            # 创建文件夹（如果不存在）
-            paper_folder.mkdir(parents=True, exist_ok=True)
-            
-            logger.info(f"📁 论文文件夹已准备: {paper_folder}")
-            return str(paper_folder)
-            
-        except Exception as e:
-            logger.error(f"❌ 准备论文文件夹失败 {arxiv_id}: {e}")
-            return None
-    
-    def _download_paper_pdf(self, arxiv_id: str, paper: Dict[str, Any], paper_folder: str) -> bool:
-        """
-        下载论文PDF文件
-        
-        Args:
-            arxiv_id: ArXiv论文ID
-            paper: 论文信息字典
-            paper_folder: 论文文件夹路径
-            
-        Returns:
-            bool: 下载是否成功
-        """
-        try:
-            # 检查PDF是否已存在
-            pdf_path = os.path.join(paper_folder, f"{arxiv_id}.pdf")
-            if os.path.exists(pdf_path):
-                logger.info(f"📄 PDF文件已存在，跳过下载: {pdf_path}")
-                return True
-            
-            # 构造PDF下载URL
-            pdf_url = paper.get('pdf_url')
-            if not pdf_url:
-                # 构造标准的ArXiv PDF URL
-                pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-                
-            logger.info(f"📥 开始下载PDF: {pdf_url}")
-            
-            # 创建ArxivData实例并下载PDF
-            arxiv_data = ArxivData({
-                'title': paper.get('title', ''),
-                'link': f"https://arxiv.org/abs/{arxiv_id}",
-                'snippet': paper.get('abstract', ''),
-                'categories': paper.get('categories', ''),
-                'arxiv_id': arxiv_id
-            })
-            
-            # 下载PDF到指定路径（传递目录路径，让downloadPdf自行处理文件名）
-            arxiv_data.downloadPdf(save_path=paper_folder)
-            
-            # 检查是否下载成功（downloadPdf会根据标题创建文件名）
-            # 我们需要找到实际创建的PDF文件
-            pdf_files = [f for f in os.listdir(paper_folder) if f.endswith('.pdf')]
-            if pdf_files:
-                # 重命名为标准格式
-                actual_pdf_path = os.path.join(paper_folder, pdf_files[0])
-                if actual_pdf_path != pdf_path and os.path.exists(actual_pdf_path):
-                    os.rename(actual_pdf_path, pdf_path)
-                    logger.info(f"📁 PDF重命名为标准格式: {pdf_path}")
-            else:
-                logger.error(f"❌ 未找到下载的PDF文件")
-                return False
-            
-            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                logger.info(f"✅ PDF下载成功: {pdf_path}")
-                return True
-            else:
-                logger.error(f"❌ PDF下载失败，文件不存在或为空: {pdf_path}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"❌ 下载PDF失败 {arxiv_id}: {e}")
-            return False
-    
-    def _perform_paper_ocr(self, arxiv_id: str, paper_folder: str) -> bool:
-        """
-        执行论文OCR处理
-        
-        Args:
-            arxiv_id: ArXiv论文ID
-            paper_folder: 论文文件夹路径
-            
-        Returns:
-            bool: OCR处理是否成功
-        """
-        try:
-            # 检查OCR结果是否已存在
-            ocr_file = os.path.join(paper_folder, f"{arxiv_id}_paddleocr.md")
-            if os.path.exists(ocr_file):
-                logger.info(f"📝 OCR文件已存在，跳过处理: {ocr_file}")
-                return True
-            
-            # 检查PDF文件
-            pdf_path = os.path.join(paper_folder, f"{arxiv_id}.pdf")
-            if not os.path.exists(pdf_path):
-                logger.error(f"❌ PDF文件不存在: {pdf_path}")
-                return False
-            
-            logger.info(f"🔍 开始OCR处理: {pdf_path}")
-            
-            # 创建ArxivData实例并执行OCR
-            arxiv_data = ArxivData({
-                'title': '',
-                'link': f"https://arxiv.org/abs/{arxiv_id}",
-                'snippet': '',
-                'categories': '',
-                'arxiv_id': arxiv_id
-            })
-            
-            # 从文件加载PDF
-            with open(pdf_path, 'rb') as f:
-                arxiv_data.pdf = f.read()
-            
-            # 执行PaddleOCR处理
-            ocr_result, status_info = arxiv_data.performOCR(
-                use_paddleocr=True, 
-                auto_save=True,
-                save_path=paper_folder
-            )
-            
-            if ocr_result and len(ocr_result.strip()) > 0:
-                logger.info(f"✅ OCR处理成功，生成 {len(ocr_result)} 字符: {arxiv_id}")
-                return True
-            else:
-                logger.error(f"❌ OCR处理失败，未生成有效内容: {arxiv_id}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"❌ OCR处理失败 {arxiv_id}: {e}")
-            return False
     
     def _execute_deep_analysis(self, arxiv_id: str, paper_folder: str, config: Dict[str, Any]) -> bool:
         """
@@ -367,47 +234,31 @@ class DeepAnalysisService:
         try:
             logger.info(f"🤖 开始深度分析: {arxiv_id}")
             
-            # 动态导入深度分析智能体（延迟导入避免启动时的兼容性问题）
-            try:
-                from HomeSystem.graph.deep_paper_analysis_agent import create_deep_paper_analysis_agent
-                logger.info("✅ Successfully imported deep paper analysis agent")
-            except Exception as import_error:
-                logger.error(f"❌ Failed to import deep paper analysis agent: {import_error}")
-                return False
+            # 导入统一的分析服务
+            from HomeSystem.integrations.paper_analysis import PaperAnalysisService
             
-            # 创建深度分析智能体
-            logger.info("🤖 Creating deep paper analysis agent...")
-            agent = create_deep_paper_analysis_agent(
-                analysis_model=config['analysis_model'],
-                vision_model=config['vision_model']
-            )
-            logger.info("✅ Deep paper analysis agent created successfully")
+            # 创建分析服务实例（只使用执行分析的部分）
+            analysis_service = PaperAnalysisService(default_config=config)
             
-            # 执行分析
-            analysis_result, report_content = agent.analyze_and_generate_report(
-                folder_path=paper_folder,
-                thread_id=f"web_analysis_{arxiv_id}_{int(time.time())}"
+            # 直接调用深度分析方法（论文文件夹已经准备好，PDF和OCR已处理）
+            analysis_result = analysis_service._execute_deep_analysis(
+                arxiv_id=arxiv_id,
+                paper_folder_path=paper_folder,
+                config=config
             )
             
-            # 检查分析是否成功
-            if 'error' in analysis_result:
-                logger.error(f"Analysis failed for {arxiv_id}: {analysis_result['error']}")
-                return False
-            
-            # 处理分析结果
-            if analysis_result.get('analysis_result') or report_content:
-                # 使用分析结果或报告内容
-                final_content = analysis_result.get('analysis_result') or report_content
+            if analysis_result['success']:
+                # 使用Web应用特有的图片路径处理
+                processed_content = self._process_image_paths(
+                    analysis_result['analysis_result'], 
+                    arxiv_id
+                )
                 
-                # 处理图片路径
-                processed_content = self._process_image_paths(final_content, arxiv_id)
-                
-                # 保存分析结果
+                # 保存分析结果到数据库
                 self.paper_service.save_analysis_result(arxiv_id, processed_content)
                 
-                # 保存到文件
-                analysis_file = os.path.join(paper_folder, f"{arxiv_id}_analysis.md")
-                with open(analysis_file, 'w', encoding='utf-8') as f:
+                # 重新保存处理后的内容到文件
+                with open(analysis_result['analysis_file_path'], 'w', encoding='utf-8') as f:
                     f.write(processed_content)
                 
                 logger.info(f"Analysis completed for {arxiv_id}, saved {len(processed_content)} characters")
@@ -416,7 +267,7 @@ class DeepAnalysisService:
                 self.paper_service.update_analysis_status(arxiv_id, 'completed')
                 return True
             else:
-                logger.warning(f"No analysis result generated for {arxiv_id}")
+                logger.error(f"Analysis failed for {arxiv_id}: {analysis_result.get('error', '未知错误')}")
                 return False
                 
         except Exception as e:
