@@ -52,3 +52,6 @@ transformers>=4.30.0
 # MCP (Model Context Protocol) 相关依赖
 langchain-mcp-adapters>=0.1.0
 mcp>=1.0.0
+
+# 视频下载相关依赖
+yt-dlp[default]>=2024.12.0

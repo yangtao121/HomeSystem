@@ -15,6 +15,7 @@ from .paper_analysis_tools import (
 from .math_formula_extractor import MathFormulaExtractorTool, create_math_formula_extractor_tool
 from .text_chunk_indexer import TextChunkIndexerTool, create_text_chunk_indexer_tool
 from .text_editor import TextEditorTool, EditOperation, OperationType, create_text_editor_tool
+from .youtube_downloader import YouTubeDownloaderTool, YouTubeDownloaderInput, create_youtube_downloader_tool
 
 __all__ = [
     # Search tools
@@ -41,5 +42,10 @@ __all__ = [
     "TextEditorTool",
     "EditOperation",
     "OperationType", 
-    "create_text_editor_tool"
+    "create_text_editor_tool",
+    
+    # YouTube downloader
+    "YouTubeDownloaderTool",
+    "YouTubeDownloaderInput",
+    "create_youtube_downloader_tool"
 ]
