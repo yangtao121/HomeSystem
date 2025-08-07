@@ -18,7 +18,7 @@
 
 <!-- 搜索和过滤器 -->
 <div class="search-container">
-    <form method="GET" action="{{ url_for('papers') }}" id="searchForm">
+    <form method="GET" action="{{ url_for('explore.papers') }}" id="searchForm">
         <div class="row">
             <!-- 主搜索框 -->
             <div class="col-md-4 mb-3">
@@ -84,7 +84,7 @@
                 <button type="submit" class="btn btn-primary me-2">
                     <i class="bi bi-search"></i> 搜索
                 </button>
-                <a href="{{ url_for('papers') }}" class="btn btn-outline-secondary me-2">
+                <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-secondary me-2">
                     <i class="bi bi-arrow-counterclockwise"></i> 清除过滤
                 </a>
                 <button type="button" class="btn btn-outline-info" onclick="exportData('json')">
@@ -202,7 +202,7 @@
             <div class="col-md-8">
                 <!-- 论文标题 -->
                 <h5 class="paper-title">
-                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}">
+                    <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}">
                         {{ paper.title }}
                     </a>
                 </h5>
@@ -350,7 +350,7 @@
                 
                 <!-- 操作按钮 -->
                 <div class="d-grid gap-2">
-                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                    <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" 
                        class="btn btn-sm btn-primary">
                         <i class="bi bi-eye"></i> 查看详情
                     </a>
@@ -400,7 +400,7 @@
         <!-- 上一页 -->
         {% if pagination.has_prev %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=pagination.prev_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">
+            <a class="page-link" href="{{ url_for('explore.papers', page=pagination.prev_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">
                 <i class="bi bi-chevron-left"></i> 上一页
             </a>
         </li>
@@ -418,7 +418,7 @@
         
         {% if start_page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=1, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">1</a>
+            <a class="page-link" href="{{ url_for('explore.papers', page=1, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">1</a>
         </li>
         {% if start_page > 2 %}
         <li class="page-item disabled">
@@ -434,7 +434,7 @@
         </li>
         {% else %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=page_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('explore.papers', page=page_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">{{ page_num }}</a>
         </li>
         {% endif %}
         {% endfor %}
@@ -446,14 +446,14 @@
         </li>
         {% endif %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=pagination.total_pages, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">{{ pagination.total_pages }}</a>
+            <a class="page-link" href="{{ url_for('explore.papers', page=pagination.total_pages, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">{{ pagination.total_pages }}</a>
         </li>
         {% endif %}
         
         <!-- 下一页 -->
         {% if pagination.has_next %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('papers', page=pagination.next_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">
+            <a class="page-link" href="{{ url_for('explore.papers', page=pagination.next_num, q=query, category=category, status=status, task_name=task_name, task_id=task_id) }}">
                 下一页 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
@@ -483,7 +483,7 @@
     <i class="bi bi-search"></i>
     <h4>未找到匹配的论文</h4>
     <p>请尝试调整搜索条件或清除过滤器</p>
-    <a href="{{ url_for('papers') }}" class="btn btn-primary">
+    <a href="{{ url_for('explore.papers') }}" class="btn btn-primary">
         <i class="bi bi-arrow-counterclockwise"></i> 查看所有论文
     </a>
 </div>

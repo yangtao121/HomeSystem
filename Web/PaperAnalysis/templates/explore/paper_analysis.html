@@ -295,14 +295,14 @@ window.MathJax = {
             </div>
             <div class="col-md-4 text-end">
                 <div class="btn-group" role="group">
-                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" class="btn btn-light">
+                    <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" class="btn btn-light">
                         <i class="bi bi-arrow-left"></i> 返回详情
                     </a>
                     <button id="formulaCorrectionBtn" class="btn btn-warning" onclick="startFormulaCorrection()" 
                             title="修复分析报告中的公式错误">
                         <i class="bi bi-gear-fill"></i> 公式纠错
                     </button>
-                    <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" class="btn btn-primary">
+                    <a href="{{ url_for('api.api_analysis_result', arxiv_id=paper.arxiv_id) }}" class="btn btn-primary">
                         <i class="bi bi-download"></i> 下载分析
                     </a>
                     <button onclick="window.print()" class="btn btn-outline-light">

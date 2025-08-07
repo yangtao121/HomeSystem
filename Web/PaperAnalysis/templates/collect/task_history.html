@@ -7,7 +7,7 @@
     <div class="col-12 mb-4">
         <div class="d-flex justify-content-between align-items-center">
             <h1><i class="fas fa-history me-2"></i>执行历史</h1>
-            <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+            <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i>新建任务
             </a>
         </div>
@@ -95,12 +95,12 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('task.task_status', task_id=result.task_id) }}" 
+                                        <a href="{{ url_for('collect.task_status', task_id=result.task_id) }}" 
                                            class="btn btn-outline-primary" title="查看详情">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         {% if result.status == 'completed' %}
-                                        <a href="{{ url_for('task.task_results', task_id=result.task_id) }}" 
+                                        <a href="{{ url_for('collect.task_results', task_id=result.task_id) }}" 
                                            class="btn btn-outline-success" title="查看结果">
                                             <i class="fas fa-search-plus"></i>
                                         </a>
@@ -167,7 +167,7 @@
                     <i class="fas fa-history fa-3x text-muted mb-3"></i>
                     <h5 class="text-muted">暂无执行历史</h5>
                     <p class="text-muted">还没有执行过任何任务</p>
-                    <a href="{{ url_for('main.config') }}" class="btn btn-primary">
+                    <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
                         立即创建任务
                     </a>
                 </div>

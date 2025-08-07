@@ -20,7 +20,7 @@
     <!-- 导航栏 -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
                 <i class="bi bi-journal-text"></i>
                 ArXiv论文探索
             </a>
@@ -33,37 +33,37 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" 
-                           href="{{ url_for('index') }}">
+                           href="{{ url_for('main.index') }}">
                             <i class="bi bi-house"></i> 仪表板
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'papers' %}active{% endif %}" 
-                           href="{{ url_for('papers') }}">
+                           href="{{ url_for('explore.papers') }}">
                             <i class="bi bi-search"></i> 论文浏览
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'statistics' %}active{% endif %}" 
-                           href="{{ url_for('statistics') }}">
+                           href="{{ url_for('explore.statistics') }}">
                             <i class="bi bi-bar-chart"></i> 统计分析
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'insights' %}active{% endif %}" 
-                           href="{{ url_for('insights') }}">
+                           href="{{ url_for('explore.insights') }}">
                             <i class="bi bi-lightbulb"></i> 研究洞察
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}" 
-                           href="{{ url_for('tasks') }}">
+                           href="{{ url_for('explore.tasks') }}">
                             <i class="bi bi-briefcase"></i> 任务管理
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'unassigned_papers' %}active{% endif %}" 
-                           href="{{ url_for('unassigned_papers') }}">
+                           href="{{ url_for('explore.unassigned_papers') }}">
                             <i class="bi bi-exclamation-triangle text-warning"></i> 无任务论文
                             {% if unassigned_papers_count > 0 %}
                             <span class="badge bg-warning text-dark ms-1">{{ unassigned_papers_count }}</span>
@@ -73,7 +73,7 @@
                 </ul>
                 
                 <!-- 快速搜索 -->
-                <form class="d-flex me-2" method="GET" action="{{ url_for('papers') }}">
+                <form class="d-flex me-2" method="GET" action="{{ url_for('explore.papers') }}">
                     <input class="form-control me-2" type="search" name="q" 
                            placeholder="快速搜索..." aria-label="搜索"
                            value="{{ request.args.get('q', '') }}">

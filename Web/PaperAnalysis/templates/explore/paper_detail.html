@@ -8,14 +8,14 @@
     <div class="col">
         <div class="d-flex justify-content-between align-items-center">
             <!-- 左侧：返回按钮 -->
-            <a href="{{ url_for('papers') }}" class="btn btn-outline-secondary">
+            <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> 返回论文列表
             </a>
             
             <!-- 中间：论文导航按钮 -->
             <div class="btn-group" role="group" aria-label="论文导航">
                 {% if navigation.previous %}
-                <a href="{{ url_for('paper_detail', arxiv_id=navigation.previous.arxiv_id) }}" 
+                <a href="{{ url_for('explore.paper_detail', arxiv_id=navigation.previous.arxiv_id) }}" 
                    class="btn btn-outline-primary" id="prev-paper-btn"
                    title="{{ navigation.previous.title | truncate_text(50) }}">
                     <i class="bi bi-chevron-left"></i> 上一篇
@@ -27,7 +27,7 @@
                 {% endif %}
                 
                 {% if navigation.next %}
-                <a href="{{ url_for('paper_detail', arxiv_id=navigation.next.arxiv_id) }}" 
+                <a href="{{ url_for('explore.paper_detail', arxiv_id=navigation.next.arxiv_id) }}" 
                    class="btn btn-outline-primary" id="next-paper-btn"
                    title="{{ navigation.next.title | truncate_text(50) }}">
                     下一篇 <i class="bi bi-chevron-right"></i>
@@ -134,11 +134,11 @@
                         {% if paper.get('deep_analysis_status') %}
                             {% if paper.deep_analysis_status == 'completed' %}
                             <div class="d-grid gap-1">
-                                <a href="{{ url_for('paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success" target="_blank">
+                                <a href="{{ url_for('explore.paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success" target="_blank">
                                     <i class="bi bi-lightbulb"></i> 查看深度分析
                                 </a>
                                 <div class="btn-group" role="group">
-                                    <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" class="btn btn-outline-primary btn-sm">
+                                    <a href="{{ url_for('api.api_analysis_result', arxiv_id=paper.arxiv_id) }}" class="btn btn-outline-primary btn-sm">
                                         <i class="bi bi-download"></i> 下载分析
                                     </a>
                                     <button class="btn btn-outline-warning btn-sm start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
@@ -225,11 +225,11 @@
                     {{ paper.deep_analysis_preview|markdown|safe }}
                 </div>
                 <div class="mt-3">
-                    <a href="{{ url_for('paper_analysis_view', arxiv_id=paper.arxiv_id) }}" 
+                    <a href="{{ url_for('explore.paper_analysis_view', arxiv_id=paper.arxiv_id) }}" 
                        class="btn btn-success">
                         <i class="bi bi-eye"></i> 查看完整深度分析
                     </a>
-                    <a href="{{ url_for('api_download_analysis', arxiv_id=paper.arxiv_id) }}" 
+                    <a href="{{ url_for('api.api_analysis_result', arxiv_id=paper.arxiv_id) }}" 
                        class="btn btn-outline-success ms-2">
                         <i class="bi bi-download"></i> 下载分析结果
                     </a>
@@ -453,14 +453,14 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-4 mb-2">
-                        <a href="{{ url_for('papers', category=(paper.categories.split(',')[0] | safe_strip)) }}" 
+                        <a href="{{ url_for('explore.papers', category=(paper.categories.split(',')[0] | safe_strip)) }}" 
                            class="btn btn-outline-primary btn-sm w-100">
                             <i class="bi bi-tag"></i>
                             查看同类论文
                         </a>
                     </div>
                     <div class="col-md-4 mb-2">
-                        <a href="{{ url_for('papers', q=(paper.authors.split(',')[0] | safe_strip)) }}" 
+                        <a href="{{ url_for('explore.papers', q=(paper.authors.split(',')[0] | safe_strip)) }}" 
                            class="btn btn-outline-info btn-sm w-100">
                             <i class="bi bi-person"></i>
                             查看同作者论文
@@ -468,7 +468,7 @@
                     </div>
                     <div class="col-md-4 mb-2">
                         {% if paper.keywords %}
-                        <a href="{{ url_for('papers', q=(paper.keywords.split(',')[0] | safe_strip)) }}" 
+                        <a href="{{ url_for('explore.papers', q=(paper.keywords.split(',')[0] | safe_strip)) }}" 
                            class="btn btn-outline-success btn-sm w-100">
                             <i class="bi bi-key"></i>
                             查看相关关键词

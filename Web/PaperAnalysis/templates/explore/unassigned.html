@@ -84,7 +84,7 @@
                         </button>
                     </div>
                     <div class="col-md-4">
-                        <a href="{{ url_for('papers', task_name='') }}" class="btn btn-outline-info w-100">
+                        <a href="{{ url_for('explore.papers', task_name='') }}" class="btn btn-outline-info w-100">
                             <i class="bi bi-eye"></i> 查看所有论文
                         </a>
                     </div>
@@ -147,7 +147,7 @@
             <div class="col-md-8">
                 <!-- 论文标题 -->
                 <h5 class="paper-title">
-                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}">
+                    <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}">
                         {{ paper.title }}
                     </a>
                 </h5>
@@ -219,7 +219,7 @@
                             onclick="showAssignTaskModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')">
                         <i class="bi bi-plus-square"></i> 分配任务
                     </button>
-                    <a href="{{ url_for('paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                    <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" 
                        class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-eye"></i> 查看详情
                     </a>
@@ -246,7 +246,7 @@
         <!-- 上一页 -->
         {% if pagination.page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('unassigned_papers', page=pagination.page-1) }}">
+            <a class="page-link" href="{{ url_for('explore.unassigned_papers', page=pagination.page-1) }}">
                 <i class="bi bi-chevron-left"></i> 上一页
             </a>
         </li>
@@ -266,7 +266,7 @@
             </li>
             {% elif page_num == 1 or page_num == pagination.pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
             <li class="page-item">
-                <a class="page-link" href="{{ url_for('unassigned_papers', page=page_num) }}">{{ page_num }}</a>
+                <a class="page-link" href="{{ url_for('explore.unassigned_papers', page=page_num) }}">{{ page_num }}</a>
             </li>
             {% elif page_num == pagination.page - 3 or page_num == pagination.page + 3 %}
             <li class="page-item disabled">
@@ -278,7 +278,7 @@
         <!-- 下一页 -->
         {% if pagination.page < pagination.pages %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('unassigned_papers', page=pagination.page+1) }}">
+            <a class="page-link" href="{{ url_for('explore.unassigned_papers', page=pagination.page+1) }}">
                 下一页 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
@@ -308,7 +308,7 @@
     <i class="bi bi-check-circle-fill text-success"></i>
     <h4>太好了！没有未分配任务的论文</h4>
     <p>所有论文都已经分配了任务</p>
-    <a href="{{ url_for('papers') }}" class="btn btn-primary">
+    <a href="{{ url_for('explore.papers') }}" class="btn btn-primary">
         <i class="bi bi-eye"></i> 查看所有论文
     </a>
 </div>

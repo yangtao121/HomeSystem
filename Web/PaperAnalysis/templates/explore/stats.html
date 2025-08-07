@@ -58,7 +58,7 @@
                                 <td>{{ item.count }}</td>
                                 <td>{{ "%.1f"|format((item.count / total * 100) if total > 0 else 0) }}%</td>
                                 <td>
-                                    <a href="{{ url_for('papers', status=item.processing_status) }}" 
+                                    <a href="{{ url_for('explore.papers', status=item.processing_status) }}" 
                                        class="btn btn-sm btn-outline-primary">
                                         查看
                                     </a>
@@ -241,7 +241,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('papers', category=item.categories) }}" 
+                                    <a href="{{ url_for('explore.papers', category=item.categories) }}" 
                                        class="btn btn-sm btn-outline-primary">
                                         查看论文
                                     </a>

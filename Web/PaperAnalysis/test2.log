@@ -1,0 +1,76 @@
+2025-08-06 22:18:59.608 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-06 22:18:59.667 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:202 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code_making/homesystem/data/paper_gather
+2025-08-06 22:18:59.668 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 0 个历史任务
+2025-08-06 22:18:59.668 | INFO     | services.task_service:_load_historical_data:300 - 从数据库获取到 0 个历史任务记录
+2025-08-06 22:18:59.668 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:173 - 从持久化存储获取到 0 个定时任务
+2025-08-06 22:18:59.668 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:203 - ℹ️  没有找到定时任务数据
+2025-08-06 22:18:59.776 | INFO     | HomeSystem.integrations.dify.dify_knowledge:__init__:1095 - Dify Knowledge Base Client initialized with base URL: http://192.168.5.54:5001
+2025-08-06 22:18:59.780 | INFO     | HomeSystem.integrations.dify.dify_knowledge:__init__:1095 - Dify Knowledge Base Client initialized with base URL: http://192.168.5.54:5001
+2025-08-06 22:18:59,818 - __main__ - INFO - 🚀 开始启动PaperAnalysis应用...
+2025-08-06 22:18:59,819 - __main__ - INFO - 🔧 开始应用初始化...
+2025-08-06 22:18:59,821 - __main__ - INFO - 📊 数据库连接正常，共有 56 篇论文
+2025-08-06 22:18:59.821 | INFO     | services.task_service:get_available_models:503 - LLMFactory未初始化，尝试初始化...
+2025-08-06 22:18:59.822 | INFO     | services.task_service:init_llm:134 - 正在初始化LLM工厂...
+2025-08-06 22:18:59.878 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-06 22:18:59.878 | INFO     | services.task_service:init_llm:137 - ✅ LLM工厂初始化成功
+2025-08-06 22:18:59.878 | INFO     | services.task_service:get_available_models:517 - ✅ 成功获取 20 个可用LLM模型
+2025-08-06 22:18:59,878 - __main__ - INFO - 📦 发现 20 个可用的LLM模型
+2025-08-06 22:18:59,879 - __main__ - INFO - ✅ 应用初始化完成
+2025-08-06 22:18:59,879 - __main__ - INFO - ⏱️  启动准备耗时: 0.06 秒
+2025-08-06 22:18:59,880 - __main__ - INFO - 🌐 启动Web服务器...
+2025-08-06 22:18:59,880 - __main__ - INFO - 🚀 PaperAnalysis应用启动完成！
+2025-08-06 22:18:59,880 - __main__ - INFO - 📍 访问地址: http://0.0.0.0:5003
+2025-08-06 22:18:59,881 - __main__ - INFO - ============================================================
+ * Serving Flask app 'app'
+ * Debug mode: on
+2025-08-06 22:18:59,890 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5003
+ * Running on http://192.168.5.217:5003
+2025-08-06 22:18:59,891 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-06 22:18:59,891 - werkzeug - INFO -  * Restarting with stat
+2025-08-06 22:19:00.972 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-06 22:19:01.031 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:__init__:202 - PaperGatherDataManager初始化完成，数据目录: /mnt/nfs_share/code_making/homesystem/data/paper_gather
+2025-08-06 22:19:01.031 | INFO     | HomeSystem.workflow.paper_gather_task.data_manager:load_task_history:333 - 加载了 0 个历史任务
+2025-08-06 22:19:01.031 | INFO     | services.task_service:_load_historical_data:300 - 从数据库获取到 0 个历史任务记录
+2025-08-06 22:19:01.032 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:173 - 从持久化存储获取到 0 个定时任务
+2025-08-06 22:19:01.032 | INFO     | services.task_service:_load_persistent_scheduled_tasks_non_blocking:203 - ℹ️  没有找到定时任务数据
+2025-08-06 22:19:01.135 | INFO     | HomeSystem.integrations.dify.dify_knowledge:__init__:1095 - Dify Knowledge Base Client initialized with base URL: http://192.168.5.54:5001
+2025-08-06 22:19:01.138 | INFO     | HomeSystem.integrations.dify.dify_knowledge:__init__:1095 - Dify Knowledge Base Client initialized with base URL: http://192.168.5.54:5001
+2025-08-06 22:19:01,152 - __main__ - INFO - 🚀 开始启动PaperAnalysis应用...
+2025-08-06 22:19:01,152 - __main__ - INFO - 🔧 开始应用初始化...
+2025-08-06 22:19:01,155 - __main__ - INFO - 📊 数据库连接正常，共有 56 篇论文
+2025-08-06 22:19:01.155 | INFO     | services.task_service:get_available_models:503 - LLMFactory未初始化，尝试初始化...
+2025-08-06 22:19:01.156 | INFO     | services.task_service:init_llm:134 - 正在初始化LLM工厂...
+2025-08-06 22:19:01.208 | INFO     | HomeSystem.graph.llm_factory:__init__:34 - 检测到 20 个LLM模型, 4 个Embedding模型
+2025-08-06 22:19:01.208 | INFO     | services.task_service:init_llm:137 - ✅ LLM工厂初始化成功
+2025-08-06 22:19:01.209 | INFO     | services.task_service:get_available_models:517 - ✅ 成功获取 20 个可用LLM模型
+2025-08-06 22:19:01,209 - __main__ - INFO - 📦 发现 20 个可用的LLM模型
+2025-08-06 22:19:01,209 - __main__ - INFO - ✅ 应用初始化完成
+2025-08-06 22:19:01,210 - __main__ - INFO - ⏱️  启动准备耗时: 0.06 秒
+2025-08-06 22:19:01,210 - __main__ - INFO - 🌐 启动Web服务器...
+2025-08-06 22:19:01,210 - __main__ - INFO - 🚀 PaperAnalysis应用启动完成！
+2025-08-06 22:19:01,211 - __main__ - INFO - 📍 访问地址: http://0.0.0.0:5003
+2025-08-06 22:19:01,211 - __main__ - INFO - ============================================================
+2025-08-06 22:19:01,219 - werkzeug - WARNING -  * Debugger is active!
+2025-08-06 22:19:01,219 - werkzeug - INFO -  * Debugger PIN: 371-698-745
+2025-08-06 22:19:14.479 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:49 - 创建新的 PostgreSQL 同步连接
+2025-08-06 22:19:14.481 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-06 22:19:14.481 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-06 22:19:14.482 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-06 22:19:14.482 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-06 22:19:14.484 | ERROR    | HomeSystem.integrations.database.connection:get_postgres_sync:63 - PostgreSQL 事务已回滚: 0
+2025-08-06 22:19:14.484 | ERROR    | HomeSystem.integrations.database.operations:count:209 - 统计记录数量失败: 0
+2025-08-06 22:19:14.490 | DEBUG    | HomeSystem.integrations.database.connection:get_postgres_sync:58 - PostgreSQL 事务已提交
+2025-08-06 22:19:14.491 | DEBUG    | services.task_service:_refresh_persistent_tasks:231 - 刷新了 0 个持久化任务数据
+2025-08-06 22:19:14.491 | INFO     | services.task_service:get_scheduled_tasks:1219 - 获取到 0 个定时任务用于显示
+2025-08-06 22:19:14,551 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 22:19:14] "GET / HTTP/1.1" 200 -
+2025-08-06 22:19:14,616 - routes.explore - ERROR - 浏览首页加载失败: Could not build url for endpoint 'statistics'. Did you mean 'static' instead?
+2025-08-06 22:19:14,634 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 22:19:14] "[35m[1mGET /explore/ HTTP/1.1[0m" 500 -
+2025-08-06 22:19:14,727 - routes.explore - ERROR - 论文搜索失败: Could not build url for endpoint 'paper_detail' with values ['arxiv_id']. Did you mean 'explore.paper_detail' instead?
+2025-08-06 22:19:14,744 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 22:19:14] "[35m[1mGET /explore/papers HTTP/1.1[0m" 500 -
+2025-08-06 22:19:14,818 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 22:19:14] "GET /explore/stats HTTP/1.1" 200 -
+2025-08-06 22:20:59.079 | INFO     | services.task_service:_cleanup_resources:1811 - 🧹 开始清理 PaperGatherService 资源...
+2025-08-06 22:20:59.079 | INFO     | services.task_service:_cleanup_resources:1834 - 关闭线程池执行器...
+2025-08-06 22:20:59.079 | INFO     | services.task_service:_cleanup_resources:1838 - ✅ 线程池执行器已关闭
+2025-08-06 22:20:59.080 | INFO     | services.task_service:_cleanup_resources:1848 - ✅ PaperGatherService 资源清理完成

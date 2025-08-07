@@ -113,7 +113,7 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <a href="{{ url_for('papers', task_name=task.task_name) }}" 
+                                        <a href="{{ url_for('explore.papers', task_name=task.task_name) }}" 
                                            class="btn btn-sm btn-outline-primary" 
                                            title="查看论文">
                                             <i class="bi bi-eye"></i>
@@ -170,7 +170,7 @@
                         <div>
                             <span class="badge bg-info">{{ task_id_info.paper_count }}</span>
                             <div class="btn-group-vertical btn-group-sm mt-1">
-                                <a href="{{ url_for('papers', task_id=task_id_info.task_id) }}" 
+                                <a href="{{ url_for('explore.papers', task_id=task_id_info.task_id) }}" 
                                    class="btn btn-outline-primary btn-sm" 
                                    title="查看论文">
                                     <i class="bi bi-eye"></i>

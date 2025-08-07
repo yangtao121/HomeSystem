@@ -167,7 +167,7 @@
                 </div>
                 
                 <div class="mt-4">
-                    <a href="{{ url_for('task.task_results', task_id=task_id) }}" class="btn btn-primary">
+                    <a href="{{ url_for('collect.task_results', task_id=task_id) }}" class="btn btn-primary">
                         <i class="fas fa-eye me-1"></i>查看详细结果
                     </a>
                 </div>
@@ -188,16 +188,16 @@
             <div class="card-body">
                 <div class="d-grid gap-2">
                     {% if task_result.status == 'completed' %}
-                    <a href="{{ url_for('task.task_results', task_id=task_id) }}" class="btn btn-primary">
+                    <a href="{{ url_for('collect.task_results', task_id=task_id) }}" class="btn btn-primary">
                         <i class="fas fa-eye me-1"></i>查看结果
                     </a>
                     {% endif %}
                     
-                    <a href="{{ url_for('main.config') }}" class="btn btn-outline-primary">
+                    <a href="{{ url_for('collect.config') }}" class="btn btn-outline-primary">
                         <i class="fas fa-plus me-1"></i>新建任务
                     </a>
                     
-                    <a href="{{ url_for('task.task_history') }}" class="btn btn-outline-secondary">
+                    <a href="{{ url_for('collect.task_history') }}" class="btn btn-outline-secondary">
                         <i class="fas fa-history me-1"></i>执行历史
                     </a>
                     

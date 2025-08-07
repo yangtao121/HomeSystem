@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # 添加HomeSystem到路径 - 使用更稳定的相对路径计算
 current_dir = os.path.dirname(__file__)
-homesystem_root = os.path.normpath(os.path.join(current_dir, "..", "..", ".."))
+homesystem_root = os.path.normpath(os.path.join(current_dir, "..", ".."))
 if homesystem_root not in sys.path:
     sys.path.insert(0, homesystem_root)
 

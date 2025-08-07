@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 
 # 添加 HomeSystem 模块路径
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from .paper_explore_service import PaperService
 

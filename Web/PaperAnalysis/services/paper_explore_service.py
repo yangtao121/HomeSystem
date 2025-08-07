@@ -18,7 +18,7 @@ except ImportError:
 import logging
 
 # 添加 HomeSystem 模块路径
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # 导入 Dify 和 ArXiv 模块
 from HomeSystem.integrations.dify.dify_knowledge import DifyKnowledgeBaseClient, DifyKnowledgeBaseConfig

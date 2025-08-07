@@ -114,19 +114,19 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="{{ url_for('papers') }}" class="btn btn-primary">
+                    <a href="{{ url_for('explore.papers') }}" class="btn btn-primary">
                         <i class="bi bi-search"></i>
                         浏览所有论文
                     </a>
-                    <a href="{{ url_for('papers', status='pending') }}" class="btn btn-warning">
+                    <a href="{{ url_for('explore.papers', status='pending') }}" class="btn btn-warning">
                         <i class="bi bi-clock"></i>
                         查看待处理论文
                     </a>
-                    <a href="{{ url_for('statistics') }}" class="btn btn-info">
+                    <a href="{{ url_for('explore.statistics') }}" class="btn btn-info">
                         <i class="bi bi-bar-chart-line"></i>
                         详细统计分析
                     </a>
-                    <a href="{{ url_for('insights') }}" class="btn btn-success">
+                    <a href="{{ url_for('explore.insights') }}" class="btn btn-success">
                         <i class="bi bi-lightbulb"></i>
                         研究洞察
                     </a>
@@ -165,7 +165,7 @@
                                     <span class="badge bg-primary">{{ item.count }}</span>
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('papers') }}?created_date={{ item.date }}" 
+                                    <a href="{{ url_for('explore.papers') }}?created_date={{ item.date }}" 
                                        class="btn btn-sm btn-outline-primary">
                                         查看详情
                                     </a>

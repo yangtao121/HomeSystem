@@ -210,6 +210,94 @@ def has_relevance_data(paper):
     
     return has_score or has_justification
 
+@app.template_filter('relevance_status_badge')
+def relevance_status_badge(paper):
+    """相关性状态徽章过滤器"""
+    if not isinstance(paper, dict):
+        return ""
+    
+    score = paper.get('full_paper_relevance_score')
+    if score is None:
+        return '<span class="badge bg-secondary">未评分</span>'
+    
+    try:
+        score = float(score)
+        if score >= 8:
+            return '<span class="badge bg-success">高相关</span>'
+        elif score >= 6:
+            return '<span class="badge bg-info">中相关</span>'
+        elif score >= 4:
+            return '<span class="badge bg-warning">低相关</span>'
+        else:
+            return '<span class="badge bg-danger">不相关</span>'
+    except (ValueError, TypeError):
+        return '<span class="badge bg-secondary">评分错误</span>'
+
+@app.template_filter('relevance_score_stars')
+def relevance_score_stars(paper):
+    """相关性评分星星显示过滤器"""
+    if not isinstance(paper, dict):
+        return ""
+    
+    score = paper.get('full_paper_relevance_score')
+    if score is None:
+        return '<span class="text-muted">未评分</span>'
+    
+    try:
+        score = float(score)
+        full_stars = int(score // 2)  # Convert 10-point scale to 5-star scale
+        half_star = 1 if (score % 2) >= 1 else 0
+        empty_stars = 5 - full_stars - half_star
+        
+        stars_html = ''
+        # Full stars
+        for _ in range(full_stars):
+            stars_html += '<i class="bi bi-star-fill text-warning"></i>'
+        # Half star
+        if half_star:
+            stars_html += '<i class="bi bi-star-half text-warning"></i>'
+        # Empty stars
+        for _ in range(empty_stars):
+            stars_html += '<i class="bi bi-star text-muted"></i>'
+        
+        stars_html += f' <span class="text-muted">({score:.1f})</span>'
+        return stars_html
+    except (ValueError, TypeError):
+        return '<span class="text-muted">评分错误</span>'
+
+@app.template_filter('relevance_justification_preview')
+def relevance_justification_preview(paper, length=100):
+    """相关性理由预览过滤器"""
+    if not isinstance(paper, dict):
+        return ""
+    
+    justification = paper.get('full_paper_relevance_justification', '')
+    if not justification or not str(justification).strip():
+        return '<span class="text-muted">无理由说明</span>'
+    
+    justification_str = str(justification).strip()
+    if len(justification_str) <= length:
+        return justification_str
+    
+    return justification_str[:length] + '...'
+
+@app.template_filter('markdown')
+def markdown_filter(text):
+    """Markdown转HTML过滤器"""
+    if not text:
+        return ""
+    
+    try:
+        import mistune
+        markdown = mistune.create_markdown()
+        return markdown(str(text))
+    except ImportError:
+        # 如果没有mistune，返回原始文本并转换换行符
+        return str(text).replace('\n', '<br>')
+    except Exception as e:
+        logger.warning(f"Markdown转换失败: {e}")
+        return str(text).replace('\n', '<br>')
+
 # 错误处理
 @app.errorhandler(404)
 def not_found(error):
