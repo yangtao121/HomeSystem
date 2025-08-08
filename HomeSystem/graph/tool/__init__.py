@@ -17,6 +17,8 @@ from .text_chunk_indexer import TextChunkIndexerTool, create_text_chunk_indexer_
 from .text_editor import TextEditorTool, EditOperation, OperationType, create_text_editor_tool
 from .youtube_downloader import YouTubeDownloaderTool, YouTubeDownloaderInput, create_youtube_downloader_tool
 from .video_link_detector import VideoLinkDetectorTool, VideoInfo, create_video_link_detector_tool
+from .gif_detector import GifDetectorTool, GifInfo, create_gif_detector_tool
+from .gif_downloader import GifDownloaderTool, GifDownloaderInput, create_gif_downloader_tool
 
 __all__ = [
     # Search tools
@@ -53,5 +55,15 @@ __all__ = [
     # Video link detector
     "VideoLinkDetectorTool",
     "VideoInfo",
-    "create_video_link_detector_tool"
+    "create_video_link_detector_tool",
+    
+    # GIF detector
+    "GifDetectorTool",
+    "GifInfo", 
+    "create_gif_detector_tool",
+    
+    # GIF downloader
+    "GifDownloaderTool",
+    "GifDownloaderInput",
+    "create_gif_downloader_tool"
 ]
