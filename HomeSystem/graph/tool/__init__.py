@@ -16,7 +16,7 @@ from .math_formula_extractor import MathFormulaExtractorTool, create_math_formul
 from .text_chunk_indexer import TextChunkIndexerTool, create_text_chunk_indexer_tool
 from .text_editor import TextEditorTool, EditOperation, OperationType, create_text_editor_tool
 from .youtube_downloader import YouTubeDownloaderTool, YouTubeDownloaderInput, create_youtube_downloader_tool
-from .video_link_detector import VideoLinkDetectorTool, VideoInfo, create_video_link_detector_tool
+from .video_link_detector import VideoLinkExtractorTool, ExtractedVideo, create_video_link_extractor_tool
 from .gif_detector import GifDetectorTool, GifInfo, create_gif_detector_tool
 from .gif_downloader import GifDownloaderTool, GifDownloaderInput, create_gif_downloader_tool
 
@@ -52,10 +52,10 @@ __all__ = [
     "YouTubeDownloaderInput",
     "create_youtube_downloader_tool",
     
-    # Video link detector
-    "VideoLinkDetectorTool",
-    "VideoInfo",
-    "create_video_link_detector_tool",
+    # Video link extractor
+    "VideoLinkExtractorTool",
+    "ExtractedVideo",
+    "create_video_link_extractor_tool",
     
     # GIF detector
     "GifDetectorTool",

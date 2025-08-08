@@ -1,313 +1,360 @@
 #!/usr/bin/env python3
 """
-Video Link Detector Example
+Video Link Extractor Example
 
-This example demonstrates how to use the VideoLinkDetectorTool to detect video links
-from various platforms including YouTube, Bilibili, Douyin, Kuaishou, Vimeo, etc.
+This example demonstrates how to use the VideoLinkExtractorTool to extract video links
+from web pages including embedded videos, HTML5 video tags, and direct video file links.
 
 The tool can:
-1. Detect video links from text content using pattern matching
-2. Extract video titles when possible
-3. Support multiple video platforms (domestic and international)
+1. Extract embedded videos from iframes (YouTube, Bilibili, Vimeo, etc.)
+2. Find HTML5 video elements with their sources  
+3. Detect direct video file links (.mp4, .webm, etc.)
+4. Extract video titles when possible, showing "unknown" when not found
+5. Return "没有视频" when no videos are found
 """
 
 import sys
 from pathlib import Path
+import json
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from HomeSystem.graph.tool import create_video_link_detector_tool
+from HomeSystem.graph.tool import create_video_link_extractor_tool
 
 
-def basic_video_detection_example():
-    """Basic video link detection without title extraction"""
+def basic_webpage_video_extraction():
+    """Basic example of extracting videos from a webpage URL"""
     print("=" * 60)
-    print("Basic Video Link Detection Example")
+    print("Basic Webpage Video Extraction Example")
     print("=" * 60)
     
-    # Create the video link detector tool
-    tool = create_video_link_detector_tool()
+    # Create the video link extractor tool
+    tool = create_video_link_extractor_tool()
     
-    # Test content with various video links
-    test_content = """
-    这里有一些视频链接分享：
+    # Example webpage URL - replace with actual URL for testing
+    test_url = "https://general-navigation-models.github.io"
     
-    1. YouTube视频：https://www.youtube.com/watch?v=dQw4w9WgXcQ
-    2. 哔哩哔哩：https://www.bilibili.com/video/BV1xx411c7XD
-    3. 抖音短视频：https://www.douyin.com/video/1234567890123456789
-    4. Vimeo: https://vimeo.com/123456789
-    5. 快手视频：https://www.kuaishou.com/profile/user123/video/abc123def
-    6. 这只是普通文本，没有视频链接
-    7. YouTube短链接：https://youtu.be/abc12345678
-    8. 微博视频：https://weibo.com/tv/show/1234567:abcdefg
-    """
+    print(f"提取URL中的视频: {test_url}")
+    print("正在分析网页...")
     
-    # Run detection without title extraction for speed
+    # Extract videos from the webpage
     result = tool._run(
-        text=test_content,
-        extract_titles=False,  # Skip title extraction for faster processing
-        use_llm_analysis=False
+        url=test_url,
+        include_embeds=True,
+        include_direct=True,
+        include_video_tags=True
     )
     
     # Display results
-    print(f"检测状态: {result['status']}")
+    print(f"\n提取状态: {result['status']}")
+    print(f"状态消息: {result['message']}")
     print(f"找到视频数量: {result['total_count']}")
-    print(f"涉及平台: {result['platforms_found']}")
-    print()
     
-    if result['detected_videos']:
-        print("检测到的视频:")
-        for i, video in enumerate(result['detected_videos'], 1):
-            print(f"  {i}. 平台: {video['platform']}")
-            print(f"     URL: {video['url']}")
-            print(f"     视频ID: {video['video_id']}")
-            print(f"     置信度: {video['confidence']}")
-            print()
-    else:
-        print("未检测到视频链接")
+    if result['platforms_found']:
+        print(f"涉及平台: {result['platforms_found']}")
     
-    return result
-
-
-def video_detection_with_titles_example():
-    """Video link detection with title extraction"""
-    print("=" * 60)
-    print("Video Link Detection with Title Extraction")
-    print("=" * 60)
-    
-    # Create tool
-    tool = create_video_link_detector_tool()
-    
-    # Test with a few real video links
-    test_content = """
-    推荐几个有趣的视频：
-    1. 经典视频：https://www.youtube.com/watch?v=dQw4w9WgXcQ
-    2. 技术分享：https://www.bilibili.com/video/BV1x4411V75C
-    """
-    
-    print("测试内容:")
-    print(test_content)
-    print("\n正在检测并提取标题...")
-    
-    # Run with title extraction enabled
-    result = tool._run(
-        text=test_content,
-        extract_titles=True,  # Enable title extraction
-        use_llm_analysis=False
-    )
-    
-    print(f"\n检测结果:")
-    print(f"状态: {result['status']}")
-    print(f"找到视频: {result['total_count']} 个")
-    print(f"平台: {result['platforms_found']}")
-    
-    if result['detected_videos']:
-        print("\n详细信息:")
-        for i, video in enumerate(result['detected_videos'], 1):
-            print(f"  视频 {i}:")
-            print(f"    平台: {video['platform']}")
-            print(f"    标题: {video['title']}")
-            print(f"    URL: {video['url']}")
-            print(f"    状态: {video['status']}")
-            print(f"    置信度: {video['confidence']}")
-            print()
-    
-    return result
-
-
-def pattern_matching_example():
-    """Example using pattern matching for video link detection"""
-    print("=" * 60)
-    print("Video Link Detection with Pattern Matching")
-    print("=" * 60)
-    
-    # Create tool without LLM factory (pattern matching only)
-    tool = create_video_link_detector_tool()
-    
-    # Test with some video links including potential edge cases
-    test_content = """
-    一些视频链接测试：
-    1. https://www.youtube.com/watch?v=dQw4w9WgXcQ
-    2. https://www.bilibili.com/video/BV1x4411V75C
-    3. https://vimeo.com/123456789
-    4. https://regular-website.com/article (这不是视频链接)
-    5. https://youtu.be/abc12345678
-    """
-    
-    print("测试内容:")
-    print(test_content)
-    print("\n使用纯模式匹配检测视频链接...")
-    
-    result = tool._run(
-        text=test_content,
-        extract_titles=False,  # Skip title extraction for demo
-        use_llm_analysis=False  # Only use pattern matching
-    )
-    
-    print(f"\n检测结果:")
-    print(f"状态: {result['status']}")
-    print(f"找到视频: {result['total_count']} 个")
-    
-    if result['detected_videos']:
+    if result['videos']:
         print("\n检测到的视频:")
-        for i, video in enumerate(result['detected_videos'], 1):
-            print(f"  {i}. 平台: {video['platform']}")
-            print(f"     URL: {video['url']}")
-            print(f"     检测方式: {video['status']}")
-            print(f"     置信度: {video['confidence']}")
+        for i, video in enumerate(result['videos'], 1):
+            print(f"  {i}. 标题: {video['title']}")
+            print(f"     平台: {video['platform']}")
+            print(f"     来源类型: {video['source_type']}")
+            print(f"     URL: {video['video_url']}")
             print()
-    else:
-        print("\n未检测到视频链接")
     
     return result
 
 
-def platform_coverage_test():
-    """Test coverage of different video platforms"""
+def iframe_embed_extraction_example():
+    """Example showing extraction of embedded videos from iframes"""
     print("=" * 60)
-    print("Platform Coverage Test")
+    print("Iframe Embedded Video Extraction")
     print("=" * 60)
     
-    tool = create_video_link_detector_tool()
+    tool = create_video_link_extractor_tool()
     
-    platform_tests = {
-        'YouTube': [
-            'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-            'https://youtu.be/dQw4w9WgXcQ',
-            'https://youtube.com/embed/dQw4w9WgXcQ'
-        ],
-        'Bilibili': [
-            'https://www.bilibili.com/video/BV1xx411c7XD',
-            'https://www.bilibili.com/video/av123456',
-            'https://b23.tv/abc123'
-        ],
-        'Douyin': [
-            'https://www.douyin.com/video/1234567890123456789',
-            'https://v.douyin.com/abc123def'
-        ],
-        'Kuaishou': [
-            'https://www.kuaishou.com/profile/user123/video/abc123def',
-            'https://v.kuaishou.com/xyz789'
-        ],
-        'Vimeo': [
-            'https://vimeo.com/123456789',
-            'https://player.vimeo.com/video/123456789'
-        ],
-        'Weibo': [
-            'https://weibo.com/tv/show/1234567:abcdefg',
-            'https://video.weibo.com/show?fid=1234567:abcdefg'
-        ]
+    # Test URL that contains embedded videos - replace with real URL
+    test_url = "https://general-navigation-models.github.io"
+    
+    print(f"从网页提取嵌入式视频: {test_url}")
+    
+    # Extract only embedded videos
+    result = tool._run(
+        url=test_url,
+        include_embeds=True,      # Include iframe embeds
+        include_direct=False,     # Skip direct links
+        include_video_tags=False  # Skip video tags
+    )
+    
+    print(f"\n提取结果: {result['message']}")
+    
+    if result['videos']:
+        print(f"\n找到 {result['total_count']} 个嵌入式视频:")
+        for i, video in enumerate(result['videos'], 1):
+            print(f"  视频 {i}:")
+            print(f"    标题: {video['title']}")
+            print(f"    平台: {video['platform']}")
+            print(f"    嵌入URL: {video['video_url']}")
+            print()
+    
+    return result
+
+
+def html5_video_extraction_example():
+    """Example showing extraction of HTML5 video elements"""
+    print("=" * 60)
+    print("HTML5 Video Tag Extraction")
+    print("=" * 60)
+    
+    tool = create_video_link_extractor_tool()
+    
+    # Test URL with HTML5 video elements - replace with real URL
+    test_url = "https://general-navigation-models.github.io"
+    
+    print(f"从网页提取HTML5视频: {test_url}")
+    
+    # Extract only HTML5 video tags
+    result = tool._run(
+        url=test_url,
+        include_embeds=False,     # Skip embeds
+        include_direct=False,     # Skip direct links
+        include_video_tags=True   # Include video tags only
+    )
+    
+    print(f"\n提取结果: {result['message']}")
+    
+    if result['videos']:
+        print(f"\n找到 {result['total_count']} 个HTML5视频:")
+        for i, video in enumerate(result['videos'], 1):
+            print(f"  视频 {i}:")
+            print(f"    标题: {video['title']}")
+            print(f"    视频URL: {video['video_url']}")
+            print(f"    来源类型: {video['source_type']}")
+            print()
+    
+    return result
+
+
+def direct_video_links_example():
+    """Example showing extraction of direct video file links"""
+    print("=" * 60)
+    print("Direct Video File Links Extraction")
+    print("=" * 60)
+    
+    tool = create_video_link_extractor_tool()
+    
+    # Test URL with direct video file links - replace with real URL
+    test_url = "https://general-navigation-models.github.io"
+    
+    print(f"从网页提取直接视频文件链接: {test_url}")
+    
+    # Extract only direct video file links
+    result = tool._run(
+        url=test_url,
+        include_embeds=False,     # Skip embeds
+        include_direct=True,      # Include direct links only
+        include_video_tags=False  # Skip video tags
+    )
+    
+    print(f"\n提取结果: {result['message']}")
+    
+    if result['videos']:
+        print(f"\n找到 {result['total_count']} 个直接视频文件:")
+        for i, video in enumerate(result['videos'], 1):
+            print(f"  文件 {i}:")
+            print(f"    标题: {video['title']}")
+            print(f"    文件URL: {video['video_url']}")
+            print(f"    来源类型: {video['source_type']}")
+            print()
+    
+    return result
+
+
+def comprehensive_extraction_example():
+    """Comprehensive example extracting all types of videos"""
+    print("=" * 60)
+    print("Comprehensive Video Extraction")
+    print("=" * 60)
+    
+    tool = create_video_link_extractor_tool()
+    
+    # Test URL with mixed video content - replace with real URL
+    test_url = "https://general-navigation-models.github.io"
+    
+    print(f"全面提取网页中的所有视频: {test_url}")
+    print("包括：嵌入式视频、HTML5视频标签、直接视频文件链接")
+    
+    # Extract all types of videos
+    result = tool._run(
+        url=test_url,
+        include_embeds=True,      # Include all types
+        include_direct=True,
+        include_video_tags=True
+    )
+    
+    print(f"\n提取结果: {result['message']}")
+    print(f"总共找到: {result['total_count']} 个视频")
+    
+    if result['platforms_found']:
+        print(f"涉及平台: {', '.join(result['platforms_found'])}")
+    
+    if result['videos']:
+        # Group by source type
+        by_source_type = {}
+        for video in result['videos']:
+            source_type = video['source_type']
+            if source_type not in by_source_type:
+                by_source_type[source_type] = []
+            by_source_type[source_type].append(video)
+        
+        print(f"\n按来源类型分组:")
+        for source_type, videos in by_source_type.items():
+            print(f"\n  {source_type.upper()} ({len(videos)} 个):")
+            for i, video in enumerate(videos, 1):
+                print(f"    {i}. {video['title']} [{video['platform']}]")
+                print(f"       {video['video_url']}")
+    
+    return result
+
+
+def no_videos_example():
+    """Example showing behavior when no videos are found"""
+    print("=" * 60)
+    print("No Videos Found Example")
+    print("=" * 60)
+    
+    tool = create_video_link_extractor_tool()
+    
+    # Test URL without videos - replace with actual URL that has no videos
+    test_url = "https://general-navigation-models.github.io"
+    
+    print(f"测试没有视频的网页: {test_url}")
+    
+    result = tool._run(
+        url=test_url,
+        include_embeds=True,
+        include_direct=True,
+        include_video_tags=True
+    )
+    
+    print(f"\n提取结果:")
+    print(f"状态: {result['status']}")
+    print(f"消息: {result['message']}")
+    print(f"视频数量: {result['total_count']}")
+    print(f"平台列表: {result['platforms_found']}")
+    
+    return result
+
+
+def error_handling_example():
+    """Example showing error handling for invalid URLs"""
+    print("=" * 60)
+    print("Error Handling Example")
+    print("=" * 60)
+    
+    tool = create_video_link_extractor_tool()
+    
+    # Test with invalid URL
+    invalid_url = "https://general-navigation-models.github.io"
+    
+    print(f"测试无效URL的错误处理: {invalid_url}")
+    
+    result = tool._run(
+        url=invalid_url,
+        include_embeds=True,
+        include_direct=True,
+        include_video_tags=True
+    )
+    
+    print(f"\n错误处理结果:")
+    print(f"状态: {result['status']}")
+    print(f"消息: {result['message']}")
+    print(f"视频数量: {result['total_count']}")
+    
+    # Test with malformed URL
+    try:
+        malformed_result = tool._run(
+            url="not-a-valid-url",
+            include_embeds=True,
+            include_direct=True,
+            include_video_tags=True
+        )
+        print(f"\n格式错误URL处理:")
+        print(f"状态: {malformed_result['status']}")
+        print(f"消息: {malformed_result['message']}")
+    except Exception as e:
+        print(f"\n格式错误URL触发异常: {e}")
+    
+    return result
+
+
+def langchain_tool_integration_example():
+    """Example showing integration with LangChain tool interface"""
+    print("=" * 60)
+    print("LangChain Tool Integration Example")
+    print("=" * 60)
+    
+    tool = create_video_link_extractor_tool()
+    
+    print("使用LangChain工具接口:")
+    print(f"工具名称: {tool.name}")
+    print(f"工具描述: {tool.description}")
+    print(f"参数模型: {tool.args_schema.__name__}")
+    
+    # Use the tool through LangChain interface
+    test_params = {
+        "url": "https://general-navigation-models.github.io",
+        "include_embeds": True,
+        "include_direct": True,
+        "include_video_tags": True
     }
     
-    total_detected = 0
-    platform_results = {}
+    print(f"\n调用参数: {json.dumps(test_params, indent=2, ensure_ascii=False)}")
     
-    for platform, urls in platform_tests.items():
-        print(f"\n测试 {platform} 平台:")
-        platform_count = 0
-        
-        for url in urls:
-            result = tool._run(
-                text=f"测试链接: {url}",
-                extract_titles=False,
-                use_llm_analysis=False
-            )
-            
-            detected = result['total_count']
-            platform_count += detected
-            total_detected += detected
-            
-            print(f"  {url} -> {'检测成功' if detected > 0 else '未检测到'}")
-        
-        platform_results[platform] = platform_count
-        print(f"  {platform} 总计: {platform_count}/{len(urls)}")
-    
-    print(f"\n总结:")
-    print(f"总计测试链接: {sum(len(urls) for urls in platform_tests.values())}")
-    print(f"成功检测: {total_detected}")
-    
-    for platform, count in platform_results.items():
-        total_tests = len(platform_tests[platform])
-        success_rate = (count / total_tests) * 100 if total_tests > 0 else 0
-        print(f"  {platform}: {count}/{total_tests} ({success_rate:.1f}%)")
-
-
-def performance_test():
-    """Simple performance test"""
-    print("=" * 60)
-    print("Performance Test")
-    print("=" * 60)
-    
-    import time
-    
-    tool = create_video_link_detector_tool()
-    
-    # Generate test content with multiple video links
-    test_urls = [
-        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        'https://www.bilibili.com/video/BV1xx411c7XD',
-        'https://vimeo.com/123456789',
-        'https://www.douyin.com/video/1234567890123456789',
-        'https://youtu.be/abc12345678'
-    ] * 10  # 50 URLs total
-    
-    test_content = "测试内容包含视频链接: " + " ".join(test_urls)
-    
-    print(f"测试内容长度: {len(test_content)} 字符")
-    print(f"包含视频链接: {len(test_urls)} 个")
-    
-    # Test without title extraction
-    start_time = time.time()
-    result = tool._run(
-        text=test_content,
-        extract_titles=False,
-        use_llm_analysis=False
-    )
-    no_title_time = time.time() - start_time
-    
-    print(f"\n不提取标题:")
-    print(f"  处理时间: {no_title_time:.2f} 秒")
-    print(f"  检测到: {result['total_count']} 个视频")
-    print(f"  平均每个链接: {(no_title_time / len(test_urls)) * 1000:.1f} 毫秒")
-    
-    # Test a smaller sample with title extraction
-    small_content = "测试标题提取: " + " ".join(test_urls[:5])
-    start_time = time.time()
-    result_with_titles = tool._run(
-        text=small_content,
-        extract_titles=True,
-        use_llm_analysis=False
-    )
-    with_title_time = time.time() - start_time
-    
-    print(f"\n提取标题 (5个链接):")
-    print(f"  处理时间: {with_title_time:.2f} 秒")
-    print(f"  检测到: {result_with_titles['total_count']} 个视频")
-    print(f"  平均每个链接: {(with_title_time / 5) * 1000:.1f} 毫秒")
+    try:
+        # This would be how you call it in a LangChain environment
+        result = tool.invoke(test_params)
+        print(f"\nLangChain调用结果:")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    except Exception as e:
+        print(f"\nLangChain调用示例（模拟）:")
+        print(f"由于网络或URL限制，实际调用可能失败: {e}")
+        print("在实际环境中，请使用有效的网页URL进行测试")
 
 
 def main():
     """Main example function"""
-    print("视频链接检测工具使用示例")
-    print("Video Link Detector Tool Examples")
+    print("网页视频链接提取工具使用示例")
+    print("Video Link Extractor Tool Examples")
+    print("=" * 80)
+    print("注意：示例使用了占位符URL，实际使用时请替换为真实的网页URL")
     print("=" * 80)
     
     try:
-        # 1. Basic detection example
-        basic_video_detection_example()
+        # 1. Basic webpage video extraction
+        basic_webpage_video_extraction()
         
-        # 2. Title extraction example
-        video_detection_with_titles_example()
+        # 2. Iframe embed extraction  
+        iframe_embed_extraction_example()
         
-        # 3. Pattern matching example
-        pattern_matching_example()
+        # 3. HTML5 video extraction
+        html5_video_extraction_example()
         
-        # 4. Platform coverage test
-        platform_coverage_test()
+        # 4. Direct video links extraction
+        direct_video_links_example()
         
-        # 5. Performance test
-        performance_test()
+        # 5. Comprehensive extraction
+        comprehensive_extraction_example()
+        
+        # 6. No videos found example
+        no_videos_example()
+        
+        # 7. Error handling
+        error_handling_example()
+        
+        # 8. LangChain integration
+        langchain_tool_integration_example()
         
     except KeyboardInterrupt:
         print("\n\n示例被用户中断")
@@ -318,6 +365,11 @@ def main():
     
     print("\n" + "=" * 80)
     print("示例执行完成！")
+    print("\n使用建议:")
+    print("1. 将示例中的占位符URL替换为实际的网页URL")
+    print("2. 测试包含视频内容的网页以验证提取功能")
+    print("3. 根据需要调整include_embeds、include_direct、include_video_tags参数")
+    print("4. 在生产环境中添加适当的错误处理和重试机制")
 
 
 if __name__ == "__main__":

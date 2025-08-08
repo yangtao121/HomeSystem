@@ -1,34 +1,40 @@
-# Video Link Detection Tool Integration Guide
+# Video Link Extractor Tool Integration Guide
 
 ## 概述
 
-VideoLinkDetectorTool 是 HomeSystem 中的一个强大工具，用于从文本内容中检测和提取视频链接信息。该工具支持多个国内外主流视频平台，能够识别视频链接、提取标题，并通过高效的模式匹配提供准确的检测结果。
+VideoLinkExtractorTool 是 HomeSystem 中的一个网页视频链接提取工具，用于从指定网页中提取所有可用的视频链接和标题。该工具支持多种视频来源类型，包括iframe嵌入视频、HTML5 video标签和直接视频文件链接。
+
+## 核心功能
+
+### 视频检测类型
+- **iframe嵌入视频**: YouTube、Bilibili、Vimeo、抖音、快手等平台的嵌入式视频
+- **HTML5 video标签**: 网页中直接的video元素及其source子标签
+- **直接视频文件链接**: 指向视频文件的直接链接(.mp4、.webm、.avi等)
+
+### 标题提取
+- 从iframe的title属性和data-title属性提取
+- 从周围文本内容智能分析
+- 从链接文本和文件名解析
+- 找不到标题时显示"unknown"
+- 没找到任何视频时返回"没有视频"消息
 
 ## 支持的平台
 
 ### 国际平台
-- **YouTube**: 支持多种URL格式
-  - `https://www.youtube.com/watch?v=VIDEO_ID`
-  - `https://youtu.be/VIDEO_ID` 
+- **YouTube**: 支持多种嵌入格式
   - `https://youtube.com/embed/VIDEO_ID`
+  - `https://www.youtube.com/watch?v=VIDEO_ID`
+  - `https://youtu.be/VIDEO_ID`
 
 - **Vimeo**: 视频分享平台
   - `https://vimeo.com/VIDEO_ID`
   - `https://player.vimeo.com/video/VIDEO_ID`
 
-- **DailyMotion**: 法国视频平台
-  - `https://www.dailymotion.com/video/VIDEO_ID`
-  - `https://dai.ly/VIDEO_ID`
-
-- **Twitch**: 游戏直播平台
-  - `https://www.twitch.tv/videos/VIDEO_ID`
-  - `https://clips.twitch.tv/CLIP_ID`
-
 ### 中文平台
 - **哔哩哔哩 (Bilibili)**: 支持多种视频ID格式
   - `https://www.bilibili.com/video/BV[ID]`
   - `https://www.bilibili.com/video/av[ID]`
-  - `https://b23.tv/[SHORT_ID]`
+  - `https://player.bilibili.com/player.html?aid=[ID]`
 
 - **抖音 (Douyin)**: 短视频平台
   - `https://www.douyin.com/video/VIDEO_ID`
@@ -38,9 +44,8 @@ VideoLinkDetectorTool 是 HomeSystem 中的一个强大工具，用于从文本�
   - `https://www.kuaishou.com/profile/USER/video/VIDEO_ID`
   - `https://v.kuaishou.com/SHORT_ID`
 
-- **微博 (Weibo)**: 社交媒体视频
-  - `https://weibo.com/tv/show/ID:KEY`
-  - `https://video.weibo.com/show?fid=ID:KEY`
+### 其他支持
+- **直接视频文件**: .mp4、.webm、.ogg、.avi、.mov、.mkv、.flv、.m4v、.wmv
 
 ## 安装和配置
 
@@ -53,7 +58,7 @@ pip install beautifulsoup4 lxml requests
 ### 基本导入
 
 ```python
-from HomeSystem.graph.tool import create_video_link_detector_tool
+from HomeSystem.graph.tool import create_video_link_extractor_tool
 ```
 
 ## 基本使用方法
@@ -61,196 +66,288 @@ from HomeSystem.graph.tool import create_video_link_detector_tool
 ### 1. 创建工具实例
 
 ```python
-# 创建基本检测工具（推荐）
-tool = create_video_link_detector_tool()
+# 创建视频链接提取工具
+tool = create_video_link_extractor_tool()
 ```
 
-### 2. 检测视频链接
+### 2. 基本网页视频提取
 
 ```python
-# 基本检测（不提取标题，速度最快）
+# 从网页提取所有视频
 result = tool._run(
-    text="这里有个视频：https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    extract_titles=False
+    url="https://example.com/page-with-videos",
+    include_embeds=True,      # 包含嵌入式视频
+    include_direct=True,      # 包含直接视频文件链接  
+    include_video_tags=True   # 包含HTML5 video标签
 )
 
-print(f"找到 {result['total_count']} 个视频")
-for video in result['detected_videos']:
-    print(f"平台: {video['platform']}, URL: {video['url']}")
+print(f"状态: {result['status']}")
+print(f"消息: {result['message']}")
+print(f"找到视频: {result['total_count']} 个")
+
+if result['videos']:
+    for video in result['videos']:
+        print(f"标题: {video['title']}")
+        print(f"平台: {video['platform']}")
+        print(f"来源类型: {video['source_type']}")
+        print(f"URL: {video['video_url']}")
 ```
 
-### 3. 带标题提取的检测
+### 3. 选择性提取
 
 ```python
-# 启用标题提取（会增加处理时间）
+# 只提取嵌入式视频
 result = tool._run(
-    text="推荐视频：https://www.bilibili.com/video/BV1x4411V75C",
-    extract_titles=True
+    url="https://example.com/embedded-videos",
+    include_embeds=True,
+    include_direct=False,
+    include_video_tags=False
 )
 
-for video in result['detected_videos']:
-    print(f"标题: {video['title']}")
-    print(f"平台: {video['platform']}")
+# 只提取直接视频文件
+result = tool._run(
+    url="https://example.com/video-files",
+    include_embeds=False,
+    include_direct=True,
+    include_video_tags=False
+)
 ```
 
 ## 返回数据结构
 
-### 检测结果
+### 成功提取结果
 
 ```python
 {
-    "detected_videos": [
+    "videos": [
         {
-            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            "platform": "youtube",
-            "video_id": "dQw4w9WgXcQ",
+            "video_url": "https://www.youtube.com/embed/dQw4w9WgXcQ",
             "title": "Rick Astley - Never Gonna Give You Up",
-            "status": "detected",
-            "confidence": 0.9
+            "platform": "youtube",
+            "source_type": "embed",
+            "thumbnail_url": null,
+            "duration": null
+        },
+        {
+            "video_url": "https://example.com/videos/demo.mp4",
+            "title": "demo",
+            "platform": "direct",
+            "source_type": "direct",
+            "thumbnail_url": null,
+            "duration": null
         }
     ],
-    "total_count": 1,
-    "platforms_found": ["youtube"],
-    "status": "success"
+    "total_count": 2,
+    "platforms_found": ["youtube", "direct"],
+    "status": "success",
+    "message": "找到2个视频"
+}
+```
+
+### 没有视频的结果
+
+```python
+{
+    "videos": [],
+    "total_count": 0,
+    "platforms_found": [],
+    "status": "no_videos_found",
+    "message": "没有视频"
+}
+```
+
+### 错误情况
+
+```python
+{
+    "videos": [],
+    "total_count": 0,
+    "platforms_found": [],
+    "status": "error",
+    "message": "提取过程中发生错误: [具体错误信息]"
 }
 ```
 
 ### 视频信息字段
 
-- **url**: 原始视频URL
-- **platform**: 检测到的平台名称
-- **video_id**: 提取的视频ID
-- **title**: 视频标题（如果启用标题提取）
-- **status**: 检测状态 (`detected`)
-- **confidence**: 检测置信度 (0.0 - 1.0)
+- **video_url**: 视频URL（嵌入URL或直接文件URL）
+- **title**: 视频标题，找不到时为"unknown"
+- **platform**: 视频平台（youtube、bilibili、vimeo、direct等）
+- **source_type**: 来源类型（embed、direct、video_tag）
+- **thumbnail_url**: 缩略图URL（预留，目前为null）
+- **duration**: 视频时长（预留，目前为null）
 
 ## 高级功能
 
-### 标题提取
+### 平台检测
 
-工具支持从视频页面自动提取标题：
+工具能够智能检测iframe中的视频平台：
 
 ```python
-# 启用标题提取
-result = tool._run(
-    text=content,
-    extract_titles=True  # 默认为 True
-)
+# 自动识别不同平台的嵌入模式
+platforms_detected = [
+    'youtube',    # YouTube嵌入
+    'bilibili',   # 哔哩哔哩嵌入
+    'vimeo',      # Vimeo嵌入
+    'douyin',     # 抖音嵌入
+    'kuaishou',   # 快手嵌入
+    'direct'      # 直接视频文件
+]
 ```
 
-**支持的标题提取方式：**
-- 网页META标签 (`og:title`)
-- HTML标题标签
-- 页面JSON数据
-- 平台特定的数据提取
+### 标题智能提取
 
-### 批量检测
+工具使用多种方法提取视频标题：
 
-工具可以一次性检测文本中的多个视频链接：
+1. **iframe属性**: title、data-title属性
+2. **上下文分析**: 父级元素中的标题标签
+3. **链接文本**: 链接的显示文本
+4. **文件名解析**: 从URL路径提取文件名
+
+### 去重处理
+
+工具自动对检测到的视频进行去重：
 
 ```python
-content = """
-这里有几个视频推荐：
-1. YouTube: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-2. 哔哩哔哩: https://www.bilibili.com/video/BV1xx411c7XD
-3. 抖音: https://www.douyin.com/video/1234567890123456789
-"""
-
-result = tool._run(text=content, extract_titles=False)
-print(f"检测到 {result['total_count']} 个视频，涉及平台: {result['platforms_found']}")
+# 相同URL的视频只会出现一次
+unique_videos = tool._deduplicate_videos(all_detected_videos)
 ```
 
 ## 性能优化
 
-### 检测模式选择
+### 网络请求优化
 
-根据需求选择合适的检测模式：
+工具使用持久化会话和合理的请求头：
 
 ```python
-# 高速模式：只进行链接匹配（推荐）
-result = tool._run(text=content, extract_titles=False)
-
-# 完整模式：包含标题提取（较慢）
-result = tool._run(text=content, extract_titles=True)
+session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...'
+})
 ```
 
-### 性能指标
+### 超时控制
 
-基于测试结果：
+网络请求设置了合理的超时时间：
 
-- **模式匹配检测**: ~0.1毫秒/链接（极快）
-- **含标题提取**: ~1000-1300毫秒/链接（需要网络请求）
+```python
+response = self.session.get(url, timeout=15)
+```
+
+### 选择性提取
+
+可以根据需求选择要提取的视频类型以提高性能：
+
+```python
+# 只提取iframe嵌入视频（最快）
+result = tool._run(url, include_embeds=True, include_direct=False, include_video_tags=False)
+
+# 全面提取（较慢）
+result = tool._run(url, include_embeds=True, include_direct=True, include_video_tags=True)
+```
 
 ## 集成到 LangGraph 代理
 
 ### 作为工具添加到代理
 
 ```python
-from HomeSystem.graph.tool import create_video_link_detector_tool
+from HomeSystem.graph.tool import create_video_link_extractor_tool
 
 # 在代理中添加工具
-video_detector = create_video_link_detector_tool()
+video_extractor = create_video_link_extractor_tool()
 
 # 在 LangGraph 中使用
-tools = [video_detector]
+tools = [video_extractor]
+```
+
+### LangChain工具接口
+
+```python
+# 通过LangChain工具接口调用
+result = tool.invoke({
+    "url": "https://example.com/video-page",
+    "include_embeds": True,
+    "include_direct": True,
+    "include_video_tags": True
+})
 ```
 
 ### 代理对话示例
 
 ```python
-# 代理可以自动检测用户分享的视频链接
-user_message = "我想分享个视频：https://www.bilibili.com/video/BV1xx411c7XD"
-# 代理会自动使用VideoLinkDetectorTool提取视频信息
+# 代理可以分析用户提供的网页链接
+user_message = "请帮我看看这个页面有什么视频：https://example.com/news"
+# 代理会自动使用VideoLinkExtractorTool提取视频信息
 ```
 
 ## 错误处理
 
 ### 常见错误场景
 
-1. **网络超时**: 标题提取时可能遇到网络问题
-2. **平台限制**: 某些平台可能限制爬虫访问
-3. **URL格式变更**: 新的URL格式可能不被识别
+1. **网络连接问题**: 目标网页无法访问
+2. **无效URL格式**: URL格式不正确
+3. **解析错误**: HTML内容解析失败
+4. **权限限制**: 网站阻止爬虫访问
 
 ### 错误处理示例
 
 ```python
-result = tool._run(text=content)
+result = tool._run(url="https://example.com")
 
 if result['status'] == 'error':
-    print(f"检测失败: {result.get('error', '未知错误')}")
+    print(f"提取失败: {result['message']}")
+elif result['status'] == 'no_videos_found':
+    print("该网页没有找到视频")
 else:
-    # 处理成功结果
-    for video in result['detected_videos']:
-        if video['title'] == "Unknown video link":
-            print(f"无法获取标题: {video['url']}")
-        else:
-            print(f"成功提取: {video['title']}")
+    print(f"成功提取 {result['total_count']} 个视频")
+```
+
+### 容错处理
+
+```python
+def safe_video_extraction(url):
+    try:
+        result = tool._run(url)
+        return result
+    except Exception as e:
+        logger.error(f"视频提取失败 {url}: {e}")
+        return {
+            "videos": [],
+            "total_count": 0,
+            "platforms_found": [],
+            "status": "error",
+            "message": f"提取失败: {str(e)}"
+        }
 ```
 
 ## 配置和定制
 
 ### 平台支持扩展
 
-可以通过修改 `PLATFORM_PATTERNS` 添加新平台支持：
+可以通过修改 `platform_patterns` 添加新平台支持：
 
 ```python
-# 在 VideoLinkDetectorTool 类中添加新的正则模式
 new_patterns = {
     'new_platform': [
-        r'pattern1',
-        r'pattern2'
+        r'new-platform\.com/video/(\d+)',
+        r'np\.video/([a-zA-Z0-9]+)'
     ]
 }
 ```
 
-### 标题提取定制
+### 视频文件格式扩展
 
-可以为新平台添加专用的标题提取方法：
+可以添加新的视频文件格式支持：
 
 ```python
-def _extract_new_platform_title(self, video_id: str) -> str:
-    # 实现特定平台的标题提取逻辑
-    pass
+additional_extensions = {'.webm', '.ogv', '.3gp'}
+```
+
+### 自定义User-Agent
+
+```python
+tool.session.headers.update({
+    'User-Agent': 'Custom Bot 1.0'
+})
 ```
 
 ## 测试和验证
@@ -262,122 +359,148 @@ def _extract_new_platform_title(self, video_id: str) -> str:
 python examples/video_link_detector_example.py
 ```
 
-### 平台覆盖率测试
-
-测试结果显示各平台检测准确率：
-
-- YouTube: 100% (3/3)
-- Bilibili: 100% (3/3) 
-- Douyin: 100% (2/2)
-- Kuaishou: 100% (2/2)
-- Vimeo: 100% (2/2)
-- Weibo: 100% (2/2)
-
-### 单元测试
+### 单元测试示例
 
 ```python
-def test_basic_detection():
-    tool = create_video_link_detector_tool()
-    result = tool._run("测试: https://www.youtube.com/watch?v=test123")
-    assert result['total_count'] == 1
-    assert result['detected_videos'][0]['platform'] == 'youtube'
+def test_youtube_embed_detection():
+    tool = create_video_link_extractor_tool()
+    # 注意：需要使用包含YouTube嵌入的真实网页进行测试
+    result = tool._run("https://example.com/youtube-embed-page")
+    
+    assert result['status'] in ['success', 'no_videos_found']
+    if result['total_count'] > 0:
+        youtube_videos = [v for v in result['videos'] if v['platform'] == 'youtube']
+        assert len(youtube_videos) > 0
+
+def test_no_videos_page():
+    tool = create_video_link_extractor_tool()
+    result = tool._run("https://example.com/text-only-page")
+    
+    assert result['status'] == 'no_videos_found'
+    assert result['message'] == "没有视频"
+    assert result['total_count'] == 0
 ```
+
+### 网络测试注意事项
+
+由于工具需要实际访问网页，测试时需要注意：
+
+1. 使用真实的网页URL
+2. 确保网络连接稳定
+3. 考虑目标网站的访问限制
+4. 为测试设置合理的超时时间
 
 ## 最佳实践
 
-### 1. 选择合适的检测模式
+### 1. 选择合适的提取范围
 
 ```python
-# 大批量文本处理：关闭标题提取
-for batch in large_text_batches:
-    result = tool._run(batch, extract_titles=False)
+# 新闻网站通常包含嵌入视频
+result = tool._run(news_url, include_embeds=True, include_direct=False, include_video_tags=False)
 
-# 单个重要链接：启用标题提取
-result = tool._run(important_link, extract_titles=True)
+# 媒体网站可能有直接视频文件
+result = tool._run(media_url, include_embeds=True, include_direct=True, include_video_tags=True)
 ```
 
-### 2. 处理检测结果
+### 2. 处理大量URL
 
 ```python
-def process_video_results(result):
+def batch_video_extraction(urls, max_concurrent=5):
+    results = []
+    for i in range(0, len(urls), max_concurrent):
+        batch = urls[i:i + max_concurrent]
+        batch_results = []
+        
+        for url in batch:
+            result = safe_video_extraction(url)
+            batch_results.append(result)
+        
+        results.extend(batch_results)
+        # 添加延迟避免过于频繁的请求
+        time.sleep(1)
+    
+    return results
+```
+
+### 3. 结果筛选和排序
+
+```python
+def filter_high_quality_videos(result):
     if result['status'] != 'success':
         return []
     
-    videos = []
-    for video_info in result['detected_videos']:
-        # 过滤高置信度结果
-        if video_info['confidence'] >= 0.8:
-            videos.append({
-                'platform': video_info['platform'],
-                'title': video_info['title'],
-                'url': video_info['url']
-            })
+    quality_videos = []
+    for video in result['videos']:
+        # 过滤有标题的视频
+        if video['title'] != 'unknown':
+            quality_videos.append(video)
     
-    return videos
-```
-
-### 3. 错误容忍
-
-```python
-def safe_video_detection(text):
-    try:
-        result = tool._run(text, extract_titles=True)
-        return process_video_results(result)
-    except Exception as e:
-        logger.error(f"视频检测失败: {e}")
-        # 降级到基本检测
-        try:
-            result = tool._run(text, extract_titles=False)
-            return process_video_results(result)
-        except Exception as e2:
-            logger.error(f"基本检测也失败: {e2}")
-            return []
+    # 按平台优先级排序
+    platform_priority = {'youtube': 1, 'bilibili': 2, 'vimeo': 3, 'direct': 4}
+    quality_videos.sort(key=lambda v: platform_priority.get(v['platform'], 5))
+    
+    return quality_videos
 ```
 
 ## 故障排查
 
 ### 常见问题
 
-1. **检测不到链接**
-   - 检查URL格式是否正确
-   - 确认平台是否在支持列表中
-   - 查看日志输出
+1. **提取不到视频**
+   - 检查URL是否可访问
+   - 确认网页是否包含支持的视频类型
+   - 查看工具日志输出
 
-2. **标题提取失败**
+2. **标题显示unknown**
+   - 网页可能没有合适的标题信息
+   - iframe可能缺少title属性
+   - 考虑这是正常情况
+
+3. **网络超时**
    - 检查网络连接
-   - 确认目标网站是否可访问
-   - 考虑关闭标题提取以提高稳定性
+   - 考虑增加超时时间
+   - 实现重试机制
 
-3. **性能问题**
-   - 关闭标题提取功能
-   - 减少批量处理的文本大小
-   - 考虑异步处理
-
-### 调试模式
+### 调试技巧
 
 ```python
+# 启用详细日志
 import logging
-logging.getLogger('HomeSystem.graph.tool.video_link_detector').setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
-# 运行检测查看详细日志
-result = tool._run(text=content, extract_titles=True)
+# 检查具体的HTML内容
+result = tool._run(url)
+# 如果需要，可以手动检查网页源码
 ```
 
 ## 版本历史
 
-- **v1.0**: 初始版本，支持主要平台检测
-- **v1.1**: 添加标题提取功能
-- **v1.2**: 优化中文平台支持
+- **v2.0**: 重构为网页视频提取工具
+  - 从文本链接检测转为网页内容分析
+  - 支持iframe嵌入、HTML5 video标签、直接链接
+  - 智能标题提取和平台检测
+  - 完整的错误处理和状态反馈
 
-## 贡献和扩展
+## 迁移指南
 
-欢迎为工具添加新平台支持或改进现有功能：
+从旧版本VideoLinkDetectorTool迁移到新版本VideoLinkExtractorTool：
 
-1. 添加新的正则模式到 `PLATFORM_PATTERNS`
-2. 实现对应的标题提取方法
-3. 添加测试用例
-4. 更新文档
+### 主要变更
+
+1. **功能变更**: 从文本链接检测改为网页视频提取
+2. **输入参数**: 从text改为url参数
+3. **输出格式**: 数据结构有所调整
+
+### 迁移步骤
+
+```python
+# 旧版本用法
+old_result = old_tool._run(text="包含链接的文本", extract_titles=True)
+
+# 新版本用法  
+new_result = new_tool._run(url="https://webpage-with-videos.com", include_embeds=True)
+```
 
 ## 总结
 
-VideoLinkDetectorTool 是一个功能强大、易于使用的视频链接检测工具，特别适合需要处理多平台视频内容的应用场景。通过合理配置检测选项，可以在准确性和性能之间取得良好平衡。
+VideoLinkExtractorTool 是一个功能强大的网页视频链接提取工具，特别适合需要从网页中发现和提取视频内容的应用场景。工具支持多种视频来源类型，提供智能的标题提取和平台识别，具有良好的错误处理和性能优化。通过合理配置提取选项，可以在功能完整性和执行效率之间取得良好平衡。

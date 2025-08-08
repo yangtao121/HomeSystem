@@ -1,382 +1,416 @@
 """
-Video Link Detection Tool
+Video Link Extractor Tool
 
-检测文本中的视频链接，支持多个平台，提取视频标题，并可选择使用LLM分析模糊链接。
+从指定网页中提取所有可用的视频链接和标题。
+支持检测iframe嵌入视频、HTML5 video标签和直接视频文件链接。
 """
 
 import re
 import requests
-from typing import List, Dict, Optional, Any, ClassVar
-from urllib.parse import urlparse, parse_qs
+from typing import List, Dict, Optional, Any
+from urllib.parse import urlparse, urljoin, parse_qs
 import json
 from bs4 import BeautifulSoup
 
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ArgsSchema
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from loguru import logger
 
-from ..llm_factory import LLMFactory
 
-
-class VideoLinkDetectorInput(BaseModel):
-    """Video link detector tool input schema"""
-    text: str = Field(description="The text content to search for video links")
-    extract_titles: bool = Field(default=True, description="Whether to extract video titles")
-    use_llm_analysis: bool = Field(default=False, description="Whether to use LLM for ambiguous URL analysis")
-
-
-class VideoInfo(BaseModel):
-    """Video information model"""
-    url: str = Field(description="Original video URL")
-    platform: str = Field(description="Video platform (youtube, bilibili, etc.)")
-    video_id: str = Field(description="Extracted video ID")
-    title: str = Field(description="Video title or 'Unknown video link' if not found")
-    status: str = Field(description="Detection status: valid, invalid, unknown")
-    confidence: float = Field(description="Detection confidence (0.0 - 1.0)")
-
-
-class VideoLinkDetectorTool(BaseTool):
-    """Video link detection tool for LangGraph agents"""
+class VideoExtractorInput(BaseModel):
+    """视频提取工具输入模型"""
+    url: str = Field(description="要提取视频的网页URL")
+    include_embeds: bool = Field(default=True, description="包含嵌入式视频(YouTube、Bilibili等)")
+    include_direct: bool = Field(default=True, description="包含直接视频文件链接")
+    include_video_tags: bool = Field(default=True, description="包含HTML5 video标签")
     
-    name: str = "video_link_detector"
-    description: str = "Detect video links from text content and extract video information including titles"
-    args_schema: ArgsSchema = VideoLinkDetectorInput
+    @validator('url')
+    def validate_url(cls, v):
+        """验证URL格式"""
+        if not v or not v.strip():
+            raise ValueError("URL不能为空")
+        
+        parsed = urlparse(v)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError("无效的URL格式")
+        
+        return v.strip()
+
+
+class ExtractedVideo(BaseModel):
+    """提取的视频信息模型"""
+    video_url: str = Field(description="视频URL")
+    title: str = Field(description="视频标题，找不到时为'unknown'")
+    platform: str = Field(description="视频平台 (youtube, bilibili, vimeo, direct等)")
+    source_type: str = Field(description="来源类型 (embed, direct, video_tag)")
+    thumbnail_url: Optional[str] = Field(default=None, description="缩略图URL")
+    duration: Optional[str] = Field(default=None, description="视频时长")
+
+
+class VideoLinkExtractorTool(BaseTool):
+    """网页视频链接提取工具"""
+    
+    name: str = "video_link_extractor"
+    description: str = "从指定网页中提取所有视频链接和标题，支持嵌入式视频和直接视频文件"
+    args_schema: ArgsSchema = VideoExtractorInput
     return_direct: bool = False
     
-    
-    # Video platform patterns
-    PLATFORM_PATTERNS: ClassVar[Dict[str, List[str]]] = {
-        'youtube': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=)|youtu\.be\/|youtube\.googleapis\.com\/v\/)([^#\&\?\n\s]{11})',
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?youtube\.com\/watch\?(?:[^&\n\s]*&)*v=([^#\&\?\n\s]{11})',
-            r'(?:https?:)?(?:\/\/)?youtu\.be\/([^#\&\?\n\s]{11})'
-        ],
-        'bilibili': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?bilibili\.com\/video\/(av\d+|BV[a-zA-Z0-9]{10})',
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?bilibili\.com\/video\/(av\d+)',
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})',
-            r'(?:https?:)?(?:\/\/)?b23\.tv\/[a-zA-Z0-9]+'
-        ],
-        'vimeo': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)',
-            r'(?:https?:)?(?:\/\/)?vimeo\.com\/channels\/[^\/]+\/(\d+)',
-            r'(?:https?:)?(?:\/\/)?player\.vimeo\.com\/video\/(\d+)'
-        ],
-        'douyin': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?douyin\.com\/video\/(\d+)',
-            r'(?:https?:)?(?:\/\/)?v\.douyin\.com\/[a-zA-Z0-9]+',
-            r'(?:https?:)?(?:\/\/)?iesdouyin\.com\/share\/video\/(\d+)'
-        ],
-        'kuaishou': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?kuaishou\.com\/profile\/[^\/]+\/video\/([a-zA-Z0-9]+)',
-            r'(?:https?:)?(?:\/\/)?v\.kuaishou\.com\/[a-zA-Z0-9]+',
-            r'(?:https?:)?(?:\/\/)?kslive\.kuaishou\.com\/u\/[^\/]+\/[a-zA-Z0-9]+'
-        ],
-        'weibo': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?weibo\.com\/tv\/show\/(\d+:\w+)',
-            r'(?:https?:)?(?:\/\/)?video\.weibo\.com\/show\?fid=(\d+:\w+)',
-            r'(?:https?:)?(?:\/\/)?m\.weibo\.cn\/status\/(\d+)'
-        ],
-        'dailymotion': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?dailymotion\.com\/video\/([a-zA-Z0-9]+)',
-            r'(?:https?:)?(?:\/\/)?dai\.ly\/([a-zA-Z0-9]+)'
-        ],
-        'twitch': [
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)',
-            r'(?:https?:)?(?:\/\/)?(?:www\.)?twitch\.tv\/[^\/]+\/clip\/([a-zA-Z0-9_-]+)',
-            r'(?:https?:)?(?:\/\/)?clips\.twitch\.tv\/([a-zA-Z0-9_-]+)'
-        ]
-    }
-    
-    def __init__(self, llm_factory: Optional[LLMFactory] = None):
-        super().__init__()
-        # Initialize as instance variables (not Pydantic fields)
-        object.__setattr__(self, 'llm_factory', llm_factory)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 初始化requests会话
         object.__setattr__(self, 'session', requests.Session())
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
+        
+        # 支持的视频文件扩展名
+        object.__setattr__(self, 'video_extensions', {
+            '.mp4', '.webm', '.ogg', '.avi', '.mov', '.mkv', '.flv', '.m4v', '.wmv'
+        })
+        
+        # 视频平台模式
+        object.__setattr__(self, 'platform_patterns', {
+            'youtube': [
+                r'(?:youtube\.com/embed/|youtu\.be/|youtube\.com/watch\?v=)([a-zA-Z0-9_-]{11})',
+                r'youtube\.com/embed/([a-zA-Z0-9_-]{11})'
+            ],
+            'bilibili': [
+                r'bilibili\.com/video/(av\d+|BV[a-zA-Z0-9]{10})',
+                r'player\.bilibili\.com/player\.html\?.*?(?:aid=(\d+)|bvid=(BV[a-zA-Z0-9]{10}))'
+            ],
+            'vimeo': [
+                r'vimeo\.com/(\d+)',
+                r'player\.vimeo\.com/video/(\d+)'
+            ],
+            'douyin': [
+                r'douyin\.com/video/(\d+)',
+                r'v\.douyin\.com/[a-zA-Z0-9]+'
+            ],
+            'kuaishou': [
+                r'kuaishou\.com/profile/[^/]+/video/([a-zA-Z0-9]+)',
+                r'v\.kuaishou\.com/[a-zA-Z0-9]+'
+            ]
+        })
     
-    def _run(self, text: str, extract_titles: bool = True, use_llm_analysis: bool = False) -> Dict[str, Any]:
-        """Run the video link detection tool"""
+    def _run(self, 
+             url: str, 
+             include_embeds: bool = True,
+             include_direct: bool = True,
+             include_video_tags: bool = True) -> Dict[str, Any]:
+        """执行视频提取"""
         try:
-            detected_videos = []
+            extracted_videos = []
             
-            # Extract all URLs from text
-            url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-            urls = re.findall(url_pattern, text)
+            # 获取网页内容
+            response = self.session.get(url, timeout=15)
+            response.raise_for_status()
             
-            # Also find potential URLs without protocol
-            potential_urls = re.findall(r'(?:www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}(?:/[^\s]*)?', text)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
             
-            # Combine and deduplicate URLs
-            all_urls = list(set(urls + [f"https://{url}" for url in potential_urls if not url.startswith('http')]))
+            # 检测嵌入式视频
+            if include_embeds:
+                embed_videos = self._extract_embed_videos(soup, base_url)
+                extracted_videos.extend(embed_videos)
             
-            for url in all_urls:
-                video_info = self._analyze_url(url, extract_titles, use_llm_analysis)
-                if video_info:
-                    detected_videos.append(video_info)
+            # 检测HTML5 video标签
+            if include_video_tags:
+                video_tag_videos = self._extract_video_tags(soup, base_url)
+                extracted_videos.extend(video_tag_videos)
             
-            return {
-                "detected_videos": [video.dict() for video in detected_videos],
-                "total_count": len(detected_videos),
-                "platforms_found": list(set([video.platform for video in detected_videos])),
-                "status": "success"
-            }
+            # 检测直接视频文件链接
+            if include_direct:
+                direct_videos = self._extract_direct_video_links(soup, base_url)
+                extracted_videos.extend(direct_videos)
             
+            # 去重
+            unique_videos = self._deduplicate_videos(extracted_videos)
+            
+            # 返回结果
+            if unique_videos:
+                return {
+                    "videos": [video.dict() for video in unique_videos],
+                    "total_count": len(unique_videos),
+                    "platforms_found": list(set([video.platform for video in unique_videos])),
+                    "status": "success",
+                    "message": f"找到{len(unique_videos)}个视频"
+                }
+            else:
+                return {
+                    "videos": [],
+                    "total_count": 0,
+                    "platforms_found": [],
+                    "status": "no_videos_found", 
+                    "message": "没有视频"
+                }
+                
         except Exception as e:
-            logger.error(f"Video link detection failed: {e}")
+            logger.error(f"视频提取失败 {url}: {e}")
             return {
-                "detected_videos": [],
+                "videos": [],
                 "total_count": 0,
                 "platforms_found": [],
                 "status": "error",
-                "error": str(e)
+                "message": f"提取过程中发生错误: {str(e)}"
             }
     
-    def _analyze_url(self, url: str, extract_titles: bool, use_llm_analysis: bool) -> Optional[VideoInfo]:
-        """Analyze a single URL for video content"""
+    def _extract_embed_videos(self, soup: BeautifulSoup, base_url: str) -> List[ExtractedVideo]:
+        """提取iframe嵌入视频"""
+        videos = []
+        
         try:
-            # Clean URL
-            url = url.strip()
-            if not url.startswith(('http://', 'https://')):
-                url = 'https://' + url
+            iframes = soup.find_all('iframe')
             
-            # Check against platform patterns
-            for platform, patterns in self.PLATFORM_PATTERNS.items():
+            for iframe in iframes:
+                src = iframe.get('src', '').strip()
+                if not src:
+                    continue
+                
+                # 转换为绝对URL
+                if src.startswith('//'):
+                    src = 'https:' + src
+                elif src.startswith('/'):
+                    src = urljoin(base_url, src)
+                
+                # 检测平台
+                platform, video_id = self._detect_platform(src)
+                if platform:
+                    title = self._extract_iframe_title(iframe, platform, video_id)
+                    
+                    video = ExtractedVideo(
+                        video_url=src,
+                        title=title,
+                        platform=platform,
+                        source_type="embed"
+                    )
+                    videos.append(video)
+                    
+        except Exception as e:
+            logger.error(f"提取iframe视频失败: {e}")
+        
+        return videos
+    
+    def _extract_video_tags(self, soup: BeautifulSoup, base_url: str) -> List[ExtractedVideo]:
+        """提取HTML5 video标签"""
+        videos = []
+        
+        try:
+            video_tags = soup.find_all('video')
+            
+            for video_tag in video_tags:
+                sources = []
+                
+                # 获取video标签的src属性
+                if video_tag.get('src'):
+                    sources.append(video_tag.get('src'))
+                
+                # 获取source子标签
+                source_tags = video_tag.find_all('source')
+                for source in source_tags:
+                    if source.get('src'):
+                        sources.append(source.get('src'))
+                
+                # 处理每个视频源
+                for src in sources:
+                    if not src:
+                        continue
+                    
+                    # 转换为绝对URL
+                    if src.startswith('/'):
+                        src = urljoin(base_url, src)
+                    
+                    title = self._extract_video_tag_title(video_tag)
+                    
+                    video = ExtractedVideo(
+                        video_url=src,
+                        title=title,
+                        platform="direct",
+                        source_type="video_tag"
+                    )
+                    videos.append(video)
+                    
+        except Exception as e:
+            logger.error(f"提取video标签失败: {e}")
+        
+        return videos
+    
+    def _extract_direct_video_links(self, soup: BeautifulSoup, base_url: str) -> List[ExtractedVideo]:
+        """提取直接视频文件链接"""
+        videos = []
+        
+        try:
+            # 查找所有链接
+            links = soup.find_all('a', href=True)
+            
+            for link in links:
+                href = link.get('href', '').strip()
+                if not href:
+                    continue
+                
+                # 转换为绝对URL
+                if href.startswith('/'):
+                    href = urljoin(base_url, href)
+                
+                # 检查是否为视频文件
+                parsed_url = urlparse(href)
+                path_lower = parsed_url.path.lower()
+                
+                if any(path_lower.endswith(ext) for ext in self.video_extensions):
+                    title = self._extract_link_title(link, href)
+                    
+                    video = ExtractedVideo(
+                        video_url=href,
+                        title=title,
+                        platform="direct",
+                        source_type="direct"
+                    )
+                    videos.append(video)
+                    
+        except Exception as e:
+            logger.error(f"提取直接视频链接失败: {e}")
+        
+        return videos
+    
+    def _detect_platform(self, url: str) -> tuple[str, str]:
+        """检测视频平台"""
+        try:
+            for platform, patterns in self.platform_patterns.items():
                 for pattern in patterns:
                     match = re.search(pattern, url, re.IGNORECASE)
                     if match:
                         video_id = match.group(1) if match.groups() else "unknown"
-                        
-                        video_info = VideoInfo(
-                            url=url,
-                            platform=platform,
-                            video_id=video_id,
-                            title="Unknown video link",
-                            status="detected",
-                            confidence=0.9
-                        )
-                        
-                        if extract_titles:
-                            video_info.title = self._extract_title(url, platform, video_id)
-                        
-                        return video_info
+                        return platform, video_id
             
-            # If no pattern matches, try LLM analysis
-            if use_llm_analysis:
-                return self._llm_analyze_url(url)
-            
-            return None
+            return "unknown", "unknown"
             
         except Exception as e:
-            logger.error(f"URL analysis failed for {url}: {e}")
-            return None
+            logger.error(f"平台检测失败 {url}: {e}")
+            return "unknown", "unknown"
     
-    def _extract_title(self, url: str, platform: str, video_id: str) -> str:
-        """Extract video title from URL"""
+    def _extract_iframe_title(self, iframe, platform: str, video_id: str) -> str:
+        """提取iframe视频标题"""
         try:
-            if platform == 'youtube':
-                return self._extract_youtube_title(video_id)
-            elif platform == 'bilibili':
-                return self._extract_bilibili_title(url, video_id)
-            elif platform == 'vimeo':
-                return self._extract_vimeo_title(video_id)
-            else:
-                return self._extract_generic_title(url)
+            # 尝试从iframe的title属性获取
+            title = iframe.get('title', '').strip()
+            if title:
+                return title
+            
+            # 尝试从iframe的data-title属性获取
+            data_title = iframe.get('data-title', '').strip()
+            if data_title:
+                return data_title
+            
+            # 尝试从周围的文本内容获取
+            parent = iframe.parent
+            if parent:
+                # 查找父级元素中的标题
+                title_elements = parent.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'title'])
+                for elem in title_elements:
+                    text = elem.get_text().strip()
+                    if text and len(text) < 200:  # 避免过长的文本
+                        return text
+            
+            return "unknown"
+            
         except Exception as e:
-            logger.error(f"Title extraction failed for {url}: {e}")
-            return "Unknown video link"
+            logger.error(f"提取iframe标题失败: {e}")
+            return "unknown"
     
-    def _extract_youtube_title(self, video_id: str) -> str:
-        """Extract YouTube video title"""
+    def _extract_video_tag_title(self, video_tag) -> str:
+        """提取video标签标题"""
         try:
-            # Try to extract from webpage since API requires key
-            url = f"https://www.youtube.com/watch?v={video_id}"
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
+            # 从title属性获取
+            title = video_tag.get('title', '').strip()
+            if title:
+                return title
             
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # 从data-title属性获取
+            data_title = video_tag.get('data-title', '').strip()
+            if data_title:
+                return data_title
             
-            # Try different methods to find title
-            title_elem = soup.find('meta', property='og:title')
-            if title_elem:
-                title = title_elem.get('content', '').strip()
-                if title and title != 'YouTube':
-                    return title
+            # 从父级元素获取
+            parent = video_tag.parent
+            if parent:
+                title_elements = parent.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                for elem in title_elements:
+                    text = elem.get_text().strip()
+                    if text and len(text) < 200:
+                        return text
             
-            # Try to find title in page title tag
-            title_elem = soup.find('title')
-            if title_elem:
-                title = title_elem.get_text().strip()
-                if title and title != 'YouTube' and ' - YouTube' in title:
-                    clean_title = title.replace(' - YouTube', '').strip()
-                    if clean_title:
-                        return clean_title
-            
-            # Try to find title in JSON-LD data
-            scripts = soup.find_all('script', type='application/ld+json')
-            for script in scripts:
-                try:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict) and 'name' in data:
-                        title = data['name'].strip()
-                        if title:
-                            return title
-                except:
-                    continue
-            
-            # Try to find in ytInitialPlayerResponse
-            for script in soup.find_all('script'):
-                script_text = script.string
-                if script_text and 'ytInitialPlayerResponse' in script_text:
-                    try:
-                        # Look for title in the script
-                        import re
-                        title_match = re.search(r'"title":"([^"]+)"', script_text)
-                        if title_match:
-                            title = title_match.group(1).strip()
-                            # Decode unicode sequences
-                            title = title.encode().decode('unicode_escape')
-                            if title and len(title) > 5:  # Filter out very short matches
-                                return title
-                    except:
-                        continue
-            
-            return "Unknown video link"
+            return "unknown"
             
         except Exception as e:
-            logger.error(f"YouTube title extraction failed: {e}")
-            return "Unknown video link"
+            logger.error(f"提取video标签标题失败: {e}")
+            return "unknown"
     
-    def _extract_bilibili_title(self, url: str, video_id: str) -> str:
-        """Extract Bilibili video title"""
+    def _extract_link_title(self, link, href: str) -> str:
+        """提取链接标题"""
         try:
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
+            # 从链接文本获取
+            link_text = link.get_text().strip()
+            if link_text and len(link_text) < 200:
+                return link_text
             
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # 从title属性获取
+            title = link.get('title', '').strip()
+            if title:
+                return title
             
-            # Try different methods
-            title_elem = soup.find('meta', property='og:title')
-            if title_elem:
-                return title_elem.get('content', 'Unknown video link')
+            # 从文件名获取
+            parsed_url = urlparse(href)
+            filename = parsed_url.path.split('/')[-1]
+            if filename:
+                # 移除文件扩展名
+                name_without_ext = filename.rsplit('.', 1)[0]
+                if name_without_ext:
+                    return name_without_ext
             
-            title_elem = soup.find('title')
-            if title_elem:
-                title = title_elem.get_text().strip()
-                if title and '哔哩哔哩' not in title:
-                    return title.split('_')[0].strip()
-            
-            # Try to find h1 title
-            h1_elem = soup.find('h1', {'data-title': True})
-            if h1_elem:
-                return h1_elem.get('data-title', 'Unknown video link')
-            
-            return "Unknown video link"
+            return "unknown"
             
         except Exception as e:
-            logger.error(f"Bilibili title extraction failed: {e}")
-            return "Unknown video link"
+            logger.error(f"提取链接标题失败: {e}")
+            return "unknown"
     
-    def _extract_vimeo_title(self, video_id: str) -> str:
-        """Extract Vimeo video title"""
-        try:
-            url = f"https://vimeo.com/{video_id}"
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            title_elem = soup.find('meta', property='og:title')
-            if title_elem:
-                return title_elem.get('content', 'Unknown video link')
-            
-            return "Unknown video link"
-            
-        except Exception as e:
-            logger.error(f"Vimeo title extraction failed: {e}")
-            return "Unknown video link"
-    
-    def _extract_generic_title(self, url: str) -> str:
-        """Extract title from generic webpage"""
-        try:
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Try og:title first
-            title_elem = soup.find('meta', property='og:title')
-            if title_elem:
-                return title_elem.get('content', 'Unknown video link')
-            
-            # Try title tag
-            title_elem = soup.find('title')
-            if title_elem:
-                title = title_elem.get_text().strip()
-                if title and len(title) > 0:
-                    return title
-            
-            return "Unknown video link"
-            
-        except Exception as e:
-            logger.error(f"Generic title extraction failed: {e}")
-            return "Unknown video link"
-    
-    def _llm_analyze_url(self, url: str) -> Optional[VideoInfo]:
-        """Use LLM to analyze potentially ambiguous URLs"""
-        try:
-            if not self.llm_factory:
-                return None
-            
-            if not hasattr(self.llm_factory, 'available_llm_models') or not self.llm_factory.available_llm_models:
-                return None
-            
-            # Get first available LLM model
-            model_name = list(self.llm_factory.available_llm_models.keys())[0]
-            llm = self.llm_factory.create_chat_model(model_name)
-            
-            prompt = f"""
-            分析以下URL是否为视频链接，如果是，请识别平台类型：
-            
-            URL: {url}
-            
-            请回答：
-            1. 这是视频链接吗？(是/否)
-            2. 如果是，属于哪个平台？(youtube/bilibili/douyin/kuaishou/weibo/vimeo/dailymotion/twitch/其他)
-            3. 可信度评分 (0.0-1.0)
-            
-            只需要用JSON格式回答：
-            {{"is_video": true/false, "platform": "platform_name", "confidence": 0.0-1.0}}
-            """
-            
-            response = llm.invoke(prompt)
-            result = json.loads(response.content)
-            
-            if result.get('is_video') and result.get('confidence', 0) > 0.5:
-                return VideoInfo(
-                    url=url,
-                    platform=result.get('platform', 'unknown'),
-                    video_id='llm_detected',
-                    title='Unknown video link',
-                    status='llm_detected',
-                    confidence=result.get('confidence', 0.5)
-                )
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"LLM analysis failed for {url}: {e}")
-            return None
+    def _deduplicate_videos(self, videos: List[ExtractedVideo]) -> List[ExtractedVideo]:
+        """去重视频列表"""
+        seen_urls = set()
+        unique_videos = []
+        
+        for video in videos:
+            if video.video_url not in seen_urls:
+                seen_urls.add(video.video_url)
+                unique_videos.append(video)
+        
+        return unique_videos
 
 
-def create_video_link_detector_tool(llm_factory: Optional[LLMFactory] = None) -> VideoLinkDetectorTool:
-    """Create a video link detector tool instance
+def create_video_link_extractor_tool() -> VideoLinkExtractorTool:
+    """创建视频链接提取工具实例"""
+    return VideoLinkExtractorTool()
+
+
+# 使用示例
+if __name__ == "__main__":
+    tool = create_video_link_extractor_tool()
     
-    Args:
-        llm_factory: Optional LLM factory for advanced URL analysis. 
-                    If not provided, only pattern matching will be used.
-    """
-    return VideoLinkDetectorTool(llm_factory=llm_factory)
+    # 测试URL
+    test_urls = [
+        "https://example.com/page-with-videos",  # 替换为实际测试URL
+    ]
+    
+    for test_url in test_urls:
+        try:
+            result = tool.invoke({
+                "url": test_url,
+                "include_embeds": True,
+                "include_direct": True,
+                "include_video_tags": True
+            })
+            
+            print(f"提取结果 ({test_url}):")
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            
+        except Exception as e:
+            print(f"测试失败 ({test_url}): {e}")
