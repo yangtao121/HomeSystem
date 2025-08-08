@@ -19,6 +19,8 @@ from .youtube_downloader import YouTubeDownloaderTool, YouTubeDownloaderInput, c
 from .video_link_detector import VideoLinkExtractorTool, ExtractedVideo, create_video_link_extractor_tool
 from .gif_detector import GifDetectorTool, GifInfo, create_gif_detector_tool
 from .gif_downloader import GifDownloaderTool, GifDownloaderInput, create_gif_downloader_tool
+from .video_analysis_tool import VideoAnalysisTool, VideoAnalysisToolInput, create_video_analysis_tool
+from .image_analysis_tool import ImageAnalysisTool, ImageAnalysisToolInput, create_image_analysis_tool
 
 __all__ = [
     # Search tools
@@ -65,5 +67,15 @@ __all__ = [
     # GIF downloader
     "GifDownloaderTool",
     "GifDownloaderInput",
-    "create_gif_downloader_tool"
+    "create_gif_downloader_tool",
+    
+    # Video analysis
+    "VideoAnalysisTool",
+    "VideoAnalysisToolInput", 
+    "create_video_analysis_tool",
+    
+    # Image analysis  
+    "ImageAnalysisTool",
+    "ImageAnalysisToolInput",
+    "create_image_analysis_tool"
 ]
