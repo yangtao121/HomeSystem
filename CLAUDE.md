@@ -36,20 +36,7 @@ HomeSystem is a Python-based intelligent home automation system that integrates 
 - **HomeSystem/utility/**: Utility modules
   - `arxiv/`: ArXiv paper search and database integration with duplicate detection
 
-- **Web/PaperGather/**: Flask web application for paper collection task management
-  - Provides intuitive web interface for configuring and monitoring PaperGatherTasks
-  - Supports dual execution modes: immediate and scheduled tasks
-  - Real-time task monitoring with progress tracking and result visualization
-  - Thread-safe task execution using ThreadPoolExecutor to prevent UI blocking
-
-- **Web/ExplorePaperData/**: Flask web application for paper data visualization and exploration
-  - Modern dashboard with real-time statistics, trends, and data visualizations
-  - Advanced search and filtering capabilities with full-text search support
-  - Detailed paper views with structured analysis display
-  - Research insights including keyword analysis, method trends, and high-impact papers
-  - Responsive design with Chart.js visualizations and Bootstrap UI
-  - Redis caching for performance optimization
-  - Replaces command-line debug tools with intuitive web interface
+...existing code...
 
 ### Database Architecture
 - **PostgreSQL**: Primary storage for structured paper data with analysis fields
@@ -197,98 +184,12 @@ results = await client.execute_sql("SELECT COUNT(*) FROM blocks WHERE type = 'd'
 
 ## Common Development Commands
 
-### PaperGather Web Application
-The PaperGather web interface provides a user-friendly way to configure and monitor paper collection tasks.
-
-**Starting the application:**
-```bash
-cd Web/PaperGather
-./start.sh
-```
-
-The start script automatically:
-- Checks Python environment and dependencies
-- Validates database connections
-- Creates default configuration files
-- Starts the web application on http://localhost:5001
-
-**Manual startup:**
-```bash
-cd Web/PaperGather
-pip install -r requirements.txt
-export FLASK_APP=app.py
-export FLASK_ENV=development
-python app.py
-```
-
-**Testing database connectivity:**
-```bash
-cd Web/PaperGather
-python -c "
-import sys, os
-sys.path.append(os.path.join(os.getcwd(), '..', '..'))
-from HomeSystem.integrations.database import DatabaseOperations
 db_ops = DatabaseOperations()
-print('Database connection successful')
-"
-```
+...existing code...
 
-### ExplorePaperData Web Application
-The ExplorePaperData web interface provides comprehensive paper data visualization and analysis.
+...existing code...
 
-**Starting the application:**
-```bash
-cd Web/ExplorePaperData
-./start.sh
-```
-
-The start script automatically:
-- Validates Python environment and installs dependencies
-- Tests database connectivity and displays paper count
-- Starts the web application on http://localhost:5000
-
-**Manual startup:**
-```bash
-cd Web/ExplorePaperData
-pip install -r requirements.txt
-python app.py
-```
-
-**Database service startup:**
-```bash
-# Start required services
-cd homesystem  # 进入项目根目录
-docker compose up -d
-
-# Start with admin tools (optional)
-docker compose --profile tools up -d
-```
-
-**Available endpoints:**
-- `/`: Dashboard with overview statistics and trends
-- `/papers`: Advanced search and filtering interface
-- `/paper/<arxiv_id>`: Detailed paper view with structured analysis
-- `/stats`: Comprehensive statistics and visualizations
-- `/insights`: Research insights, keyword analysis, and trends
-- `/api/search`: REST API for programmatic access
-- `/api/stats`: API endpoint for statistics data
-
-### HomeSystem Workflow Tasks
-**Running paper collection tasks programmatically:**
-```python
-from HomeSystem.workflow.paper_gather_task import PaperGatherTask, PaperGatherTaskConfig
-from HomeSystem.utility.arxiv import ArxivSearchMode
-
-config = PaperGatherTaskConfig(
-    search_query="machine learning transformers",
-    llm_model_name="ollama.Qwen3_30B",
-    search_mode=ArxivSearchMode.LATEST,
-    max_papers_per_search=20
-)
-
-task = PaperGatherTask(config=config)
-result = await task.run()
-```
+...existing code...
 
 ### Database Management Commands
 **Docker service management:**
@@ -334,35 +235,7 @@ LLM providers are configured via YAML in `HomeSystem/graph/config/llm_providers.
 - Both cloud APIs and local Ollama models (14B+ parameters)
 - Embedding models for semantic search capabilities
 
-### Web Application Configuration
-Both PaperGather and ExplorePaperData web applications use environment variables for configuration.
-
-**PaperGather Configuration (Web/PaperGather/.env):**
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=15432
-DB_NAME=homesystem
-DB_USER=homesystem
-DB_PASSWORD=homesystem123
-
-# Redis Configuration  
-REDIS_HOST=localhost
-REDIS_PORT=16379
-REDIS_DB=0
-
-# Flask Configuration
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5001
-FLASK_DEBUG=True
-SECRET_KEY=papergather-dev-key-change-in-production
-```
-
-**ExplorePaperData Configuration:**
-The ExplorePaperData application loads configuration from the root project `.env` file or uses defaults:
-- PostgreSQL: localhost:15432 (database: homesystem)
-- Redis: localhost:16379 (db: 0)
-- Flask: 0.0.0.0:5000 (debug mode enabled)
+...existing code...
 - Caching: 5-minute cache for searches, 15-minute cache for statistics
 - Pagination: 20 papers per page by default
 

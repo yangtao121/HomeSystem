@@ -54,140 +54,182 @@
     <div class="detail-section">
         <div class="row align-items-start">
             <div class="col-md-9">
-                <h1 class="h3 mb-3">{{ paper.title }}</h1>
+                <h1 class="h2 mb-4 text-dark">{{ paper.title }}</h1>
                 
-                <!-- 基本信息 -->
-                <div class="row mb-3">
+                <!-- 基本信息重新设计 -->
+                <div class="row mb-4">
                     <div class="col-md-6">
-                        <div class="detail-label">ArXiv ID</div>
-                        <div class="detail-content">
-                            <code>{{ paper.arxiv_id }}</code>
-                            <button class="btn btn-sm btn-outline-secondary ms-2" 
-                                    onclick="copyToClipboard('{{ paper.arxiv_id }}')">
-                                <i class="bi bi-clipboard"></i>
-                            </button>
+                        <div class="info-item mb-3">
+                            <span class="info-label">
+                                <i class="bi bi-file-text text-primary"></i> ArXiv ID
+                            </span>
+                            <div class="info-value">
+                                <code class="text-primary fw-bold">{{ paper.arxiv_id }}</code>
+                                <button class="btn btn-sm btn-outline-secondary ms-2" 
+                                        onclick="copyToClipboard('{{ paper.arxiv_id }}')" title="复制ID">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <span class="info-label">
+                                <i class="bi bi-calendar3 text-primary"></i> 发布时间
+                            </span>
+                            <div class="info-value text-muted">{{ paper.published_date or '未知' }}</div>
                         </div>
                     </div>
+                    
                     <div class="col-md-6">
-                        <div class="detail-label">分类</div>
-                        <div class="detail-content">
-                            {% for category in paper.categories.split(',') %}
-                            <span class="tag">{{ category | safe_strip }}</span>
-                            {% endfor %}
+                        <div class="info-item mb-3">
+                            <span class="info-label">
+                                <i class="bi bi-tags text-primary"></i> 分类
+                            </span>
+                            <div class="info-value">
+                                {% for category in paper.categories.split(',') %}
+                                <span class="badge bg-light text-dark border me-1 mb-1">{{ category | safe_strip }}</span>
+                                {% endfor %}
+                            </div>
                         </div>
-                    </div>
-                </div>
-                
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="detail-label">发布时间</div>
-                        <div class="detail-content">{{ paper.published_date or '未知' }}</div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="detail-label">添加时间</div>
-                        <div class="detail-content">{{ paper.created_at|format_date }}</div>
+                        
+                        {% if paper.full_paper_relevance_score is not none %}
+                        <div class="info-item">
+                            <span class="info-label">
+                                <i class="bi bi-star text-warning"></i> 相关度评分
+                            </span>
+                            <div class="info-value">
+                                <div class="relevance-score-display d-flex align-items-center mb-2">
+                                    <div class="score-stars me-2">
+                                        {{ paper.full_paper_relevance_score|relevance_score_stars|safe }}
+                                    </div>
+                                    <div class="score-badge">
+                                        {% set score = paper.full_paper_relevance_score | float %}
+                                        {% if score >= 0.8 %}
+                                            <span class="badge bg-success">高相关 ({{ "%.2f" | format(score) }})</span>
+                                        {% elif score >= 0.6 %}
+                                            <span class="badge bg-warning text-dark">中相关 ({{ "%.2f" | format(score) }})</span>
+                                        {% elif score >= 0.4 %}
+                                            <span class="badge bg-info">一般 ({{ "%.2f" | format(score) }})</span>
+                                        {% elif score >= 0.2 %}
+                                            <span class="badge bg-secondary">低相关 ({{ "%.2f" | format(score) }})</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">不相关 ({{ "%.2f" | format(score) }})</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if paper.full_paper_relevance_justification %}
+                                    <button class="btn btn-sm btn-outline-info ms-2" 
+                                            type="button"
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#relevanceJustification" 
+                                            aria-expanded="false" 
+                                            aria-controls="relevanceJustification"
+                                            title="查看评分理由">
+                                        <i class="bi bi-info-circle"></i> 评分详情
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <!-- 可折叠的评分理由 -->
+                                {% if paper.full_paper_relevance_justification %}
+                                <div class="collapse" id="relevanceJustification">
+                                    <div class="relevance-justification-content mt-2">
+                                        <div class="small text-muted mb-2">
+                                            <i class="bi bi-chat-text"></i> 评分理由
+                                        </div>
+                                        <div class="markdown-content small border-start border-info ps-3">
+                                            {{ paper.full_paper_relevance_justification|markdown|safe }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
             
-            <div class="col-md-3 text-end">
-                <!-- 状态徽章 -->
-                <span class="badge badge-{{ paper.processing_status|status_badge }} fs-6 mb-3">
-                    {% if paper.processing_status == 'pending' %}
-                        <i class="bi bi-clock"></i> 待处理
-                    {% elif paper.processing_status == 'completed' %}
-                        <i class="bi bi-check-circle"></i> 已完成
-                    {% elif paper.processing_status == 'failed' %}
-                        <i class="bi bi-x-circle"></i> 失败
-                    {% endif %}
-                </span>
-                
-                <!-- 操作按钮 -->
-                <div class="d-grid gap-2">
-                    {% if paper.pdf_url %}
-                    <a href="{{ paper.pdf_url }}" target="_blank" class="btn btn-primary">
-                        <i class="bi bi-file-pdf"></i> 查看PDF
-                    </a>
-                    {% endif %}
-                    
-                    <!-- Dify 知识库操作 -->
-                    <div id="dify-upload-section">
-                        {% if paper.dify_document_id %}
-                        <button class="btn btn-success" disabled>
-                            <i class="bi bi-cloud-check"></i> 已上传到知识库
-                        </button>
-                        <button class="btn btn-outline-info btn-sm" onclick="verifyDifyDocument('{{ paper.arxiv_id }}')">
-                            <i class="bi bi-shield-check"></i> 验证文档
-                        </button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="removePaperFromDify('{{ paper.arxiv_id }}')">
-                            <i class="bi bi-trash"></i> 从知识库移除
-                        </button>
-                        {% else %}
-                        <button class="btn btn-outline-success" onclick="uploadPaperToDify('{{ paper.arxiv_id }}')">
-                            <i class="bi bi-cloud-upload"></i> 上传到知识库
-                        </button>
+            <div class="col-md-3">
+                <!-- 操作按钮重新设计 -->
+                <div class="action-buttons-container">
+                    <!-- 主要操作 -->
+                    <div class="primary-actions mb-3">
+                        {% if paper.pdf_url %}
+                        <a href="{{ paper.pdf_url }}" target="_blank" class="btn btn-primary w-100 mb-2">
+                            <i class="bi bi-file-pdf"></i> 查看PDF
+                        </a>
                         {% endif %}
-                    </div>
-                    
-                    <!-- 深度分析操作 -->
-                    <div id="deep-analysis-section">
-                        {% if paper.get('deep_analysis_status') %}
-                            {% if paper.deep_analysis_status == 'completed' %}
-                            <div class="d-grid gap-1">
-                                <a href="{{ url_for('explore.paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success" target="_blank">
-                                    <i class="bi bi-lightbulb"></i> 查看深度分析
+                        
+                        <!-- 深度分析操作 -->
+                        <div id="deep-analysis-section">
+                            {% if paper.get('deep_analysis_status') %}
+                                {% if paper.deep_analysis_status == 'completed' %}
+                                <a href="{{ url_for('explore.paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success w-100 mb-2" target="_blank">
+                                    <i class="bi bi-lightbulb-fill"></i> 查看深度分析
                                 </a>
-                                <div class="btn-group" role="group">
-                                    <a href="{{ url_for('api.api_analysis_result', arxiv_id=paper.arxiv_id) }}" class="btn btn-outline-primary btn-sm">
-                                        <i class="bi bi-download"></i> 下载分析
-                                    </a>
-                                    <button class="btn btn-outline-warning btn-sm start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
-                                        <i class="bi bi-arrow-repeat"></i> 重新分析
-                                    </button>
-                                </div>
-                            </div>
-                            {% elif paper.deep_analysis_status == 'processing' %}
-                            <div class="d-grid gap-1">
-                                <button class="btn btn-info" disabled>
+                                {% elif paper.deep_analysis_status == 'processing' %}
+                                <button class="btn btn-info w-100 mb-2" disabled>
                                     <div class="spinner-border spinner-border-sm me-2" role="status">
                                         <span class="visually-hidden">分析中...</span>
                                     </div>
                                     深度分析进行中...
                                 </button>
-                                <button class="btn btn-outline-danger btn-sm cancel-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
-                                    <i class="bi bi-x-circle"></i> 取消分析
+                                {% elif paper.deep_analysis_status == 'failed' %}
+                                <button class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                    <i class="bi bi-arrow-repeat"></i> 重试深度分析
                                 </button>
-                            </div>
-                            {% elif paper.deep_analysis_status == 'failed' %}
-                            <div class="d-grid gap-1">
-                                <div class="alert alert-danger mb-2 p-2" role="alert">
-                                    <small><i class="bi bi-exclamation-triangle"></i> 分析失败</small>
-                                </div>
-                                <button class="btn btn-outline-primary start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
-                                    <i class="bi bi-arrow-repeat"></i> 重试分析
+                                {% else %}
+                                <button class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                    <i class="bi bi-lightbulb"></i> 开始深度分析
                                 </button>
-                            </div>
+                                {% endif %}
                             {% else %}
-                            <button class="btn btn-outline-primary start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                            <button class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
                                 <i class="bi bi-lightbulb"></i> 开始深度分析
                             </button>
                             {% endif %}
-                        {% else %}
-                        <button class="btn btn-outline-primary start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
-                            <i class="bi bi-lightbulb"></i> 开始深度分析
-                        </button>
-                        {% endif %}
+                        </div>
                     </div>
                     
-                    <button class="btn btn-outline-warning" onclick="openMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title | e }}')">
-                        <i class="bi bi-arrow-right-circle"></i> 迁移任务
-                    </button>
-                    <button class="btn btn-outline-info" onclick="copyToClipboard(window.location.href)">
-                        <i class="bi bi-share"></i> 分享链接
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="exportPaperData()">
-                        <i class="bi bi-download"></i> 导出数据
-                    </button>
+                    <!-- Dify 知识库操作 -->
+                    <div class="knowledge-base-section mb-3">
+                        <h6 class="text-muted small mb-2">
+                            <i class="bi bi-cloud"></i> 知识库
+                        </h6>
+                        <div id="dify-upload-section">
+                            {% if paper.dify_document_id %}
+                            <div class="alert alert-success small mb-2 py-2">
+                                <i class="bi bi-cloud-check"></i> 已上传到知识库
+                            </div>
+                            <div class="btn-group w-100 mb-2" role="group">
+                                <button class="btn btn-outline-info btn-sm" onclick="verifyDifyDocument('{{ paper.arxiv_id }}')">
+                                    <i class="bi bi-shield-check"></i> 验证
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="removePaperFromDify('{{ paper.arxiv_id }}')">
+                                    <i class="bi bi-trash"></i> 移除
+                                </button>
+                            </div>
+                            {% else %}
+                            <button class="btn btn-outline-success w-100 mb-2" onclick="uploadPaperToDify('{{ paper.arxiv_id }}')">
+                                <i class="bi bi-cloud-upload"></i> 上传到知识库
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- 其他操作 -->
+                    <div class="other-actions">
+                        <h6 class="text-muted small mb-2">
+                            <i class="bi bi-gear"></i> 其他操作
+                        </h6>
+                        <div class="btn-group w-100 mb-2" role="group">
+                            <button class="btn btn-outline-warning btn-sm" onclick="openMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title | e }}')">
+                                <i class="bi bi-arrow-right-circle"></i> 迁移
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="copyToClipboard(window.location.href)">
+                                <i class="bi bi-share"></i> 分享
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -229,7 +271,7 @@
                        class="btn btn-success">
                         <i class="bi bi-eye"></i> 查看完整深度分析
                     </a>
-                    <a href="{{ url_for('api.api_analysis_result', arxiv_id=paper.arxiv_id) }}" 
+                    <a href="{{ url_for('api.api_download_analysis', arxiv_id=paper.arxiv_id) }}" 
                        class="btn btn-outline-success ms-2">
                         <i class="bi bi-download"></i> 下载分析结果
                     </a>
@@ -239,63 +281,6 @@
     </div>
     {% endif %}
     
-    <!-- 相关度评分 -->
-    <div class="detail-section">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-star"></i>
-                    相关度评分
-                    <button class="btn btn-sm btn-outline-primary float-end" onclick="editRelevance('{{ paper.arxiv_id }}')">
-                        <i class="bi bi-pencil"></i> 编辑
-                    </button>
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <div class="detail-label">评分</div>
-                        <div class="detail-content" id="relevance-score-display">
-                            {% if paper.full_paper_relevance_score is not none %}
-                                {{ paper.full_paper_relevance_score|relevance_score_stars|safe }} 
-                                <strong>({{ paper.full_paper_relevance_score|relevance_score_display }})</strong>
-                            {% else %}
-                                <span class="text-muted">
-                                    <i class="bi bi-question-circle"></i> 未评分
-                                    <button class="btn btn-sm btn-outline-info ms-2" onclick="editRelevance('{{ paper.arxiv_id }}')">
-                                        点击评分
-                                    </button>
-                                </span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="detail-label">状态</div>
-                        <div class="detail-content">
-                            {{ paper|relevance_status_badge|safe }}
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-12">
-                        <div class="detail-label">评分理由</div>
-                        <div class="detail-content markdown-content" id="relevance-justification-display">
-                            {% if paper.full_paper_relevance_justification %}
-                                {{ paper.full_paper_relevance_justification|markdown|safe }}
-                            {% else %}
-                                <span class="text-muted">
-                                    <i class="bi bi-chat-text"></i> 暂无评分理由
-                                    <button class="btn btn-sm btn-outline-info ms-2" onclick="editRelevance('{{ paper.arxiv_id }}')">
-                                        添加理由
-                                    </button>
-                                </span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
     
     <!-- 结构化分析 -->
     {% if not paper.has_deep_analysis and (paper.research_background or paper.research_objectives or paper.methods or paper.key_findings or paper.conclusions or paper.limitations or paper.future_work) %}
@@ -397,47 +382,7 @@
     </div>
     {% endif %}
     
-    <!-- 元数据 -->
-    {% if paper.metadata %}
-    <div class="detail-section">
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0">
-                    <i class="bi bi-info-circle"></i>
-                    元数据
-                    <button class="btn btn-sm btn-outline-secondary float-end" 
-                            type="button" data-bs-toggle="collapse" 
-                            data-bs-target="#metadataCollapse">
-                        <i class="bi bi-chevron-down"></i>
-                    </button>
-                </h6>
-            </div>
-            <div class="collapse" id="metadataCollapse">
-                <div class="card-body">
-                    <pre class="bg-light p-3"><code>{{ paper.metadata|tojson(indent=2) }}</code></pre>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
     
-    <!-- 时间信息 -->
-    <div class="detail-section">
-        <div class="row text-muted">
-            <div class="col-md-6">
-                <small>
-                    <i class="bi bi-calendar-plus"></i>
-                    创建时间: {{ paper.created_at|format_date }}
-                </small>
-            </div>
-            <div class="col-md-6 text-md-end">
-                <small>
-                    <i class="bi bi-calendar-event"></i>
-                    更新时间: {{ paper.updated_at|format_date }}
-                </small>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- 相关操作 -->
@@ -486,115 +431,7 @@
     </div>
 </div>
 
-<!-- 相关度编辑模态框 -->
-<div class="modal fade" id="relevanceEditModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-star"></i>
-                    编辑相关度评分
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="relevanceEditForm">
-                    <input type="hidden" id="edit-arxiv-id" value="{{ paper.arxiv_id }}">
-                    
-                    <!-- 评分输入 -->
-                    <div class="mb-4">
-                        <label for="relevance-score-input" class="form-label">
-                            相关度评分 (0.00-1.00)
-                        </label>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <input type="number" class="form-control" id="relevance-score-input"
-                                       min="0" max="1" step="0.01" 
-                                       placeholder="请输入0.00-1.00之间的数值"
-                                       value="{{ paper.full_paper_relevance_score or '' }}">
-                                <div class="form-text">输入相关度评分，1.00表示高度相关，0.00表示不相关</div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mt-2">
-                                    <span id="score-preview" class="fs-5"></span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 快捷评分按钮 -->
-                        <div class="mt-3">
-                            <label class="form-label">快捷评分</label>
-                            <div class="btn-group d-block" role="group">
-                                <button type="button" class="btn btn-success btn-sm me-2" data-score="0.9">
-                                    高相关 (0.9)
-                                </button>
-                                <button type="button" class="btn btn-warning btn-sm me-2" data-score="0.7">
-                                    中相关 (0.7)
-                                </button>
-                                <button type="button" class="btn btn-info btn-sm me-2" data-score="0.5">
-                                    一般 (0.5)
-                                </button>
-                                <button type="button" class="btn btn-secondary btn-sm me-2" data-score="0.3">
-                                    低相关 (0.3)
-                                </button>
-                                <button type="button" class="btn btn-danger btn-sm" data-score="0.1">
-                                    不相关 (0.1)
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 理由编辑 -->
-                    <div class="mb-4">
-                        <label for="relevance-justification-input" class="form-label">
-                            相关度理由
-                        </label>
-                        <textarea class="form-control" id="relevance-justification-input" 
-                                  rows="6" maxlength="5000"
-                                  placeholder="请描述该论文与研究需求的相关性，包括相关的研究方向、方法、应用场景等...">{{ paper.full_paper_relevance_justification or '' }}</textarea>
-                        <div class="form-text">
-                            <span id="char-count">0</span>/5000 字符
-                            <span class="ms-3">建议包含：相关的研究方向、方法、应用场景等</span>
-                        </div>
-                        
-                        <!-- 理由模板 -->
-                        <div class="mt-3">
-                            <label class="form-label">常用理由模板</label>
-                            <div class="btn-group d-block" role="group">
-                                <button type="button" class="btn btn-outline-primary btn-sm me-2" data-template="method">
-                                    方法相关
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm me-2" data-template="domain">
-                                    领域相关
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm me-2" data-template="application">
-                                    应用相关
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-template="irrelevant">
-                                    不相关
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 保存状态 -->
-                    <div class="alert alert-info d-none" id="save-status">
-                        <i class="bi bi-info-circle"></i>
-                        <span id="save-message"></span>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> 取消
-                </button>
-                <button type="button" class="btn btn-primary" id="save-relevance-btn">
-                    <i class="bi bi-check-circle"></i> 保存
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <!-- 任务迁移模态框 -->
 <div class="modal fade" id="migrationModal" tabindex="-1" aria-labelledby="migrationModalLabel" aria-hidden="true">
@@ -794,7 +631,7 @@
             </div>
         `;
         
-        const apiUrl = '/api/paper/' + arxivId + '/analyze';
+        const apiUrl = '/api/analysis/paper/' + arxivId + '/analyze';
         console.log('发送API请求到: ' + apiUrl);
         
         // 发送分析请求
@@ -974,13 +811,6 @@
     }
     
     // ===== 其他功能函数 =====
-    // 相关度编辑功能
-    function editRelevance(arxivId) {
-        $('#edit-arxiv-id').val(arxivId);
-        updateCharCount();
-        updateScorePreview();
-        $('#relevanceEditModal').modal('show');
-    }
     
     // 更新评分预览
     function updateScorePreview() {

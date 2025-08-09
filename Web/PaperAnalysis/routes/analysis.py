@@ -4,17 +4,21 @@
 """
 from flask import Blueprint, render_template, request, jsonify, send_file
 from services.paper_explore_service import PaperService
-from services.analysis_service import DeepAnalysisService
+from HomeSystem.integrations.paper_analysis.analysis_service import PaperAnalysisService
 import logging
 import os
 import sys
 import tempfile
 import zipfile
 import re
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
+
+# 创建一个专门处理图片服务的蓝图，不带前缀
+images_bp = Blueprint('images', __name__)
 
 # 初始化服务
 paper_service = PaperService()
@@ -39,8 +43,90 @@ except Exception as e:
     logger.warning(f"Analysis模块Redis连接失败: {e}")
     redis_client = None
 
-# 初始化分析服务
-analysis_service = DeepAnalysisService(paper_service, redis_client)
+# 分析服务适配器类 - 桥接PaperAnalysisService和Web API接口  
+class AnalysisServiceAdapter:
+    """Web API分析服务适配器"""
+    
+    def __init__(self, paper_service: PaperService, redis_client=None):
+        self.paper_service = paper_service
+        self.redis_client = redis_client
+        self.analysis_threads = {}  # 存储正在进行的分析线程
+        
+        # 默认配置
+        self.default_config = {
+            'analysis_model': 'deepseek.DeepSeek_V3',
+            'vision_model': 'ollama.Qwen2_5_VL_7B', 
+            'timeout': 600
+        }
+    
+    def get_active_analyses(self) -> Dict[str, Any]:
+        """获取所有活跃的分析任务"""
+        try:
+            # 清理已完成的线程
+            self._cleanup_completed_threads()
+            
+            active_analyses = []
+            for arxiv_id, thread in self.analysis_threads.items():
+                if thread.is_alive():
+                    status_info = self.paper_service.get_analysis_status(arxiv_id)
+                    if status_info:
+                        active_analyses.append({
+                            'arxiv_id': arxiv_id,
+                            **status_info
+                        })
+            
+            return {
+                'success': True,
+                'active_count': len(active_analyses),
+                'analyses': active_analyses
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get active analyses: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_analysis_result(self, arxiv_id: str) -> Dict[str, Any]:
+        """获取分析结果"""
+        try:
+            result = self.paper_service.get_analysis_result(arxiv_id)
+            
+            if not result:
+                return {
+                    'success': False,
+                    'error': '分析结果不存在'
+                }
+            
+            return {
+                'success': True,
+                **result
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get analysis result for {arxiv_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _cleanup_completed_threads(self):
+        """清理已完成的分析线程"""
+        completed_threads = []
+        
+        for arxiv_id, thread in self.analysis_threads.items():
+            if not thread.is_alive():
+                completed_threads.append(arxiv_id)
+        
+        for arxiv_id in completed_threads:
+            del self.analysis_threads[arxiv_id]
+        
+        if completed_threads:
+            logger.info(f"Cleaned up {len(completed_threads)} completed analysis threads")
+
+# 创建适配器实例
+analysis_service = AnalysisServiceAdapter(paper_service, redis_client)
 
 
 @analysis_bp.route('/')
@@ -104,7 +190,7 @@ def config():
         return render_template('error.html', error="分析配置页面加载失败"), 500
 
 
-@analysis_bp.route('/paper/<arxiv_id>/imgs/<filename>')
+@images_bp.route('/paper/<arxiv_id>/analysis_images/<filename>')
 def serve_analysis_image(arxiv_id, filename):
     """服务分析图片文件"""
     try:
@@ -148,6 +234,23 @@ def serve_analysis_image(arxiv_id, filename):
     except Exception as e:
         logger.error(f"Serve image failed {arxiv_id}/{filename}: {e}")
         return "Server error", 500
+
+
+@images_bp.route('/paper/<arxiv_id>/imgs/<filename>')
+def serve_analysis_image_fallback(arxiv_id, filename):
+    """
+    向后兼容的图片服务路由
+    将旧的 imgs/ 路径重定向到正确的 analysis_images/ 路径
+    """
+    try:
+        logger.info(f"Fallback route accessed for {arxiv_id}/imgs/{filename}, redirecting to analysis_images")
+        # 重定向到正确的analysis_images路由
+        from flask import redirect, url_for
+        return redirect(url_for('images.serve_analysis_image', arxiv_id=arxiv_id, filename=filename), code=301)
+        
+    except Exception as e:
+        logger.error(f"Fallback image redirect failed {arxiv_id}/{filename}: {e}")
+        return "Redirect failed", 500
 
 
 @analysis_bp.route('/paper/<arxiv_id>/download')
@@ -211,7 +314,7 @@ def _process_markdown_for_download(content: str, arxiv_id: str) -> str:
     """
     try:
         # 将网页URL路径转换为相对路径
-        pattern = rf'/analysis/paper/{re.escape(arxiv_id)}/imgs/([^)]+)'
+        pattern = rf'/paper/{re.escape(arxiv_id)}/analysis_images/([^)]+)'
         replacement = r'imgs/\1'
         
         processed_content = re.sub(pattern, replacement, content)

@@ -4,11 +4,12 @@
 """
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file
 from services.paper_explore_service import PaperService, DifyService
-from services.analysis_service import DeepAnalysisService
+from HomeSystem.integrations.paper_analysis.analysis_service import PaperAnalysisService
 import logging
 import math
 import os
 import sys
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,47 @@ except Exception as e:
     logger.warning(f"Redis连接失败，将使用内存存储: {e}")
     redis_client = None
 
-# 初始化分析服务
-analysis_service = DeepAnalysisService(paper_service, redis_client)
+# 分析服务适配器类 - 桥接PaperAnalysisService和Web API接口  
+class AnalysisServiceAdapter:
+    """Web API分析服务适配器"""
+    
+    def __init__(self, paper_service: PaperService, redis_client=None):
+        self.paper_service = paper_service
+        self.redis_client = redis_client
+        self.analysis_threads = {}  # 存储正在进行的分析线程
+        
+        # 默认配置
+        self.default_config = {
+            'analysis_model': 'deepseek.DeepSeek_V3',
+            'vision_model': 'ollama.Qwen2_5_VL_7B', 
+            'timeout': 600
+        }
+    
+    def get_analysis_result(self, arxiv_id: str) -> Dict[str, Any]:
+        """获取分析结果"""
+        try:
+            result = self.paper_service.get_analysis_result(arxiv_id)
+            
+            if not result:
+                return {
+                    'success': False,
+                    'error': '分析结果不存在'
+                }
+            
+            return {
+                'success': True,
+                **result
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get analysis result for {arxiv_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+# 创建适配器实例
+analysis_service = AnalysisServiceAdapter(paper_service, redis_client)
 
 
 @explore_bp.route('/')

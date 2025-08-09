@@ -25,15 +25,6 @@
                 <a href="{{ url_for('explore.papers') }}" class="btn btn-primary">
                     <i class="bi bi-search"></i> 论文搜索
                 </a>
-                <a href="{{ url_for('explore.tasks') }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-briefcase"></i> 任务管理
-                </a>
-                <a href="{{ url_for('explore.unassigned_papers') }}" class="btn btn-outline-warning">
-                    <i class="bi bi-exclamation-triangle"></i> 无任务论文
-                    {% if unassigned_papers_count and unassigned_papers_count > 0 %}
-                    <span class="badge bg-warning text-dark ms-1">{{ unassigned_papers_count }}</span>
-                    {% endif %}
-                </a>
                 <a href="#" class="btn btn-outline-info" onclick="showBatchOperations()">
                     <i class="bi bi-gear-wide-connected"></i> 批量操作
                 </a>

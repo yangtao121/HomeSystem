@@ -43,81 +43,574 @@ window.MathJax = {
     .navbar, .btn, .alert { display: none !important; }
 }
 
+/* 分析内容区域样式 */
 .analysis-content {
-    max-width: 900px;
-    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    padding: 2.5rem;
+    margin: 2rem 0;
     font-size: 16px;
-    line-height: 1.6;
+    line-height: 1.7;
+    color: #2c3e50;
+    position: relative;
+    border: 1px solid #f0f0f0;
 }
 
+.analysis-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px 16px 0 0;
+}
+
+/* 分析内容中的标题样式 */
+.analysis-content h1,
+.analysis-content h2,
+.analysis-content h3,
+.analysis-content h4,
+.analysis-content h5,
+.analysis-content h6 {
+    color: #2c3e50;
+    font-weight: 700;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+    position: relative;
+}
+
+.analysis-content h1 {
+    font-size: 2rem;
+    color: #667eea;
+    border-bottom: 3px solid #667eea;
+    padding-bottom: 0.5rem;
+    margin-top: 2.5rem;
+}
+
+.analysis-content h2 {
+    font-size: 1.6rem;
+    color: #764ba2;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.3rem;
+}
+
+.analysis-content h3 {
+    font-size: 1.3rem;
+    color: #495057;
+}
+
+.analysis-content h4 {
+    font-size: 1.1rem;
+    color: #6c757d;
+}
+
+/* 段落样式 */
+.analysis-content p {
+    margin-bottom: 1.25rem;
+    text-align: justify;
+    text-justify: inter-word;
+}
+
+.analysis-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* 图片样式增强 */
 .analysis-content img {
     max-width: 100%;
     height: auto;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 4px;
-    margin: 10px 0;
+    border: none;
+    border-radius: 12px;
+    margin: 1.5rem 0;
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .analysis-content img:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
+/* 表格样式增强 */
 .analysis-content table {
     width: 100%;
     border-collapse: collapse;
-    margin: 20px 0;
+    margin: 2rem 0;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #f0f0f0;
 }
 
 .analysis-content table th,
 .analysis-content table td {
-    border: 1px solid #ddd;
-    padding: 8px;
+    padding: 1rem;
     text-align: left;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
 }
 
 .analysis-content table th {
-    background-color: #f2f2f2;
-    font-weight: bold;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: #495057;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.5px;
 }
 
+.analysis-content table tr:hover {
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
+.analysis-content table tr:last-child td {
+    border-bottom: none;
+}
+
+/* 引用块样式 */
 .analysis-content blockquote {
-    border-left: 4px solid #007bff;
-    margin: 20px 0;
-    padding: 10px 20px;
-    background-color: #f8f9fa;
+    border-left: 4px solid #667eea;
+    margin: 2rem 0;
+    padding: 1.5rem 2rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-radius: 0 12px 12px 0;
+    font-style: italic;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
+.analysis-content blockquote::before {
+    content: '"';
+    font-size: 4rem;
+    color: #667eea;
+    position: absolute;
+    top: -0.5rem;
+    left: 0.5rem;
+    opacity: 0.3;
+    font-family: Georgia, serif;
+}
+
+.analysis-content blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* 代码样式 */
 .analysis-content code {
-    background-color: #f1f1f1;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: monospace;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: #e83e8c;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 0.9em;
+    border: 1px solid #dee2e6;
+    font-weight: 500;
 }
 
 .analysis-content pre {
-    background-color: #f8f9fa;
+    background: #f8f9fa;
     border: 1px solid #e9ecef;
-    border-radius: 4px;
-    padding: 15px;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
     overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    position: relative;
+}
+
+.analysis-content pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #495057;
+    font-size: 0.875rem;
+}
+
+/* 列表样式 */
+.analysis-content ul,
+.analysis-content ol {
+    margin: 1.25rem 0;
+    padding-left: 2rem;
+}
+
+.analysis-content ul li,
+.analysis-content ol li {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+}
+
+.analysis-content ul li::marker {
+    color: #667eea;
+}
+
+.analysis-content ol li::marker {
+    color: #764ba2;
+    font-weight: 600;
+}
+
+/* 强调文本 */
+.analysis-content strong {
+    color: #2c3e50;
+    font-weight: 700;
+}
+
+.analysis-content em {
+    color: #495057;
+    font-style: italic;
+}
+
+/* 水平分割线 */
+.analysis-content hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #667eea, #764ba2, transparent);
+    margin: 3rem 0;
+    border-radius: 1px;
 }
 
 .analysis-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 30px 0;
-    margin-bottom: 30px;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.analysis-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.05" fill-rule="nonzero"><circle cx="30" cy="30" r="2"/></g></g></svg>');
+    pointer-events: none;
+}
+
+/* 头部内容样式 */
+.header-content {
+    position: relative;
+    z-index: 2;
+}
+
+.breadcrumb-nav {
+    margin-bottom: 0.75rem;
+}
+
+.breadcrumb-link {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.breadcrumb-link:hover {
+    color: white;
+    text-decoration: none;
+    transform: translateX(-2px);
+}
+
+.analysis-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 1rem;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.analysis-subtitle {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.subtitle-item {
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.subtitle-item i {
+    color: #ffd700;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
+
+.subtitle-text {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.subtitle-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.8);
+    flex-wrap: wrap;
+}
+
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+}
+
+.meta-separator {
+    opacity: 0.6;
+}
+
+/* 动作按钮样式 */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-end;
+    position: relative;
+    z-index: 2;
+}
+
+.primary-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.secondary-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.btn-action {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-decoration: none;
+    border: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    text-decoration: none;
+}
+
+.btn-action i {
+    font-size: 1rem;
+}
+
+.btn-action.btn-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+}
+
+.btn-action.btn-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+    color: #212529;
+}
+
+.btn-secondary-action {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.btn-secondary-action:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+    color: white;
 }
 
 .analysis-metadata {
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 30px;
+    margin-bottom: 2rem;
+}
+
+/* 元数据卡片样式 */
+.metadata-card {
+    background: #ffffff;
+    border: 1px solid #e3e8ed;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.metadata-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    transform: translateY(-1px);
+}
+
+.metadata-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+.metadata-header i {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.metadata-body {
+    padding: 1.5rem 1.25rem;
+}
+
+/* 信息项样式 */
+.info-item {
+    margin-bottom: 0.75rem;
+}
+
+.info-item:last-child {
+    margin-bottom: 0;
+}
+
+.info-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+.info-value {
+    font-size: 0.95rem;
+    color: #2c3e50;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+/* ArXiv ID 样式 */
+.arxiv-id {
+    background: #f8f9fa;
+    color: #495057;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.85rem;
+    border: 1px solid #dee2e6;
+}
+
+/* 状态徽章样式 */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.status-badge.completed {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+}
+
+.status-badge.secondary {
+    background: #f8f9fa;
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+}
+
+/* 分类标签样式 */
+.category-tag {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    margin-bottom: 0.3rem;
+    box-shadow: 0 1px 3px rgba(102, 126, 234, 0.3);
+}
+
+/* 统计卡片样式 */
+.stats-card .metadata-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.stat-icon i {
+    color: white;
+    font-size: 1.2rem;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2c3e50;
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.1rem;
 }
 
 .image-modal {
@@ -156,35 +649,6 @@ window.MathJax = {
     cursor: pointer;
 }
 
-.toc {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 30px;
-}
-
-.toc ul {
-    list-style-type: none;
-    padding-left: 0;
-}
-
-.toc ul ul {
-    padding-left: 20px;
-}
-
-.toc li {
-    margin: 5px 0;
-}
-
-.toc a {
-    color: #007bff;
-    text-decoration: none;
-}
-
-.toc a:hover {
-    text-decoration: underline;
-}
 
 /* 图片模态框控制按钮样式 */
 .image-modal-controls {
@@ -250,8 +714,129 @@ window.MathJax = {
     color: #17a2b8;
 }
 
-/* 响应式优化 */
+/* 全面响应式优化 */
+@media (max-width: 1200px) {
+    .analysis-content {
+        padding: 2rem;
+        margin: 1.5rem 0;
+    }
+    
+    .metadata-body {
+        padding: 1.25rem;
+    }
+    
+    .stat-item {
+        padding: 0.75rem 0;
+    }
+}
+
+@media (max-width: 992px) {
+    .analysis-header {
+        padding: 1.5rem 0;
+    }
+    
+    .analysis-title {
+        font-size: 1.5rem;
+    }
+    
+    .action-buttons {
+        margin-top: 2rem;
+        align-items: stretch;
+    }
+    
+    .primary-actions {
+        justify-content: stretch;
+        width: 100%;
+    }
+    
+    .btn-action {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    .secondary-actions {
+        justify-content: center;
+        margin-top: 1rem;
+    }
+}
+
 @media (max-width: 768px) {
+    .analysis-header {
+        padding: 1.25rem 0;
+    }
+    
+    .analysis-title {
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .subtitle-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+    
+    .meta-separator {
+        display: none;
+    }
+    
+    .analysis-content {
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-radius: 12px;
+    }
+    
+    .analysis-content h1 {
+        font-size: 1.6rem;
+        margin-top: 2rem;
+    }
+    
+    .analysis-content h2 {
+        font-size: 1.4rem;
+    }
+    
+    .analysis-content h3 {
+        font-size: 1.2rem;
+    }
+    
+    .metadata-card {
+        border-radius: 10px;
+        margin-bottom: 1rem;
+    }
+    
+    .metadata-header {
+        padding: 0.875rem 1rem;
+    }
+    
+    .metadata-body {
+        padding: 1rem;
+    }
+    
+    .stat-item {
+        padding: 0.75rem 0;
+    }
+    
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        margin-right: 0.75rem;
+    }
+    
+    .stat-icon i {
+        font-size: 1rem;
+    }
+    
+    .stat-value {
+        font-size: 1rem;
+    }
+    
+    .category-tag {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.6rem;
+        margin-right: 0.3rem;
+        margin-bottom: 0.25rem;
+    }
+    
     .image-modal-controls {
         bottom: 10px;
         left: 10px;
@@ -271,6 +856,126 @@ window.MathJax = {
     .image-modal-controls .btn i {
         margin-right: 3px;
     }
+    
+    .btn-action {
+        font-size: 0.8rem;
+        padding: 0.625rem 1rem;
+    }
+    
+    .btn-secondary-action {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    .analysis-content {
+        padding: 1rem;
+        font-size: 15px;
+    }
+    
+    .analysis-content h1 {
+        font-size: 1.4rem;
+    }
+    
+    .analysis-content h2 {
+        font-size: 1.25rem;
+    }
+    
+    .analysis-content h3 {
+        font-size: 1.1rem;
+    }
+    
+    .analysis-content table {
+        font-size: 0.85rem;
+    }
+    
+    .analysis-content table th,
+    .analysis-content table td {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .analysis-content blockquote {
+        margin: 1.5rem 0;
+        padding: 1rem 1.5rem;
+    }
+    
+    .analysis-content blockquote::before {
+        font-size: 3rem;
+        top: -0.25rem;
+        left: 0.25rem;
+    }
+    
+    .primary-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .secondary-actions {
+        gap: 0.75rem;
+    }
+    
+    .breadcrumb-link {
+        font-size: 0.8rem;
+    }
+    
+    .subtitle-item {
+        font-size: 1rem;
+    }
+    
+    .info-label {
+        font-size: 0.7rem;
+    }
+    
+    .info-value {
+        font-size: 0.875rem;
+    }
+}
+
+/* 打印样式增强 */
+@media print {
+    .no-print { 
+        display: none !important; 
+    }
+    
+    .analysis-content { 
+        max-width: none !important; 
+        font-size: 12pt !important;
+        line-height: 1.4 !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .analysis-content img {
+        max-width: 100% !important;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    .analysis-content h1, 
+    .analysis-content h2, 
+    .analysis-content h3 {
+        page-break-after: avoid;
+        color: #000 !important;
+    }
+    
+    .analysis-content table {
+        page-break-inside: avoid;
+        box-shadow: none !important;
+    }
+    
+    .analysis-content blockquote {
+        background: #f9f9f9 !important;
+        box-shadow: none !important;
+    }
 }
 </style>
 {% endblock %}
@@ -279,35 +984,62 @@ window.MathJax = {
 <!-- 分析头部 -->
 <div class="analysis-header no-print">
     <div class="container">
-        <div class="row">
-            <div class="col-md-8">
-                <h1 class="h2 mb-3">{{ paper.title }}</h1>
-                <p class="mb-2">
-                    <i class="bi bi-lightbulb"></i>
-                    <strong>深度分析报告</strong>
-                </p>
-                <p class="mb-0">
-                    <small>
-                        ArXiv ID: <code>{{ paper.arxiv_id }}</code> | 
-                        生成时间: {{ analysis.updated_at|format_date }}
-                    </small>
-                </p>
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <div class="header-content">
+                    <div class="breadcrumb-nav mb-2">
+                        <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" class="breadcrumb-link">
+                            <i class="bi bi-arrow-left me-1"></i>
+                            返回论文详情
+                        </a>
+                    </div>
+                    <h1 class="analysis-title mb-3">{{ paper.title }}</h1>
+                    <div class="analysis-subtitle">
+                        <div class="subtitle-item">
+                            <i class="bi bi-lightbulb-fill me-2"></i>
+                            <span class="subtitle-text">深度分析报告</span>
+                        </div>
+                        <div class="subtitle-meta">
+                            <span class="meta-item">
+                                <i class="bi bi-hash me-1"></i>
+                                {{ paper.arxiv_id }}
+                            </span>
+                            <span class="meta-separator">•</span>
+                            <span class="meta-item">
+                                <i class="bi bi-calendar-event me-1"></i>
+                                {{ analysis.updated_at|format_date }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-4 text-end">
-                <div class="btn-group" role="group">
-                    <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" class="btn btn-light">
-                        <i class="bi bi-arrow-left"></i> 返回详情
-                    </a>
-                    <button id="formulaCorrectionBtn" class="btn btn-warning" onclick="startFormulaCorrection()" 
-                            title="修复分析报告中的公式错误">
-                        <i class="bi bi-gear-fill"></i> 公式纠错
-                    </button>
-                    <a href="{{ url_for('api.api_analysis_result', arxiv_id=paper.arxiv_id) }}" class="btn btn-primary">
-                        <i class="bi bi-download"></i> 下载分析
-                    </a>
-                    <button onclick="window.print()" class="btn btn-outline-light">
-                        <i class="bi bi-printer"></i> 打印
-                    </button>
+            <div class="col-lg-4">
+                <div class="action-buttons">
+                    <div class="primary-actions">
+                        <button id="formulaCorrectionBtn" class="btn btn-action btn-warning" 
+                                onclick="startFormulaCorrection()" title="修复分析报告中的公式错误">
+                            <i class="bi bi-gear-fill"></i>
+                            <span>公式纠错</span>
+                        </button>
+                        <button id="reanalysisBtn" class="btn btn-action btn-warning" 
+                                data-arxiv-id="{{ paper.arxiv_id }}" title="重新进行深度分析">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span>重新分析</span>
+                        </button>
+                        <a href="{{ url_for('api.api_download_analysis', arxiv_id=paper.arxiv_id) }}" 
+                           class="btn btn-action btn-primary">
+                            <i class="bi bi-download"></i>
+                            <span>下载分析</span>
+                        </a>
+                    </div>
+                    <div class="secondary-actions">
+                        <button onclick="window.print()" class="btn btn-secondary-action" title="打印分析报告">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                        <button onclick="scrollToTop()" class="btn btn-secondary-action" title="回到顶部">
+                            <i class="bi bi-arrow-up"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -316,81 +1048,107 @@ window.MathJax = {
 
 <!-- 分析元数据 -->
 <div class="analysis-metadata no-print">
-    <div class="row">
-        <div class="col-md-6">
-            <h6><i class="bi bi-info-circle"></i> 分析信息</h6>
-            <table class="table table-sm">
-                <tr>
-                    <td><strong>论文标题:</strong></td>
-                    <td>{{ paper.title }}</td>
-                </tr>
-                <tr>
-                    <td><strong>ArXiv ID:</strong></td>
-                    <td><code>{{ paper.arxiv_id }}</code></td>
-                </tr>
-                <tr>
-                    <td><strong>分析状态:</strong></td>
-                    <td>
-                        <span class="badge bg-success">
-                            <i class="bi bi-check-circle"></i> 已完成
-                        </span>
-                    </td>
-                </tr>
-                <tr>
-                    <td><strong>分析时间:</strong></td>
-                    <td>{{ analysis.updated_at|format_date }}</td>
-                </tr>
-                <tr id="formulaCorrectionStatusRow" style="display: none;">
-                    <td><strong>公式纠错状态:</strong></td>
-                    <td id="formulaCorrectionStatus">
-                        <span class="badge bg-secondary">
-                            <i class="bi bi-question-circle"></i> 未开始
-                        </span>
-                    </td>
-                </tr>
-            </table>
-        </div>
-        <div class="col-md-6">
-            <h6><i class="bi bi-graph-up"></i> 统计信息</h6>
-            <table class="table table-sm">
-                <tr>
-                    <td><strong>内容长度:</strong></td>
-                    <td>{{ analysis.content|length|filesizeformat }}B</td>
-                </tr>
-                <tr>
-                    <td><strong>预计阅读时间:</strong></td>
-                    <td>{{ ((analysis.content|length / 1000) * 2)|round|int }} 分钟</td>
-                </tr>
-                <tr>
-                    <td><strong>论文分类:</strong></td>
-                    <td>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="metadata-card">
+                <div class="metadata-header">
+                    <i class="bi bi-file-text-fill me-2"></i>
+                    <h6 class="mb-0">论文信息</h6>
+                </div>
+                <div class="metadata-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <div class="info-item">
+                                <label class="info-label">论文标题</label>
+                                <div class="info-value text-primary fw-medium">{{ paper.title }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-item">
+                                <label class="info-label">ArXiv ID</label>
+                                <div class="info-value">
+                                    <code class="arxiv-id">{{ paper.arxiv_id }}</code>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-item">
+                                <label class="info-label">分析状态</label>
+                                <div class="info-value">
+                                    <span class="status-badge completed">
+                                        <i class="bi bi-check-circle-fill me-1"></i>
+                                        已完成
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-item">
+                                <label class="info-label">分析时间</label>
+                                <div class="info-value">
+                                    <i class="bi bi-clock me-1"></i>
+                                    {{ analysis.updated_at|format_date }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12" id="formulaCorrectionStatusRow" style="display: none;">
+                            <div class="info-item">
+                                <label class="info-label">公式纠错状态</label>
+                                <div class="info-value" id="formulaCorrectionStatus">
+                                    <span class="status-badge secondary">
+                                        <i class="bi bi-gear me-1"></i>
+                                        未开始
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                         {% if paper.categories %}
-                            {% for category in paper.categories.split(',')[:3] %}
-                            <span class="badge bg-secondary">{{ category | safe_strip }}</span>
-                            {% endfor %}
+                        <div class="col-md-12">
+                            <div class="info-item">
+                                <label class="info-label">研究领域</label>
+                                <div class="info-value">
+                                    {% for category in paper.categories.split(',')[:4] %}
+                                    <span class="category-tag">{{ category | safe_strip }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
                         {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <td><strong>操作:</strong></td>
-                    <td>
-                        <button onclick="toggleTOC()" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-list"></i> 目录
-                        </button>
-                    </td>
-                </tr>
-            </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="metadata-card stats-card">
+                <div class="metadata-header">
+                    <i class="bi bi-bar-chart-fill me-2"></i>
+                    <h6 class="mb-0">分析统计</h6>
+                </div>
+                <div class="metadata-body">
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="bi bi-file-earmark-text"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value">{{ analysis.content|length|filesizeformat }}B</div>
+                            <div class="stat-label">内容长度</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value">{{ ((analysis.content|length / 1000) * 2)|round|int }} 分钟</div>
+                            <div class="stat-label">预计阅读</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- 目录 -->
-<div id="toc-container" class="toc no-print" style="display: none;">
-    <h5><i class="bi bi-list"></i> 分析目录</h5>
-    <div id="toc-content">
-        <!-- 目录将通过JavaScript动态生成 -->
-    </div>
-</div>
 
 <!-- 分析内容 -->
 <div class="analysis-content">
@@ -490,27 +1248,191 @@ window.MathJax = {
     </div>
 </div>
 
-<!-- 快速导航 -->
-<div class="position-fixed bottom-0 end-0 p-3 no-print" style="z-index: 1000;">
-    <div class="btn-group-vertical" role="group">
-        <button onclick="scrollToTop()" class="btn btn-primary btn-sm" title="回到顶部">
-            <i class="bi bi-arrow-up"></i>
-        </button>
-        <button onclick="toggleFullscreen()" class="btn btn-secondary btn-sm" title="全屏阅读">
-            <i class="bi bi-fullscreen"></i>
-        </button>
-    </div>
-</div>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block scripts %}
+<!-- 重新分析功能JavaScript -->
 <script>
+console.log('📜 开始加载深度分析页面JavaScript');
+
+// 全局函数：启动重新分析
+function startReanalysis(arxivId) {
+    console.log('🚀 启动重新分析函数被调用, ArXiv ID:', arxivId);
+    
+    if (!arxivId) {
+        showFormulaCorrectionToast('无法获取论文ID', 'error');
+        return;
+    }
+    
+    // 确认对话框
+    if (!confirm('确定要重新分析这篇论文吗？\n\n⚠️ 注意：这将覆盖当前的分析结果，过程可能需要几分钟时间。')) {
+        console.log('用户取消了重新分析请求');
+        return;
+    }
+    
+    // 禁用重新分析按钮
+    const btn = document.getElementById('reanalysisBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> <span>分析中...</span>';
+    }
+    
+    showFormulaCorrectionToast('正在启动重新分析...', 'info');
+    
+    // 调用深度分析API
+    fetch(`/api/analysis/paper/${arxivId}/analyze`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            config: {
+                // 重新分析配置
+            }
+        })
+    })
+    .then(response => {
+        console.log('重新分析API响应状态码:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('重新分析API响应:', data);
+        
+        if (data.success) {
+            showFormulaCorrectionToast('重新分析已启动！正在后台处理中...', 'success');
+            
+            // 开始轮询状态
+            startReanalysisPolling(arxivId);
+        } else {
+            console.error('重新分析启动失败:', data.error);
+            showFormulaCorrectionToast(`重新分析启动失败: ${data.error || '未知错误'}`, 'error');
+            
+            // 恢复按钮
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('重新分析API调用失败:', error);
+        showFormulaCorrectionToast(`重新分析启动失败: ${error.message}`, 'error');
+        
+        // 恢复按钮
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
+        }
+    });
+}
+
+// 全局函数：重新分析状态轮询
+function startReanalysisPolling(arxivId) {
+    console.log('开始重新分析状态轮询:', arxivId);
+    
+    const pollInterval = setInterval(() => {
+        fetch(`/api/analysis/paper/${arxivId}/status`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('分析状态:', data);
+            
+            if (data.success) {
+                const status = data.status;
+                
+                if (status === 'completed') {
+                    clearInterval(pollInterval);
+                    showFormulaCorrectionToast('重新分析完成！页面将自动刷新显示新结果...', 'success');
+                    
+                    // 2秒后刷新页面
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                    
+                } else if (status === 'failed') {
+                    clearInterval(pollInterval);
+                    showFormulaCorrectionToast('重新分析失败，请查看错误日志', 'error');
+                    
+                    // 恢复按钮
+                    const btn = document.getElementById('reanalysisBtn');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
+                    }
+                } else if (status === 'processing') {
+                    // 继续轮询
+                    console.log('分析仍在进行中...');
+                } else {
+                    console.log('分析状态:', status);
+                }
+            } else {
+                console.error('获取分析状态失败:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('状态轮询失败:', error);
+        });
+    }, 5000); // 每5秒轮询一次
+    
+    // 15分钟后停止轮询
+    setTimeout(() => {
+        clearInterval(pollInterval);
+        console.log('重新分析轮询超时，停止轮询');
+        
+        // 恢复按钮
+        const btn = document.getElementById('reanalysisBtn');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
+        }
+        
+        showFormulaCorrectionToast('重新分析可能需要更长时间，请稍后手动刷新页面查看结果', 'warning');
+    }, 15 * 60 * 1000);
+}
+
+console.log('✅ startReanalysis和startReanalysisPolling函数定义完成');
+console.log('🔍 startReanalysis函数类型:', typeof startReanalysis);
+
 document.addEventListener('DOMContentLoaded', function() {
-    // 生成目录
-    generateTOC();
+    console.log('🎯 DOMContentLoaded事件触发');
+    
+    // 绑定重新分析按钮事件
+    console.log('🔍 开始绑定重新分析按钮事件');
+    const reanalysisBtn = document.getElementById('reanalysisBtn');
+    console.log('🔍 找到重新分析按钮:', reanalysisBtn);
+    
+    if (reanalysisBtn) {
+        console.log('✅ 重新分析按钮存在，开始绑定事件');
+        reanalysisBtn.addEventListener('click', function(e) {
+            console.log('🔥 重新分析按钮被点击!');
+            e.preventDefault();
+            
+            const arxivId = this.getAttribute('data-arxiv-id');
+            console.log('📄 获取到ArXiv ID:', arxivId);
+            console.log('🔍 startReanalysis函数类型:', typeof startReanalysis);
+            console.log('🔍 startReanalysis函数:', startReanalysis);
+            
+            if (arxivId && typeof startReanalysis === 'function') {
+                console.log('✅ 开始调用startReanalysis函数');
+                startReanalysis(arxivId);
+            } else {
+                console.error('❌ startReanalysis函数不可用或ArXiv ID缺失');
+                console.error('   ArXiv ID:', arxivId);
+                console.error('   函数类型:', typeof startReanalysis);
+            }
+        });
+        console.log('✅ 重新分析按钮事件绑定完成');
+    } else {
+        console.error('❌ 未找到重新分析按钮元素');
+    }
     
     // 初始化图片点击放大功能
     initImageModal();
+    
     
     // 初始化代码高亮
     if (typeof Prism !== 'undefined') {
@@ -525,56 +1447,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function generateTOC() {
-    const headers = document.querySelectorAll('.analysis-content h1, .analysis-content h2, .analysis-content h3, .analysis-content h4');
-    const tocContent = document.getElementById('toc-content');
-    
-    if (headers.length === 0) {
-        document.getElementById('toc-container').style.display = 'none';
-        return;
-    }
-    
-    let tocHTML = '<ul>';
-    let lastLevel = 1;
-    
-    headers.forEach((header, index) => {
-        const level = parseInt(header.tagName.charAt(1));
-        const text = header.textContent;
-        const id = `heading-${index}`;
-        
-        // 为标题添加ID
-        header.id = id;
-        
-        // 生成目录项
-        if (level > lastLevel) {
-            tocHTML += '<ul>';
-        } else if (level < lastLevel) {
-            for (let i = 0; i < lastLevel - level; i++) {
-                tocHTML += '</ul>';
-            }
-        }
-        
-        tocHTML += `<li><a href="#${id}">${text}</a></li>`;
-        lastLevel = level;
-    });
-    
-    // 关闭所有未关闭的ul标签
-    for (let i = 1; i < lastLevel; i++) {
-        tocHTML += '</ul>';
-    }
-    tocHTML += '</ul>';
-    
-    tocContent.innerHTML = tocHTML;
-}
 
-function toggleTOC() {
-    const tocContainer = document.getElementById('toc-container');
-    if (tocContainer.style.display === 'none') {
-        tocContainer.style.display = 'block';
-    } else {
-        tocContainer.style.display = 'none';
-    }
-}
 
 function initImageModal() {
     const modal = document.getElementById('imageModal');
@@ -670,15 +1543,6 @@ function scrollToTop() {
     });
 }
 
-function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-            console.log('无法进入全屏模式:', err);
-        });
-    } else {
-        document.exitFullscreen();
-    }
-}
 
 // 平滑滚动到锚点
 document.addEventListener('click', function(e) {
@@ -879,19 +1743,7 @@ document.addEventListener('keydown', function(e) {
         window.print();
     }
     
-    // T 键切换目录
-    if (e.key === 't' || e.key === 'T') {
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-            toggleTOC();
-        }
-    }
     
-    // F 键全屏
-    if (e.key === 'f' || e.key === 'F') {
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-            toggleFullscreen();
-        }
-    }
 });
 
 // === 公式纠错相关函数 ===
@@ -921,6 +1773,7 @@ function getArxivId() {
     
     return null;
 }
+
 
 // 启动公式纠错
 function startFormulaCorrection() {

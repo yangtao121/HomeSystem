@@ -19,7 +19,11 @@
                     <!-- 论文标题 -->
                     <div class="mb-2">
                         <h5 class="paper-title">
-                            {{ paper.title }}
+                            <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                               class="paper-title-link text-decoration-none"
+                               title="点击查看论文详细信息">
+                                {{ paper.title }}
+                            </a>
                         </h5>
                     </div>
                     
@@ -56,13 +60,6 @@
                             <i class="bi bi-briefcase text-primary"></i>
                             <strong class="text-dark">任务:</strong>
                             <span class="task-name-display" data-arxiv-id="{{ paper.arxiv_id }}">{{ paper.task_name }}</span>
-                            {% if show_edit_buttons|default(true) %}
-                            <button class="btn btn-xs btn-link p-0 ms-1 edit-task-btn" 
-                                    onclick="editTaskName('{{ paper.arxiv_id }}', '{{ paper.task_name }}')"
-                                    title="编辑任务名称">
-                                <i class="bi bi-pencil-square text-secondary"></i>
-                            </button>
-                            {% endif %}
                         </div>
                         {% endif %}
                         <!-- 任务ID -->
@@ -207,9 +204,9 @@
                             <div class="col-6">
                                 <button class="btn btn-sm btn-warning w-100" 
                                         onclick="showMigrationModal('{{ paper.arxiv_id }}', '{{ paper.title|truncate_text(50) }}')"
-                                        title="迁移到其他任务">
+                                        title="将此论文迁移到其他研究任务">
                                     <i class="bi bi-arrow-right-circle"></i>
-                                    <small class="d-block">迁移</small>
+                                    <small class="d-block">迁移到其他任务</small>
                                 </button>
                             </div>
                         </div>
