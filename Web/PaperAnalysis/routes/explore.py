@@ -61,17 +61,26 @@ def papers():
         query = request.args.get('q', '').strip()
         category = request.args.get('category', '').strip()
         status = request.args.get('status', '').strip()
-        task_name = request.args.get('task_name', '').strip()
+        # 支持多个任务名称
+        task_names = request.args.getlist('task_name')
+        task_names = [name.strip() for name in task_names if name.strip()]
         task_id = request.args.get('task_id', '').strip()
         page = int(request.args.get('page', 1))
         per_page = 20
+        
+        # 获取所有任务名称列表（用于下拉框选项）
+        all_task_names = paper_service.get_all_task_names()
+        
+        # 如果没有指定任务筛选，默认选择所有任务（显示全部论文）
+        if not task_names:
+            task_names = all_task_names + ['未分配任务']
         
         # 搜索论文
         papers, total = paper_service.search_papers(
             query=query, 
             category=category, 
             status=status,
-            task_name=task_name,
+            task_name=task_names,
             task_id=task_id,
             page=page, 
             per_page=per_page
@@ -110,7 +119,8 @@ def papers():
                              query=query,
                              category=category,
                              status=status,
-                             task_name=task_name,
+                             task_names=task_names,
+                             all_task_names=all_task_names,
                              task_id=task_id)
     
     except Exception as e:

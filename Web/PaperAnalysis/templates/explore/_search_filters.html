@@ -36,13 +36,34 @@
                     </div>
                 </div>
                 
-                <!-- 过滤器行 -->
+                <!-- 过滤器标签行 -->
+                <div class="row g-2 mb-1">
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label mb-1">
+                            <i class="bi bi-tag"></i> 分类
+                        </label>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label mb-1">
+                            <i class="bi bi-gear"></i> 处理状态
+                        </label>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="taskIdFilter" class="form-label mb-1">
+                            <i class="bi bi-hash"></i> 任务ID
+                        </label>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="taskNameFilter" class="form-label mb-1">
+                            <i class="bi bi-briefcase"></i> 任务名称
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 过滤器控件行 -->
                 <div class="row g-2">
                     <!-- 分类过滤 -->
                     <div class="col-md-3">
-                        <label for="categoryFilter" class="form-label">
-                            <i class="bi bi-tag"></i> 分类
-                        </label>
                         <input type="text" class="form-control" id="categoryFilter" 
                                name="category" value="{{ category }}" 
                                placeholder="如: cs.LG">
@@ -50,9 +71,6 @@
                     
                     <!-- 状态过滤 -->
                     <div class="col-md-3">
-                        <label for="statusFilter" class="form-label">
-                            <i class="bi bi-gear"></i> 处理状态
-                        </label>
                         <select class="form-select" id="statusFilter" name="status">
                             <option value="">全部状态</option>
                             <option value="pending" {% if status == 'pending' %}selected{% endif %}>待处理</option>
@@ -61,30 +79,37 @@
                         </select>
                     </div>
                     
-                    <!-- 任务名称过滤 -->
-                    <div class="col-md-3">
-                        <label for="taskNameFilter" class="form-label">
-                            <i class="bi bi-briefcase"></i> 任务名称
-                        </label>
-                        <input type="text" class="form-control" id="taskNameFilter" 
-                               name="task_name" value="{{ task_name }}" 
-                               placeholder="任务名称"
-                               data-bs-toggle="tooltip" 
-                               data-bs-placement="top" 
-                               title="按任务名称过滤论文">
-                    </div>
-                    
                     <!-- 任务ID过滤 -->
                     <div class="col-md-3">
-                        <label for="taskIdFilter" class="form-label">
-                            <i class="bi bi-hash"></i> 任务ID
-                        </label>
                         <input type="text" class="form-control" id="taskIdFilter" 
                                name="task_id" value="{{ task_id }}" 
                                placeholder="任务ID"
                                data-bs-toggle="tooltip" 
                                data-bs-placement="top" 
                                title="按任务ID精确过滤论文">
+                    </div>
+                    
+                    <!-- 任务名称过滤 -->
+                    <div class="col-md-3">
+                        <select class="selectpicker" id="taskNameFilter" name="task_name" 
+                                multiple 
+                                data-live-search="true" 
+                                data-actions-box="true"
+                                data-selected-text-format="count > 2"
+                                data-count-selected-text="{0} 个任务已选择"
+                                data-none-selected-text="选择任务筛选..."
+                                data-select-all-text="选择全部"
+                                data-deselect-all-text="取消全部"
+                                title="选择任务筛选...">
+                            <option value="未分配任务" {% if '未分配任务' in task_names %}selected{% endif %}>
+                                📌 未分配任务
+                            </option>
+                            {% for task_name in all_task_names %}
+                            <option value="{{ task_name }}" {% if task_name in task_names %}selected{% endif %}>
+                                {{ task_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
             </div>

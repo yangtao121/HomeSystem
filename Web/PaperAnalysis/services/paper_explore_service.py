@@ -275,7 +275,7 @@ class PaperService:
             return stats
     
     def search_papers(self, query: str = "", category: str = "", status: str = "",
-                     task_name: str = "", task_id: str = "", 
+                     task_name = None, task_id: str = "", 
                      page: int = 1, per_page: int = 20) -> Tuple[List[Dict], int]:
         """搜索论文"""
         with self.db_manager.get_db_connection() as conn:
@@ -301,9 +301,30 @@ class PaperService:
                 conditions.append("processing_status = %s")
                 params.append(status)
             
+            # 处理任务名称筛选（支持多选和"未分配任务"）
             if task_name:
-                conditions.append("task_name ILIKE %s")
-                params.append(f"%{task_name}%")
+                # 支持单个字符串或列表
+                if isinstance(task_name, str):
+                    task_names = [task_name] if task_name.strip() else []
+                else:
+                    task_names = task_name
+                
+                if task_names:
+                    task_conditions = []
+                    
+                    # 检查是否包含"未分配任务"选项
+                    if "未分配任务" in task_names:
+                        task_conditions.append("(task_name IS NULL OR task_name = '')")
+                        task_names = [name for name in task_names if name != "未分配任务"]
+                    
+                    # 处理具体的任务名称
+                    if task_names:
+                        placeholders = ", ".join(["%s"] * len(task_names))
+                        task_conditions.append(f"task_name IN ({placeholders})")
+                        params.extend(task_names)
+                    
+                    if task_conditions:
+                        conditions.append(f"({' OR '.join(task_conditions)})")
                 
             if task_id:
                 conditions.append("task_id = %s")
@@ -1587,6 +1608,31 @@ class PaperService:
         except Exception as e:
             logger.error(f"Failed to delete analysis result for {arxiv_id}: {e}")
             return False
+
+    def get_all_task_names(self) -> List[str]:
+        """
+        获取所有不同的任务名称
+        
+        Returns:
+            任务名称列表
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                cursor.execute("""
+                    SELECT DISTINCT task_name 
+                    FROM arxiv_papers 
+                    WHERE task_name IS NOT NULL AND task_name != '' 
+                    ORDER BY task_name ASC
+                """)
+                
+                result = cursor.fetchall()
+                return [row['task_name'] for row in result]
+                
+        except Exception as e:
+            logger.error(f"获取任务名称列表失败: {e}")
+            return []
 
 
 class DifyService:

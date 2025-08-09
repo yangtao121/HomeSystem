@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTooltips();
     initResponsiveFeatures();
     initAnalysisConfigModal();
+    initBootstrapSelect();
     
     // 全局错误处理
     window.addEventListener('error', function(e) {
@@ -267,6 +268,27 @@ function applyFilter(filterType, filterValue) {
 }
 
 /**
+ * 自动提交筛选表单（用于多选框变化时）
+ */
+function autoSubmitFilters() {
+    // 延迟提交，避免用户快速选择时频繁提交
+    clearTimeout(window.filterTimeout);
+    window.filterTimeout = setTimeout(() => {
+        const form = document.getElementById('searchForm');
+        if (form) {
+            // 移除page参数以重置分页
+            const pageInput = form.querySelector('input[name="page"]');
+            if (pageInput) {
+                pageInput.remove();
+            }
+            
+            // 提交表单
+            form.submit();
+        }
+    }, 500); // 500ms延迟
+}
+
+/**
  * 清除所有过滤器
  */
 function clearFilters() {
@@ -274,6 +296,8 @@ function clearFilters() {
     currentUrl.searchParams.delete('q');
     currentUrl.searchParams.delete('category');
     currentUrl.searchParams.delete('status');
+    currentUrl.searchParams.delete('task_name');
+    currentUrl.searchParams.delete('task_id');
     currentUrl.searchParams.delete('page');
     window.location.href = currentUrl.toString();
 }
@@ -288,6 +312,34 @@ function initTooltips() {
         tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
+    }
+}
+
+/**
+ * 初始化Bootstrap Select组件
+ */
+function initBootstrapSelect() {
+    // 检查Bootstrap Select是否可用
+    if (typeof $.fn.selectpicker !== 'undefined') {
+        // 初始化所有selectpicker
+        $('.selectpicker').selectpicker({
+            style: 'btn-outline-secondary',
+            size: 8,
+            liveSearch: true,
+            actionsBox: true,
+            showTick: true,
+            dropupAuto: false
+        });
+        
+        // 监听选择变化事件
+        $('.selectpicker').on('changed.bs.select', function(e, clickedIndex, isSelected, previousValue) {
+            // 确保触发我们的自动提交函数
+            if (typeof autoSubmitFilters === 'function') {
+                autoSubmitFilters();
+            }
+        });
+    } else {
+        console.warn('Bootstrap Select 未加载，使用原生select');
     }
 }
 
