@@ -1,0 +1,93 @@
+<!-- 搜索和过滤器组件 -->
+<div class="search-container">
+    <form method="GET" action="{{ url_for('explore.papers') }}" id="searchForm">
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <!-- 主搜索行 -->
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label for="searchInput" class="form-label fw-bold">
+                            <i class="bi bi-search"></i> 搜索关键词
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control search-input" id="searchInput" 
+                                   name="q" value="{{ query }}" 
+                                   placeholder="搜索标题、摘要、作者、研究目标或关键词..."
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   title="支持模糊搜索，可搜索标题、摘要、作者、研究目标和关键词">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-search"></i> 搜索
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-gear-wide-connected"></i> 快速操作
+                        </label>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-counterclockwise"></i> 清除过滤
+                            </a>
+                            <button type="button" class="btn btn-outline-info" onclick="exportData('json')">
+                                <i class="bi bi-download"></i> 导出结果
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 过滤器行 -->
+                <div class="row g-2">
+                    <!-- 分类过滤 -->
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label">
+                            <i class="bi bi-tag"></i> 分类
+                        </label>
+                        <input type="text" class="form-control" id="categoryFilter" 
+                               name="category" value="{{ category }}" 
+                               placeholder="如: cs.LG">
+                    </div>
+                    
+                    <!-- 状态过滤 -->
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">
+                            <i class="bi bi-gear"></i> 处理状态
+                        </label>
+                        <select class="form-select" id="statusFilter" name="status">
+                            <option value="">全部状态</option>
+                            <option value="pending" {% if status == 'pending' %}selected{% endif %}>待处理</option>
+                            <option value="completed" {% if status == 'completed' %}selected{% endif %}>已完成</option>
+                            <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 任务名称过滤 -->
+                    <div class="col-md-3">
+                        <label for="taskNameFilter" class="form-label">
+                            <i class="bi bi-briefcase"></i> 任务名称
+                        </label>
+                        <input type="text" class="form-control" id="taskNameFilter" 
+                               name="task_name" value="{{ task_name }}" 
+                               placeholder="任务名称"
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="按任务名称过滤论文">
+                    </div>
+                    
+                    <!-- 任务ID过滤 -->
+                    <div class="col-md-3">
+                        <label for="taskIdFilter" class="form-label">
+                            <i class="bi bi-hash"></i> 任务ID
+                        </label>
+                        <input type="text" class="form-control" id="taskIdFilter" 
+                               name="task_id" value="{{ task_id }}" 
+                               placeholder="任务ID"
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="按任务ID精确过滤论文">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>

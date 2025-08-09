@@ -51,7 +51,10 @@ class TaskResult:
                  start_time: datetime, end_time: Optional[datetime] = None,
                  result_data: Optional[Dict[str, Any]] = None,
                  error_message: Optional[str] = None,
-                 progress: float = 0.0):
+                 progress: float = 0.0,
+                 task_name: Optional[str] = None,
+                 search_query: Optional[str] = None,
+                 papers_found: Optional[int] = None):
         self.task_id = task_id
         self.status = status
         self.start_time = start_time
@@ -59,6 +62,9 @@ class TaskResult:
         self.result_data = result_data or {}
         self.error_message = error_message
         self.progress = progress  # 0.0 - 1.0
+        self.task_name = task_name
+        self.search_query = search_query
+        self.papers_found = papers_found
         
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -70,7 +76,10 @@ class TaskResult:
             'result_data': self.result_data,
             'error_message': self.error_message,
             'progress': self.progress,
-            'duration': (self.end_time - self.start_time).total_seconds() if self.end_time else None
+            'duration': (self.end_time - self.start_time).total_seconds() if self.end_time else None,
+            'task_name': self.task_name,
+            'search_query': self.search_query,
+            'papers_found': self.papers_found
         }
 
 
@@ -340,7 +349,8 @@ class PaperGatherService:
                         elif status == TaskStatus.RUNNING:
                             progress = 0.5  # 运行中任务设置为50%进度
                         
-                        # 创建TaskResult对象
+                        # 创建TaskResult对象，提取配置信息
+                        config_data = task_data.get("config", {})
                         task_result = TaskResult(
                             task_id=task_id,
                             status=status,
@@ -348,7 +358,10 @@ class PaperGatherService:
                             end_time=end_time,
                             result_data=task_data.get("result", {}),
                             error_message=task_data.get("error_message"),
-                            progress=progress
+                            progress=progress,
+                            task_name=config_data.get("task_name", "未命名任务"),
+                            search_query=config_data.get("search_query", ""),
+                            papers_found=task_data.get("result", {}).get("papers_found", 0)
                         )
                         
                         self.task_results[task_id] = task_result
@@ -871,6 +884,8 @@ class PaperGatherService:
                 task_result.end_time = datetime.now()
                 task_result.result_data = result
                 task_result.progress = 1.0
+                # 更新找到的论文数量
+                task_result.papers_found = result.get("papers_found", 0)
             
             # 保存到持久化存储
             self._save_task_to_persistent_storage(task_id, config_dict_copy, result, 
@@ -925,11 +940,14 @@ class PaperGatherService:
         task_id = str(uuid.uuid4())
         start_time = datetime.now()
         
-        # 创建任务结果记录
+        # 创建任务结果记录，包含配置信息
         task_result = TaskResult(
             task_id=task_id,
             status=TaskStatus.PENDING,
-            start_time=start_time
+            start_time=start_time,
+            task_name=config_dict.get("task_name", "未命名任务"),
+            search_query=config_dict.get("search_query", ""),
+            papers_found=0
         )
         
         with self.lock:
@@ -1849,6 +1867,70 @@ class PaperGatherService:
         
         except Exception as e:
             logger.error(f"❌ 资源清理过程中出现异常: {e}")
+
+    def get_all_tasks_unified(self) -> List[Dict[str, Any]]:
+        """获取统一的任务列表数据，包含一次性任务和定时任务"""
+        try:
+            unified_tasks = []
+            
+            # 获取一次性任务（执行历史）
+            immediate_tasks = self.get_all_task_results()
+            for task in immediate_tasks:
+                unified_task = {
+                    'task_id': task.get('task_id'),
+                    'task_name': task.get('task_name', task.get('task_id', '')[:8] + '...'),
+                    'task_type': 'immediate',
+                    'status': task.get('status'),
+                    'start_time': task.get('start_time'),
+                    'end_time': task.get('end_time'),
+                    'duration': task.get('duration'),
+                    'progress': task.get('progress', 0.0),
+                    'search_query': task.get('search_query'),
+                    'papers_found': task.get('papers_found'),
+                    'llm_model_name': task.get('result_data', {}).get('llm_model_name'),
+                    'error_message': task.get('error_message'),
+                    'execution_count': 1,  # 一次性任务执行次数为1
+                    'interval_seconds': None,
+                    'last_executed_at': task.get('end_time'),
+                    'next_execution_at': None,
+                    'is_running': False
+                }
+                unified_tasks.append(unified_task)
+            
+            # 获取定时任务
+            scheduled_tasks = self.get_scheduled_tasks()
+            for task in scheduled_tasks:
+                config = task.get('config', {})
+                unified_task = {
+                    'task_id': task.get('task_id'),
+                    'task_name': config.get('task_name', task.get('name', '')),
+                    'task_type': 'scheduled',
+                    'status': task.get('status'),
+                    'start_time': task.get('created_at'),
+                    'end_time': None,  # 定时任务没有结束时间
+                    'duration': None,
+                    'progress': 0.0,  # 定时任务没有进度概念
+                    'search_query': config.get('search_query'),
+                    'papers_found': None,  # 定时任务的论文数量需要单独统计
+                    'llm_model_name': config.get('llm_model_name'),
+                    'error_message': task.get('error_message'),
+                    'execution_count': task.get('execution_count', 0),
+                    'interval_seconds': task.get('interval_seconds'),
+                    'last_executed_at': task.get('last_executed_at'),
+                    'next_execution_at': task.get('next_execution_at'),
+                    'is_running': task.get('is_running', False)
+                }
+                unified_tasks.append(unified_task)
+            
+            # 按创建时间降序排序
+            unified_tasks.sort(key=lambda x: x.get('start_time', ''), reverse=True)
+            
+            logger.info(f"获取统一任务列表: {len(immediate_tasks)} 个一次性任务, {len(scheduled_tasks)} 个定时任务")
+            return unified_tasks
+            
+        except Exception as e:
+            logger.error(f"获取统一任务列表失败: {e}")
+            return []
 
     def __del__(self):
         """析构函数确保资源释放"""

@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}批量操作 - ArXiv论文数据探索{% endblock %}
+
+{% block content %}
+<!-- 页面标题 -->
+<div class="row mb-4">
+    <div class="col">
+        <h1 class="display-6 mb-2">
+            <i class="bi bi-gear-wide-connected"></i>
+            批量操作
+        </h1>
+        <p class="text-muted">对论文进行批量处理和管理操作</p>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('explore.index') }}">首页</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('explore.papers') }}">论文浏览</a></li>
+                <li class="breadcrumb-item active">批量操作</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- 操作统计 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-check-all text-primary"></i>
+                    已选择论文
+                </h5>
+                <h2 class="text-primary" id="selectedPapersCount">{{ selected_papers|length or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-briefcase text-success"></i>
+                    有任务论文
+                </h5>
+                <h2 class="text-success" id="withTaskCount">{{ with_task_count or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                    无任务论文
+                </h5>
+                <h2 class="text-warning" id="withoutTaskCount">{{ without_task_count or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-cloud-check text-info"></i>
+                    已上传到Dify
+                </h5>
+                <h2 class="text-info" id="uploadedToDifyCount">{{ uploaded_to_dify_count or 0 }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 操作选择 -->
+<div class="row">
+    <div class="col-md-8">
+        <!-- 任务管理操作 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-briefcase"></i> 任务管理操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="newTaskName" 
+                               placeholder="新任务名称" maxlength="255">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" id="newTaskId" 
+                               placeholder="任务ID (可选)" maxlength="100">
+                    </div>
+                    <div class="col-md-5">
+                        <button type="button" class="btn btn-primary me-2" onclick="batchAssignNewTasks()">
+                            <i class="bi bi-check-square"></i> 分配新任务
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="showBatchMigrationModal()">
+                            <i class="bi bi-arrow-right-circle"></i> 批量迁移
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dify知识库操作 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-cloud"></i> Dify知识库操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-warning" onclick="batchUploadToDify()">
+                        <i class="bi bi-cloud-upload"></i> 批量上传
+                    </button>
+                    <button type="button" class="btn btn-outline-warning" onclick="batchVerifyDifyDocuments()">
+                        <i class="bi bi-shield-check"></i> 批量验证
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="batchRemoveFromDify()">
+                        <i class="bi bi-cloud-minus"></i> 批量移除
+                    </button>
+                    <button type="button" class="btn btn-info" onclick="oneClickUploadAll()">
+                        <i class="bi bi-magic"></i> 一键智能上传
+                    </button>
+                </div>
+                <small class="text-muted mt-2 d-block">
+                    智能上传会自动筛选有任务且相关度高的论文进行上传
+                </small>
+            </div>
+        </div>
+
+        <!-- 数据管理操作 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-database"></i> 数据管理操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-info" onclick="batchEditRelevance()">
+                        <i class="bi bi-star"></i> 批量评分
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="batchExport()">
+                        <i class="bi bi-download"></i> 批量导出
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="batchDeletePapers()">
+                        <i class="bi bi-trash"></i> 批量删除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作说明 -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle"></i> 操作说明
+                </h6>
+            </div>
+            <div class="card-body">
+                <h6>任务管理</h6>
+                <ul class="small">
+                    <li><strong>分配新任务</strong>: 为选中的论文分配相同的任务名称和ID</li>
+                    <li><strong>批量迁移</strong>: 将选中的论文迁移到已有的任务中</li>
+                </ul>
+
+                <h6>Dify知识库</h6>
+                <ul class="small">
+                    <li><strong>批量上传</strong>: 将选中论文上传到Dify知识库</li>
+                    <li><strong>批量验证</strong>: 验证已上传文档在知识库中的状态</li>
+                    <li><strong>一键智能上传</strong>: 自动筛选并上传符合条件的论文</li>
+                </ul>
+
+                <h6>数据管理</h6>
+                <ul class="small">
+                    <li><strong>批量评分</strong>: 为多篇论文设置相关度评分</li>
+                    <li><strong>批量导出</strong>: 导出选中论文的详细信息</li>
+                    <li><strong>批量删除</strong>: 从数据库中永久删除选中的论文</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 快速操作 -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-lightning"></i> 快速操作
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-arrow-left"></i> 返回论文浏览
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSelection()">
+                        <i class="bi bi-x"></i> 清除选择
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm" onclick="selectFromSearch()">
+                        <i class="bi bi-search"></i> 从搜索结果选择
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 选中论文列表 -->
+{% if selected_papers %}
+<div class="row mt-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> 选中的论文 ({{ selected_papers|length }})
+                </h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePaperList()">
+                    <i class="bi bi-eye-slash"></i> 隐藏/显示
+                </button>
+            </div>
+            <div class="card-body" id="selectedPapersList">
+                <div class="row">
+                    {% for paper in selected_papers %}
+                    <div class="col-md-6 mb-3">
+                        <div class="border rounded p-3 selected-paper-item" data-arxiv-id="{{ paper.arxiv_id }}">
+                            <h6 class="paper-title">
+                                <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                                   target="_blank">
+                                    {{ paper.title|truncate_text(60) }}
+                                </a>
+                            </h6>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-hash"></i> {{ paper.arxiv_id }}
+                                {% if paper.task_name %}
+                                | <i class="bi bi-briefcase"></i> {{ paper.task_name }}
+                                {% else %}
+                                | <span class="text-warning">无任务</span>
+                                {% endif %}
+                            </small>
+                            {% if paper.dify_document_id %}
+                            <span class="badge bg-success mt-1">已上传到Dify</span>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-danger btn-sm float-end" 
+                                    onclick="removeFromSelection('{{ paper.arxiv_id }}')"
+                                    title="从选择中移除">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- 空状态 -->
+<div class="row mt-4">
+    <div class="col">
+        <div class="text-center py-5">
+            <i class="bi bi-inbox display-4 text-muted"></i>
+            <h4 class="text-muted mt-3">没有选中的论文</h4>
+            <p class="text-muted">请先从论文浏览页面选择需要批量操作的论文</p>
+            <a href="{{ url_for('explore.papers') }}" class="btn btn-primary">
+                <i class="bi bi-arrow-left"></i> 前往论文浏览
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 包含批量操作的模态框 -->
+{% include 'explore/_batch_modals.html' %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/batch-operations.js') }}"></script>
+<script>
+    // 初始化页面数据
+    const selectedPapers = {{ selected_papers|tojson if selected_papers else '[]'|safe }};
+    
+    // 页面加载完成后的初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        updateStatistics();
+        initializeBatchOperations();
+    });
+    
+    // 更新统计信息
+    function updateStatistics() {
+        const withTask = selectedPapers.filter(p => p.task_name).length;
+        const withoutTask = selectedPapers.length - withTask;
+        const uploadedToDify = selectedPapers.filter(p => p.dify_document_id).length;
+        
+        document.getElementById('withTaskCount').textContent = withTask;
+        document.getElementById('withoutTaskCount').textContent = withoutTask;
+        document.getElementById('uploadedToDifyCount').textContent = uploadedToDify;
+    }
+    
+    // 切换论文列表显示
+    function togglePaperList() {
+        const list = document.getElementById('selectedPapersList');
+        if (list.style.display === 'none') {
+            list.style.display = 'block';
+        } else {
+            list.style.display = 'none';
+        }
+    }
+    
+    // 从选择中移除论文
+    function removeFromSelection(arxivId) {
+        // 实现移除逻辑
+        const paperItem = document.querySelector(`[data-arxiv-id="${arxivId}"]`);
+        if (paperItem) {
+            paperItem.remove();
+            // 更新统计
+            const index = selectedPapers.findIndex(p => p.arxiv_id === arxivId);
+            if (index > -1) {
+                selectedPapers.splice(index, 1);
+                updateStatistics();
+                document.getElementById('selectedPapersCount').textContent = selectedPapers.length;
+            }
+        }
+    }
+    
+    // 清除所有选择
+    function clearSelection() {
+        if (confirm('确定要清除所有选择的论文吗？')) {
+            selectedPapers.length = 0;
+            document.getElementById('selectedPapersList').innerHTML = '<p class="text-muted">没有选中的论文</p>';
+            updateStatistics();
+            document.getElementById('selectedPapersCount').textContent = 0;
+        }
+    }
+    
+    // 从搜索结果选择
+    function selectFromSearch() {
+        window.location.href = '{{ url_for("explore.papers") }}';
+    }
+</script>
+{% endblock %}

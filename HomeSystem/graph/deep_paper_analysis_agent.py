@@ -10,9 +10,10 @@
 """
 
 import json
+import os
 import weakref
 from concurrent.futures import ThreadPoolExecutor
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional, Union
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -26,6 +27,7 @@ from loguru import logger
 from .base_graph import BaseGraph
 from .llm_factory import get_llm
 from .tool.image_analysis_tool import create_image_analysis_tool
+from .tool.video_resource_processor import VideoResourceProcessor
 from .parser.paper_folder_parser import create_paper_folder_parser
 from .formatter.markdown_formatter import create_markdown_formatter
 
@@ -53,13 +55,19 @@ class DeepPaperAnalysisConfig:
     
     def __init__(self,
                  analysis_model: str = "deepseek.DeepSeek_V3",
-                 vision_model: str = "ollama.llava", 
+                 vision_model: str = "ollama.Qwen2_5_VL_7B", 
                  memory_enabled: bool = True,
+                 # 新增视频分析相关配置
+                 enable_video_analysis: bool = False,  # 默认关闭
+                 video_analysis_model: str = "ollama.Qwen3_30B",  # 视频分析模型
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.analysis_model = analysis_model          # 主分析LLM
         self.vision_model = vision_model              # 图片理解VLM
         self.memory_enabled = memory_enabled
+        # 视频分析配置
+        self.enable_video_analysis = enable_video_analysis
+        self.video_analysis_model = video_analysis_model
         self.custom_settings = custom_settings or {}
     
     @classmethod
@@ -101,6 +109,9 @@ class DeepPaperAnalysisAgent(BaseGraph):
         logger.info(f"初始化深度论文分析智能体")
         logger.info(f"分析模型: {self.config.analysis_model}")
         logger.info(f"视觉模型: {self.config.vision_model}")
+        logger.info(f"视频分析功能: {'启用' if self.config.enable_video_analysis else '禁用'}")
+        if self.config.enable_video_analysis:
+            logger.info(f"视频分析模型: {self.config.video_analysis_model}")
         
         # 创建主分析LLM
         self.analysis_llm = get_llm(self.config.analysis_model)
@@ -127,8 +138,9 @@ class DeepPaperAnalysisAgent(BaseGraph):
         else:
             self.memory = None
         
-        # 图片分析工具将在运行时创建
+        # 分析工具将在运行时创建
         self.image_tool = None
+        self.video_tool = None  # 视频分析工具
         self.llm_with_tools = None
         self.tool_node = None
         
@@ -141,15 +153,15 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         logger.info("深度论文分析智能体初始化完成")
     
-    def _build_graph_with_tools(self, image_tool) -> None:
+    def _build_graph_with_tools(self, tools: List[Any]) -> None:
         """使用工具构建简化的LangGraph工作流"""
         graph = StateGraph(DeepPaperAnalysisState)
         
         # 添加节点
         graph.add_node("initialize", self._initialize_node)
         graph.add_node("analysis_with_tools", self._analysis_with_tools_node)
-        # 添加 tool_node
-        self.tool_node = ToolNode([image_tool])
+        # 添加 tool_node - 使用动态工具列表
+        self.tool_node = ToolNode(tools)
         graph.add_node("call_tools", self.tool_node)
         
         # 构建简化流程
@@ -357,16 +369,26 @@ class DeepPaperAnalysisAgent(BaseGraph):
         if len(available_images) > 10:
             image_list += f"\n  ... and {len(available_images) - 10} more images"
         
+        # 动态生成工具描述
+        tools_description = "- `analyze_image`: 用于分析论文中的任何图片/图表/表格/示意图\n"
+        tools_description += "  - 当你需要理解文本中引用的视觉内容时调用此工具\n"
+        tools_description += "  - 始终分析关键图表、架构图、实验图表和重要表格\n"
+        tools_description += "  - 提供具体的分析查询，如\"分析这个架构图并识别主要组件\"或\"从这个实验图表中提取性能指标\"\n"
+        
+        if self.video_tool:
+            tools_description += "- `process_video_resources`: 用于分析论文相关的演示视频或项目视频\n"
+            tools_description += "  - 当论文包含项目地址、GitHub链接或开源代码时使用\n"
+            tools_description += "  - 可以基于论文标题、关键词或项目信息搜索相关演示视频\n"
+            tools_description += "  - 自动下载视频并进行内容分析，生成中文总结\n"
+            tools_description += "  - 视频将保存到videos/文件夹，在Markdown中引用\n"
+        
         return f"""
-你是一位专业的学术论文分析专家。你有一个图片分析工具，可以帮助你理解论文中的图表、架构图和实验结果。
+你是一位专业的学术论文分析专家。你有图片分析工具{('和视频分析工具' if self.video_tool else '')}，可以帮助你理解论文中的图表、架构图、实验结果{('以及相关的演示视频' if self.video_tool else '')}。
 
 **重要: 所有分析结果必须以标准Markdown格式输出，包含完整的结构、公式、图片引用，并尽可能提取作者信息、单位和项目地址。论文标题请直接使用原文标题，不要翻译。所有专业名词请直接保留原文，不要翻译。**
 
 **可用工具:**
-- `analyze_image`: 用于分析论文中的任何图片/图表/表格/示意图
-  - 当你需要理解文本中引用的视觉内容时调用此工具
-  - 始终分析关键图表、架构图、实验图表和重要表格
-  - 提供具体的分析查询，如"分析这个架构图并识别主要组件"或"从这个实验图表中提取性能指标"
+{tools_description}
 
 **论文内容:**
 {state['paper_text']}...
@@ -395,6 +417,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
 - 作者: xxx 等
 - 单位: xxx大学/研究所（请标注一作单位）
 - 项目地址: [GitHub/主页/源码链接](url)（如有请标注）
+{('### 相关演示视频' if self.video_tool else '')}
+{('（如找到相关视频，使用HTML video标签展示：<video controls width="100%"><source src="videos/视频文件名.mp4" type="video/mp4"></video>）' if self.video_tool else '')}
 
 ## 1. 研究背景与目标
 
@@ -402,7 +426,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
 
 ## 3. 技术方法
 ### 3.1 核心算法
-（保留重要数学公式，如：$$f(x) = \sum_{{i=1}}^n w_i x_i$$）
+（保留重要数学公式，如：$$f(x) = \\sum_{{i=1}}^n w_i x_i$$）
 
 ### 3.2 架构设计
 （插入重要架构图：![系统架构图](imgs/architecture.jpg)）
@@ -423,9 +447,10 @@ class DeepPaperAnalysisAgent(BaseGraph):
 3. 论文标题请直接使用原文标题，不要翻译
 4. 所有专业名词请直接保留原文，不要翻译
 5. 对重要图表使用analyze_image工具进行深入分析
-6. 将分析结果组织成标准Markdown格式
-7. 确保保留原文中的重要公式和数据
-8. 在适当位置引用分析过的图片
+{('6. 如果论文包含项目地址或开源代码，可考虑使用process_video_resources工具搜索相关演示视频' if self.video_tool else '')}
+{('7. 将分析结果组织成标准Markdown格式' if self.video_tool else '6. 将分析结果组织成标准Markdown格式')}
+{('8. 确保保留原文中的重要公式和数据' if self.video_tool else '7. 确保保留原文中的重要公式和数据')}
+{('9. 在适当位置引用分析过的图片和视频' if self.video_tool else '8. 在适当位置引用分析过的图片')}
 
 现在开始你的分析，记住输出必须是完整的、结构化的Markdown文档，包含所有重要的视觉元素、数学表达式和元信息。
 
@@ -459,19 +484,28 @@ class DeepPaperAnalysisAgent(BaseGraph):
             logger.info("创建图片分析工具...")
             self.image_tool = create_image_analysis_tool(folder_path, self.config.vision_model)
             
-            # 3. 创建带工具的LLM
-            self.llm_with_tools = self.analysis_llm.bind_tools([self.image_tool])
+            # 3. 智能初始化视频分析工具（如果启用且检测到项目信息）
+            logger.info("检查是否需要视频分析工具...")
+            self._initialize_video_tool_if_needed(folder_path, folder_data["paper_text"])
             
-            # 4. 构建并编译完整的图
+            # 4. 动态创建带工具的LLM
+            tools = [self.image_tool]
+            if self.video_tool:
+                tools.append(self.video_tool)
+                logger.info(f"  - 视频分析工具: {self.video_tool.name}")
+            
+            self.llm_with_tools = self.analysis_llm.bind_tools(tools)
+            
+            # 5. 构建并编译完整的图
             logger.info("构建 LangGraph 工作流...")
-            self._build_graph_with_tools(self.image_tool)
+            self._build_graph_with_tools(tools)
             
             logger.info(f"✅ 初始化完成:")
             logger.info(f"  - 图片分析工具: {self.image_tool.name}")
             logger.info(f"  - 可分析图片数量: {len(folder_data['available_images'])}")
             logger.info(f"  - 视觉模型: {self.config.vision_model}")
             
-            # 5. 创建初始状态
+            # 6. 创建初始状态
             initial_state: DeepPaperAnalysisState = {
                 "base_folder_path": folder_path,
                 "paper_text": folder_data["paper_text"],
@@ -483,13 +517,13 @@ class DeepPaperAnalysisAgent(BaseGraph):
                 "is_complete": False
             }
             
-            # 6. 配置LangGraph
+            # 7. 配置LangGraph
             config = RunnableConfig(
                 configurable={"thread_id": thread_id},
                 recursion_limit=100
             )
             
-            # 7. 执行分析
+            # 8. 执行分析
             logger.info("开始执行LangGraph工作流...")
             result = self.agent.invoke(initial_state, config)
             
@@ -692,7 +726,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
             self.llm_with_tools = self.analysis_llm.bind_tools([self.image_tool])
             
             # 重新构建图（无状态模式）
-            self._build_graph_with_tools(self.image_tool)
+            self._build_graph_with_tools([self.image_tool])
             
             # 创建简化的初始状态
             initial_state: DeepPaperAnalysisState = {
@@ -744,6 +778,46 @@ class DeepPaperAnalysisAgent(BaseGraph):
             self.cleanup()
         except Exception:
             pass  # 忽略析构时的异常
+    
+    def _should_trigger_video_analysis(self, paper_content: str) -> bool:
+        """检测论文是否包含项目相关信息，决定是否启用视频分析"""
+        video_indicators = [
+            "github.com", "gitlab.com", "bitbucket.org", "项目地址", "源码链接",
+            "code available", "open source", "implementation", "repository", 
+            "demo video", "项目主页", "source code", "github", "code is available",
+            "available at", "project page", "supplementary material"
+        ]
+        content_lower = paper_content.lower()
+        return any(indicator.lower() in content_lower for indicator in video_indicators)
+    
+    def _initialize_video_tool_if_needed(self, folder_path: str, paper_content: str) -> None:
+        """根据论文内容和配置智能决定是否启用视频分析"""
+        if not self.config.enable_video_analysis:
+            logger.info("ℹ️ 视频分析功能未启用")
+            return
+        
+        if not self._should_trigger_video_analysis(paper_content):
+            logger.info("ℹ️ 论文中未检测到项目相关信息，跳过视频分析")
+            return
+        
+        try:
+            # 创建视频目录
+            video_dir = os.path.join(folder_path, "videos")
+            os.makedirs(video_dir, exist_ok=True)
+            
+            # 创建视频分析工具
+            self.video_tool = VideoResourceProcessor(
+                base_folder_path=folder_path,
+                summarization_model=self.config.video_analysis_model
+            )
+            
+            logger.info("✅ 检测到项目信息，已启用视频分析功能")
+            logger.info(f"   视频保存目录: {video_dir}")
+            logger.info(f"   使用模型: {self.config.video_analysis_model}")
+            
+        except Exception as e:
+            logger.error(f"❌ 视频分析工具创建失败: {e}")
+            self.video_tool = None
     
     def _parse_paper_folder(self, folder_path: str) -> Dict[str, Any]:
         """解析论文文件夹结构"""
@@ -828,7 +902,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
 # 便捷函数
 def create_deep_paper_analysis_agent(
     analysis_model: str = "deepseek.DeepSeek_V3",
-    vision_model: str = "ollama.llava",
+    vision_model: str = "ollama.Qwen2_5_VL_7B",
     **kwargs
 ) -> DeepPaperAnalysisAgent:
     """创建深度论文分析agent的便捷函数"""
@@ -842,7 +916,7 @@ def create_deep_paper_analysis_agent(
 
 def create_robust_paper_analysis_agent(
     analysis_model: str = "deepseek.DeepSeek_V3",
-    vision_model: str = "ollama.llava",
+    vision_model: str = "ollama.Qwen2_5_VL_7B",
     enable_memory: bool = True,
     **kwargs
 ) -> DeepPaperAnalysisAgent:
@@ -875,9 +949,60 @@ def create_robust_paper_analysis_agent(
     return agent
 
 
+def create_video_enhanced_analysis_agent(
+    analysis_model: str = "deepseek.DeepSeek_V3",
+    vision_model: str = "ollama.Qwen2_5_VL_7B",
+    video_analysis_model: str = "ollama.Qwen3_30B",
+    **kwargs
+) -> DeepPaperAnalysisAgent:
+    """
+    创建带视频分析功能的深度论文分析agent
+    
+    这个版本包含：
+    - 图片分析：使用指定的视觉模型分析论文中的图表
+    - 视频分析：自动检测项目信息并搜索相关演示视频
+    - 智能触发：只在论文包含项目地址时启用视频功能
+    - 完整输出：Markdown报告包含图片和视频展示
+    
+    Args:
+        analysis_model: 主分析LLM模型
+        vision_model: 图片理解VLM模型
+        video_analysis_model: 视频分析模型
+        **kwargs: 其他配置参数
+    
+    Returns:
+        DeepPaperAnalysisAgent: 配置了视频分析功能的智能体
+    
+    Example:
+        # 创建带视频分析的agent
+        agent = create_video_enhanced_analysis_agent()
+        
+        # 分析包含项目信息的论文
+        result = agent.analyze_paper_folder("/path/to/paper/folder")
+        
+        # 如果论文包含GitHub链接等项目信息，会自动搜索相关视频
+        # 视频将保存到论文目录下的videos/文件夹
+        # 在Markdown输出中会包含视频展示部分
+    """
+    config = DeepPaperAnalysisConfig(
+        analysis_model=analysis_model,
+        vision_model=vision_model,
+        enable_video_analysis=True,  # 启用视频分析
+        video_analysis_model=video_analysis_model,
+        **kwargs
+    )
+    return DeepPaperAnalysisAgent(config=config)
+
+
 # 测试代码
 if __name__ == "__main__":
-    # 测试agent创建
+    # 测试基础agent创建
     agent = create_deep_paper_analysis_agent()
     print(f"深度论文分析Agent创建成功")
     print(f"配置: {agent.get_config().__dict__}")
+    
+    # 测试带视频分析的agent创建
+    video_agent = create_video_enhanced_analysis_agent()
+    print(f"\n视频增强论文分析Agent创建成功")
+    print(f"视频分析功能: {video_agent.get_config().enable_video_analysis}")
+    print(f"视频分析模型: {video_agent.get_config().video_analysis_model}")

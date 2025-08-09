@@ -8,9 +8,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initTooltips();
     initResponsiveFeatures();
     initAnalysisConfigModal();
-    initCollectFunctionality();
-    initExploreFunctionality();
-    initAnalysisFunctionality();
     
     // 全局错误处理
     window.addEventListener('error', function(e) {
@@ -453,12 +450,24 @@ document.addEventListener('keydown', function(e) {
 // 页面性能监控
 window.addEventListener('load', function() {
     if (window.performance) {
-        const loadTime = window.performance.timing.loadEventEnd - window.performance.timing.navigationStart;
-        console.log(`页面加载时间: ${loadTime}ms`);
-        
-        // 如果加载时间过长，显示提示
-        if (loadTime > 3000) {
-            showAlert('页面加载较慢，建议检查网络连接', 'warning');
+        try {
+            // 使用现代的Navigation Timing API
+            const navigationEntries = performance.getEntriesByType('navigation');
+            if (navigationEntries.length > 0) {
+                const loadTime = Math.round(navigationEntries[0].loadEventEnd - navigationEntries[0].fetchStart);
+                console.log(`页面加载时间: ${loadTime}ms`);
+                
+                // 如果加载时间过长，显示提示
+                if (loadTime > 3000) {
+                    showAlert('页面加载较慢，建议检查网络连接', 'warning');
+                }
+            } else {
+                // 降级方案：使用performance.now()
+                const loadTime = Math.round(performance.now());
+                console.log(`页面加载时间: ${loadTime}ms`);
+            }
+        } catch (error) {
+            console.log('性能监控初始化失败:', error.message);
         }
     }
 });

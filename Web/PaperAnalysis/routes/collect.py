@@ -15,36 +15,8 @@ collect_bp = Blueprint('collect', __name__, url_prefix='/collect')
 
 @collect_bp.route('/')
 def index():
-    """收集功能首页"""
-    try:
-        # 获取论文统计信息
-        stats = paper_data_service.get_paper_statistics()
-        
-        # 获取最近的论文
-        recent_papers = paper_data_service.get_recent_papers(limit=5)
-        
-        # 获取任务执行历史
-        task_results = paper_gather_service.get_all_task_results()
-        recent_tasks = sorted(task_results, key=lambda x: x['start_time'], reverse=True)[:10]
-        
-        # 获取正在运行的定时任务
-        scheduled_tasks = paper_gather_service.get_scheduled_tasks()
-        
-        # 获取运行中任务总数和详情
-        running_tasks_count = paper_gather_service.get_running_tasks_count()
-        running_tasks_detail = paper_gather_service.get_running_tasks_detail()
-        
-        return render_template('collect/index.html', 
-                             stats=stats,
-                             recent_papers=recent_papers,
-                             recent_tasks=recent_tasks,
-                             scheduled_tasks=scheduled_tasks,
-                             running_tasks_count=running_tasks_count,
-                             running_tasks_detail=running_tasks_detail)
-    
-    except Exception as e:
-        logger.error(f"收集首页加载失败: {e}")
-        return render_template('error.html', error="收集首页加载失败，请检查系统状态"), 500
+    """收集功能首页 - 重定向到任务配置"""
+    return redirect(url_for('collect.config'))
 
 
 @collect_bp.route('/config')
@@ -183,37 +155,6 @@ def task_status(task_id):
         return render_template('error.html', error="任务状态页面加载失败"), 500
 
 
-@collect_bp.route('/history')
-def task_history():
-    """任务历史页面"""
-    try:
-        # 获取所有任务结果
-        task_results = paper_gather_service.get_all_task_results()
-        
-        # 按开始时间倒序排列
-        task_results = sorted(task_results, key=lambda x: x['start_time'], reverse=True)
-        
-        return render_template('collect/task_history.html', 
-                             task_results=task_results)
-    
-    except Exception as e:
-        logger.error(f"任务历史页面加载失败: {e}")
-        return render_template('error.html', error="任务历史页面加载失败"), 500
-
-
-@collect_bp.route('/scheduled')
-def scheduled_tasks():
-    """定时任务管理页面"""
-    try:
-        # 获取所有定时任务
-        scheduled_tasks = paper_gather_service.get_scheduled_tasks()
-        
-        return render_template('collect/scheduled_tasks.html', 
-                             scheduled_tasks=scheduled_tasks)
-    
-    except Exception as e:
-        logger.error(f"定时任务页面加载失败: {e}")
-        return render_template('error.html', error="定时任务页面加载失败"), 500
 
 
 @collect_bp.route('/results/<task_id>')
@@ -236,3 +177,40 @@ def task_results(task_id):
     except Exception as e:
         logger.error(f"任务结果页面加载失败: {e}")
         return render_template('error.html', error="任务结果页面加载失败"), 500
+
+
+@collect_bp.route('/tasks')
+def tasks():
+    """统一任务查看页面"""
+    try:
+        # 获取统一的任务列表数据
+        tasks_data = paper_gather_service.get_all_tasks_unified()
+        
+        # 计算各类型任务数量
+        scheduled_count = sum(1 for task in tasks_data if task.get('task_type') == 'scheduled')
+        immediate_count = sum(1 for task in tasks_data if task.get('task_type') == 'immediate')
+        running_count = sum(1 for task in tasks_data if task.get('status') == 'running')
+        total_count = len(tasks_data)
+        
+        return render_template('collect/tasks.html', 
+                             tasks=tasks_data,
+                             scheduled_count=scheduled_count,
+                             immediate_count=immediate_count,
+                             running_count=running_count,
+                             total_count=total_count)
+    
+    except Exception as e:
+        logger.error(f"统一任务查看页面加载失败: {e}")
+        return render_template('error.html', error="任务查看页面加载失败，请检查系统状态"), 500
+
+
+@collect_bp.route('/history')
+def task_history():
+    """执行历史页面 - 重定向到统一任务查看"""
+    return redirect(url_for('collect.tasks'))
+
+
+@collect_bp.route('/scheduled')
+def scheduled_tasks():
+    """定时任务管理页面 - 重定向到统一任务查看"""
+    return redirect(url_for('collect.tasks'))

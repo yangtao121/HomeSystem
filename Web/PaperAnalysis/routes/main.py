@@ -27,10 +27,7 @@ paper_explore_service = PaperService()
 def index():
     """综合仪表板 - 合并两个应用的首页功能"""
     try:
-        # 获取论文收集统计信息 (来自PaperGather)
-        collect_stats = paper_data_service.get_paper_statistics()
-        
-        # 获取论文浏览统计信息 (来自ExplorePaperData)
+        # 获取论文浏览统计信息 (使用正确的数据源)
         explore_stats = paper_explore_service.get_overview_stats()
         
         # 获取最近的论文
@@ -47,18 +44,13 @@ def index():
         running_tasks_count = paper_gather_service.get_running_tasks_count()
         running_tasks_detail = paper_gather_service.get_running_tasks_detail()
         
-        # 获取无任务论文数量
-        _, unassigned_count = paper_explore_service.get_papers_without_tasks(page=1, per_page=1)
-        
         return render_template('index.html', 
-                             collect_stats=collect_stats,
                              explore_stats=explore_stats,
                              recent_papers=recent_papers,
                              recent_tasks=recent_tasks,
                              scheduled_tasks=scheduled_tasks,
                              running_tasks_count=running_tasks_count,
-                             running_tasks_detail=running_tasks_detail,
-                             unassigned_papers_count=unassigned_count)
+                             running_tasks_detail=running_tasks_detail)
     
     except Exception as e:
         logger.error(f"首页加载失败: {e}")

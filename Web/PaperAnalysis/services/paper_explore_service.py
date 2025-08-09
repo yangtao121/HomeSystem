@@ -324,7 +324,7 @@ class PaperService:
             offset = (page - 1) * per_page
             data_query = f"""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
-                       created_at, research_objectives, keywords, task_name, task_id,
+                       created_at, published_date, research_objectives, keywords, task_name, task_id,
                        full_paper_relevance_score, full_paper_relevance_justification,
                        dify_document_id, deep_analysis_result, deep_analysis_status
                 FROM arxiv_papers 
@@ -821,7 +821,7 @@ class PaperService:
             offset = (page - 1) * per_page
             cursor.execute("""
                 SELECT arxiv_id, title, authors, categories, processing_status, 
-                       created_at, research_objectives, keywords, task_name, task_id,
+                       created_at, published_date, research_objectives, keywords, task_name, task_id,
                        full_paper_relevance_score, full_paper_relevance_justification,
                        dify_document_id
                 FROM arxiv_papers 
@@ -2485,7 +2485,7 @@ class DifyService:
                 # 构建基础查询
                 base_query = """
                     SELECT arxiv_id, title, authors, abstract, categories, pdf_url, task_name,
-                           dify_dataset_id, dify_document_id, created_at
+                           dify_dataset_id, dify_document_id, created_at, published_date
                     FROM arxiv_papers 
                     WHERE 1=1
                 """

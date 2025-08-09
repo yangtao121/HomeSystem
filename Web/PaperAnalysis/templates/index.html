@@ -4,15 +4,25 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row">
+    <!-- 页面标题和快速操作 -->
+    <div class="row mb-4">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1><i class="bi bi-house-heart me-2"></i>PaperAnalysis 综合仪表板</h1>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-6 mb-2">
+                        <i class="bi bi-speedometer2 me-2 text-primary"></i>
+                        PaperAnalysis 综合仪表板
+                    </h1>
+                    <p class="text-muted mb-0">论文收集、浏览与深度分析的统一平台</p>
+                </div>
                 <div class="btn-group">
+                    <button class="btn btn-outline-secondary" id="refreshBtn" onclick="refreshDashboard()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>刷新数据
+                    </button>
                     <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
                         <i class="fas fa-plus me-1"></i>新建收集任务
                     </a>
-                    <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-primary">
+                    <a href="{{ url_for('explore.papers') }}" class="btn btn-success">
                         <i class="bi bi-search me-1"></i>浏览论文
                     </a>
                 </div>
@@ -20,105 +30,130 @@
         </div>
     </div>
 
-    <!-- 统计卡片 -->
+    <!-- 核心统计卡片 -->
     <div class="row mb-4">
-        <!-- 论文收集统计 -->
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <div class="rounded-3 bg-primary bg-opacity-10 p-3">
-                                <i class="fas fa-download text-primary fs-4"></i>
-                            </div>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="card-title mb-1">总论文数</h6>
-                            <h4 class="mb-0">{{ collect_stats.total_papers if collect_stats else explore_stats.basic.total_papers }}</h4>
-                            <small class="text-muted">已收集论文</small>
-                        </div>
+        <!-- 总论文数 -->
+        <div class="col-xl-4 col-md-4 col-sm-12 mb-3">
+            <div class="card border-0 shadow-sm h-100 stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon bg-primary bg-opacity-10 rounded-circle mx-auto mb-2">
+                        <i class="bi bi-file-earmark-text text-primary fs-4"></i>
                     </div>
+                    <div class="stats-number text-primary">
+                        {{ explore_stats.basic.total_papers if explore_stats else 0 }}
+                    </div>
+                    <div class="stats-label">总论文数</div>
                 </div>
             </div>
         </div>
 
-        <!-- 任务统计 -->
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <div class="rounded-3 bg-success bg-opacity-10 p-3">
-                                <i class="fas fa-tasks text-success fs-4"></i>
-                            </div>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="card-title mb-1">运行中任务</h6>
-                            <h4 class="mb-0">{{ running_tasks_count or 0 }}</h4>
-                            <small class="text-muted">正在执行</small>
-                        </div>
+        <!-- 运行中任务 -->
+        <div class="col-xl-4 col-md-4 col-sm-12 mb-3">
+            <div class="card border-0 shadow-sm h-100 stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon bg-warning bg-opacity-10 rounded-circle mx-auto mb-2">
+                        <i class="fas fa-cog fa-spin text-warning fs-4"></i>
                     </div>
+                    <div class="stats-number text-warning">{{ running_tasks_count or 0 }}</div>
+                    <div class="stats-label">运行中任务</div>
                 </div>
             </div>
         </div>
 
-        <!-- 定时任务统计 -->
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <div class="rounded-3 bg-info bg-opacity-10 p-3">
-                                <i class="fas fa-clock text-info fs-4"></i>
-                            </div>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="card-title mb-1">定时任务</h6>
-                            <h4 class="mb-0">{{ scheduled_tasks|length if scheduled_tasks else 0 }}</h4>
-                            <small class="text-muted">已配置</small>
-                        </div>
+        <!-- 定时任务 -->
+        <div class="col-xl-4 col-md-4 col-sm-12 mb-3">
+            <div class="card border-0 shadow-sm h-100 stats-card">
+                <div class="card-body text-center">
+                    <div class="stats-icon bg-info bg-opacity-10 rounded-circle mx-auto mb-2">
+                        <i class="fas fa-clock text-info fs-4"></i>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 无任务论文统计 -->
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <div class="rounded-3 bg-warning bg-opacity-10 p-3">
-                                <i class="bi bi-exclamation-triangle text-warning fs-4"></i>
-                            </div>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h6 class="card-title mb-1">无任务论文</h6>
-                            <h4 class="mb-0">{{ unassigned_papers_count or 0 }}</h4>
-                            <small class="text-muted">需要分配</small>
-                        </div>
-                    </div>
+                    <div class="stats-number text-info">{{ scheduled_tasks|length if scheduled_tasks else 0 }}</div>
+                    <div class="stats-label">定时任务</div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 主要内容区域 -->
     <div class="row">
-        <!-- 左侧：任务状态和历史 -->
-        <div class="col-lg-8 mb-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>最近任务执行</h5>
-                        <a href="{{ url_for('collect.task_history') }}" class="btn btn-sm btn-outline-primary">
-                            查看全部
+        <!-- 可视化图表和数据趋势 -->
+        <div class="col-12 mb-4">
+            <!-- Tab导航 -->
+            <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="papers-tab" data-bs-toggle="tab" data-bs-target="#papers-pane" 
+                            type="button" role="tab">
+                        <i class="bi bi-file-earmark-text me-1"></i>最近论文
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks-pane" 
+                            type="button" role="tab">
+                        <i class="fas fa-tasks me-1"></i>任务执行历史
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" 
+                            type="button" role="tab">
+                        <i class="bi bi-bar-chart me-1"></i>数据分析
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content border border-top-0 rounded-bottom shadow-sm" id="dashboardTabContent">
+                <!-- 最近论文 -->
+                <div class="tab-pane fade show active p-3" id="papers-pane" role="tabpanel">
+                    {% if recent_papers %}
+                    <div class="row">
+                        {% for paper in recent_papers[:6] %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-0 bg-light hover-card">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-2">
+                                        <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.id) }}" 
+                                           class="text-decoration-none">
+                                            {{ paper.title[:80] }}{% if paper.title|length > 80 %}...{% endif %}
+                                        </a>
+                                    </h6>
+                                    <p class="card-text small text-muted mb-2">
+                                        {{ paper.abstract[:100] }}{% if paper.abstract|length > 100 %}...{% endif %}
+                                    </p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar me-1"></i>
+                                            {{ moment(paper.created_at).fromNow() }}
+                                        </small>
+                                        {% if paper.task_name %}
+                                        <span class="badge bg-primary">{{ paper.task_name }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-primary">
+                            查看所有论文
                         </a>
                     </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-file-earmark-text text-muted display-4 mb-3"></i>
+                        <h5 class="text-muted">暂无论文数据</h5>
+                        <p class="text-muted">开始收集您感兴趣的研究论文</p>
+                        <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i>开始收集
+                        </a>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="card-body">
+
+                <!-- 任务执行历史 -->
+                <div class="tab-pane fade p-3" id="tasks-pane" role="tabpanel">
                     {% if recent_tasks %}
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
                                     <th>任务名称</th>
@@ -129,11 +164,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for task in recent_tasks[:5] %}
+                                {% for task in recent_tasks[:8] %}
                                 <tr>
                                     <td>
                                         <strong>{{ task.task_name or '未命名任务' }}</strong><br>
-                                        <small class="text-muted">{{ task.search_query[:50] }}...</small>
+                                        <small class="text-muted">{{ (task.search_query or '无搜索查询')[:50] }}{% if (task.search_query or '') |length > 50 %}...{% endif %}</small>
                                     </td>
                                     <td>
                                         <span class="badge bg-{{ task.status|status_badge }}">
@@ -165,152 +200,225 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('collect.tasks') }}" class="btn btn-outline-primary">
+                            查看所有任务
+                        </a>
+                    </div>
                     {% else %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-tasks text-muted fs-1 mb-3"></i>
-                        <p class="text-muted">暂无任务执行记录</p>
+                    <div class="text-center py-5">
+                        <i class="fas fa-tasks text-muted display-4 mb-3"></i>
+                        <h5 class="text-muted">暂无任务执行记录</h5>
+                        <p class="text-muted">开始创建您的第一个论文收集任务</p>
                         <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
-                            <i class="fas fa-plus me-1"></i>创建第一个任务
+                            <i class="fas fa-plus me-1"></i>创建任务
                         </a>
                     </div>
                     {% endif %}
                 </div>
-            </div>
-        </div>
 
-        <!-- 右侧：快速操作和统计 -->
-        <div class="col-lg-4">
-            <!-- 快速操作 -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-transparent">
-                    <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>快速操作</h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
-                            <i class="fas fa-plus me-2"></i>新建收集任务
-                        </a>
-                        <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-primary">
-                            <i class="bi bi-search me-2"></i>搜索论文
-                        </a>
-                        <a href="{{ url_for('explore.statistics') }}" class="btn btn-outline-info">
-                            <i class="bi bi-bar-chart me-2"></i>查看统计
-                        </a>
-                        <a href="{{ url_for('analysis.config') }}" class="btn btn-outline-warning">
-                            <i class="bi bi-cpu me-2"></i>分析设置
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 运行中任务详情 -->
-            {% if running_tasks_detail %}
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-transparent">
-                    <h5 class="mb-0"><i class="fas fa-spinner me-2"></i>运行中任务</h5>
-                </div>
-                <div class="card-body">
-                    {% for task in running_tasks_detail %}
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <strong>{{ task.task_name or '未命名任务' }}</strong><br>
-                            <small class="text-muted">{{ moment(task.start_time).fromNow() }}</small>
-                        </div>
-                        <div class="text-end">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">运行中...</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% if not loop.last %}<hr>{% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- 系统状态 -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-transparent">
-                    <h5 class="mb-0"><i class="bi bi-activity me-2"></i>系统状态</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <div class="text-center">
-                                <div class="h4 text-success mb-0">
-                                    {% if explore_stats and explore_stats.basic %}
-                                        {{ explore_stats.basic.total_papers }}
-                                    {% else %}
-                                        0
-                                    {% endif %}
-                                </div>
-                                <small class="text-muted">总论文数</small>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="text-center">
-                                <div class="h4 text-info mb-0">
-                                    {% if explore_stats and explore_stats.tasks %}
-                                        {{ explore_stats.tasks.unique_tasks }}
-                                    {% else %}
-                                        0
-                                    {% endif %}
-                                </div>
-                                <small class="text-muted">任务数</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 最近添加的论文 -->
-    {% if recent_papers %}
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-transparent">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>最近添加的论文</h5>
-                        <a href="{{ url_for('explore.papers') }}" class="btn btn-sm btn-outline-primary">
-                            查看全部
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
+                <!-- 数据分析图表 -->
+                <div class="tab-pane fade p-3" id="analytics-pane" role="tabpanel">
                     <div class="row">
-                        {% for paper in recent_papers[:6] %}
                         <div class="col-md-6 mb-3">
-                            <div class="card h-100 border-0 bg-light">
-                                <div class="card-body">
-                                    <h6 class="card-title">
-                                        <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.id) }}" 
-                                           class="text-decoration-none">
-                                            {{ paper.title[:80] }}{% if paper.title|length > 80 %}...{% endif %}
-                                        </a>
-                                    </h6>
-                                    <p class="card-text small text-muted">
-                                        {{ paper.abstract[:120] }}{% if paper.abstract|length > 120 %}...{% endif %}
-                                    </p>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted">
-                                            <i class="bi bi-calendar me-1"></i>
-                                            {{ moment(paper.created_at).fromNow() }}
-                                        </small>
-                                        {% if paper.task_name %}
-                                        <span class="badge bg-primary">{{ paper.task_name }}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
+                            <h6 class="mb-3"><i class="bi bi-pie-chart me-1"></i>系统核心数据分布</h6>
+                            <div class="chart-container">
+                                <canvas id="statusChart" height="200"></canvas>
                             </div>
                         </div>
-                        {% endfor %}
+                        <div class="col-md-6 mb-3">
+                            <h6 class="mb-3"><i class="bi bi-graph-up me-1"></i>最近7天新增趋势</h6>
+                            <div class="chart-container">
+                                <canvas id="trendChart" height="200"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    {% endif %}
 </div>
+
+<!-- 数据脚本（供JavaScript使用） -->
+<script type="application/json" id="chartData">
+{
+    "status": {
+        "labels": ["总论文", "运行任务", "定时任务"],
+        "values": [
+            {{ explore_stats.basic.total_papers if explore_stats else 0 }}, 
+            {{ running_tasks_count or 0 }}, 
+            {{ scheduled_tasks|length if scheduled_tasks else 0 }}
+        ]
+    },
+    "trend": {
+        "labels": [
+            {% if explore_stats and explore_stats.recent %}
+                {% for item in explore_stats.recent[-7:] %}
+                "{{ item.date }}"{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        ],
+        "values": [
+            {% if explore_stats and explore_stats.recent %}
+                {% for item in explore_stats.recent[-7:] %}
+                {{ item.count }}{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        ]
+    }
+}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 刷新仪表板数据
+function refreshDashboard() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    const originalText = refreshBtn.innerHTML;
+    
+    refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise fa-spin me-1"></i>刷新中...';
+    refreshBtn.disabled = true;
+    
+    // 模拟刷新延迟
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+// 初始化图表
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = JSON.parse(document.getElementById('chartData').textContent);
+    
+    // 状态分布图
+    if (document.getElementById('statusChart')) {
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: chartData.status.labels,
+                datasets: [{
+                    data: chartData.status.values,
+                    backgroundColor: ['#007bff', '#ffc107', '#17a2b8']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    // 趋势图
+    if (document.getElementById('trendChart')) {
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: chartData.trend.labels,
+                datasets: [{
+                    label: '新增论文',
+                    data: chartData.trend.values,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+});
+
+// 自动刷新运行中任务状态
+setInterval(function() {
+    fetch('/api/running_tasks')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新运行中任务计数 (第3个统计卡片)
+                const runningTasksElement = document.querySelector('.stats-number.text-warning');
+                if (runningTasksElement) {
+                    runningTasksElement.textContent = data.data.count || 0;
+                }
+            }
+        })
+        .catch(error => console.log('刷新任务状态失败:', error));
+}, 15000); // 每15秒刷新一次
+</script>
+
+<style>
+.stats-card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+.stats-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stats-number {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stats-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.hover-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.hover-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.chart-container {
+    position: relative;
+    height: 200px;
+}
+
+.nav-tabs .nav-link {
+    color: #6c757d;
+    border: none;
+    background: transparent;
+}
+
+.nav-tabs .nav-link.active {
+    color: #0d6efd;
+    background: white;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+</style>
 {% endblock %}

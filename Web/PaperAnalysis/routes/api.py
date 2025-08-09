@@ -382,3 +382,62 @@ def save_analysis_config():
             'success': False,
             'error': f"保存配置失败: {str(e)}"
         }), 500
+
+
+# === 系统状态相关API ===
+
+@api_bp.route('/running_tasks')
+def get_running_tasks():
+    """获取运行中任务状态 - 用于首页实时更新"""
+    try:
+        # 获取运行中任务数量和详情
+        running_count = paper_gather_service.get_running_tasks_count()
+        running_details = paper_gather_service.get_running_tasks_detail()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'count': running_count,
+                'details': running_details
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取运行中任务失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/system_stats')
+def get_system_stats():
+    """获取系统核心统计数据 - 用于首页展示卡片"""
+    try:
+        # 获取论文收集统计
+        collect_stats = paper_data_service.get_paper_statistics()
+        
+        # 获取运行中任务数量
+        running_tasks_count = paper_gather_service.get_running_tasks_count()
+        
+        # 获取定时任务数量
+        scheduled_tasks = paper_gather_service.get_scheduled_tasks()
+        scheduled_count = len(scheduled_tasks) if scheduled_tasks else 0
+        
+        # 构建核心统计数据
+        core_stats = {
+            'total_papers': collect_stats.get('total_papers', 0),
+            'analyzed_papers': collect_stats.get('analyzed_papers', 0),
+            'running_tasks': running_tasks_count,
+            'scheduled_tasks': scheduled_count
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': core_stats
+        })
+    except Exception as e:
+        logger.error(f"获取系统统计数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

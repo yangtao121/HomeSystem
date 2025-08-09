@@ -1,0 +1,512 @@
+<!-- 批量操作相关的模态框集合 -->
+
+<!-- 任务分配模态框 -->
+<div class="modal fade" id="assignTaskModal" tabindex="-1" aria-labelledby="assignTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignTaskModalLabel">
+                    <i class="bi bi-plus-square"></i> 分配任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>论文:</strong> <span id="assignPaperTitle"></span>
+                </div>
+                <div class="mb-3">
+                    <label for="assignTaskName" class="form-label">任务名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="assignTaskName" 
+                           placeholder="输入任务名称" maxlength="255" required>
+                    <div class="form-text">请输入描述性的任务名称</div>
+                </div>
+                <div class="mb-3">
+                    <label for="assignTaskId" class="form-label">任务ID</label>
+                    <input type="text" class="form-control" id="assignTaskId" 
+                           placeholder="输入任务ID (可选)" maxlength="100">
+                    <div class="form-text">可选的任务标识符</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmAssignTask()" id="confirmAssignBtn">
+                    <i class="bi bi-check"></i> 确认分配
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量确认模态框 -->
+<div class="modal fade" id="batchConfirmModal" tabindex="-1" aria-labelledby="batchConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchConfirmModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> 确认操作
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="batchConfirmContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmBatchOperation()" id="confirmBatchBtn">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 论文迁移模态框 -->
+<div class="modal fade" id="migrationModal" tabindex="-1" aria-labelledby="migrationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="migrationModalLabel">
+                    <i class="bi bi-arrow-right-circle"></i> 迁移到已有任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>论文:</strong> <span id="migrationPaperTitle"></span>
+                </div>
+                
+                <!-- 任务搜索 -->
+                <div class="mb-3">
+                    <label for="taskSearchInput" class="form-label">搜索任务</label>
+                    <input type="text" class="form-control" id="taskSearchInput" 
+                           placeholder="输入任务名称进行搜索..." 
+                           onkeyup="filterTasks()">
+                </div>
+                
+                <!-- 任务列表 -->
+                <div id="taskListContainer" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务列表...</p>
+                    </div>
+                </div>
+                
+                <!-- 选中的任务信息 -->
+                <div class="mt-3 d-none" id="selectedTaskInfo">
+                    <div class="alert alert-info">
+                        <strong>选中任务:</strong> <span id="selectedTaskName"></span>
+                        <br>
+                        <small class="text-muted">
+                            包含 <span id="selectedTaskPaperCount"></span> 篇论文
+                        </small>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="migrationPaperArxivId">
+                <input type="hidden" id="selectedTaskIdForMigration">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="confirmMigration()" id="confirmMigrationBtn" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> 确认迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量迁移模态框 -->
+<div class="modal fade" id="batchMigrationModal" tabindex="-1" aria-labelledby="batchMigrationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchMigrationModalLabel">
+                    <i class="bi bi-arrow-right-circle"></i> 批量迁移到已有任务
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    已选择 <strong id="batchMigrationPaperCount">0</strong> 篇论文进行批量迁移
+                </div>
+                
+                <!-- 任务搜索 -->
+                <div class="mb-3">
+                    <label for="batchTaskSearchInput" class="form-label">搜索任务</label>
+                    <input type="text" class="form-control" id="batchTaskSearchInput" 
+                           placeholder="输入任务名称进行搜索..." 
+                           onkeyup="filterBatchTasks()">
+                </div>
+                
+                <!-- 任务列表 -->
+                <div id="batchTaskListContainer" style="max-height: 350px; overflow-y: auto;">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载任务列表...</p>
+                    </div>
+                </div>
+                
+                <!-- 选中的任务信息 -->
+                <div class="mt-3 d-none" id="batchSelectedTaskInfo">
+                    <div class="alert alert-success">
+                        <strong>目标任务:</strong> <span id="batchSelectedTaskName"></span>
+                        <br>
+                        <small class="text-muted">
+                            当前包含 <span id="batchSelectedTaskPaperCount"></span> 篇论文
+                        </small>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="batchSelectedTaskIdForMigration">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="showBatchMigrationPreview()" id="previewBatchMigrationBtn" disabled>
+                    <i class="bi bi-eye"></i> 预览迁移
+                </button>
+                <button type="button" class="btn btn-success" onclick="confirmBatchMigration()" id="confirmBatchMigrationBtn" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> 确认批量迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量迁移预览模态框 -->
+<div class="modal fade" id="batchMigrationPreviewModal" tabindex="-1" aria-labelledby="batchMigrationPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchMigrationPreviewModalLabel">
+                    <i class="bi bi-eye"></i> 批量迁移预览
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="migrationPreviewContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在生成迁移预览...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消预览</button>
+                <button type="button" class="btn btn-success" onclick="executeBatchMigrationFromPreview()" id="executeMigrationBtn">
+                    <i class="bi bi-arrow-right-circle"></i> 执行批量迁移
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dify 批量上传进度模态框 -->
+<div class="modal fade" id="difyUploadProgressModal" tabindex="-1" aria-labelledby="difyUploadProgressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="difyUploadProgressModalLabel">
+                    <i class="bi bi-cloud-upload"></i> 批量上传到 Dify 知识库
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="uploadModalCloseBtn"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 总体进度 -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">总体进度</span>
+                        <span id="overallProgress">0/0</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%" 
+                             id="overallProgressBar">0%</div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <small class="text-success">
+                                <i class="bi bi-check-circle"></i> 
+                                成功: <span id="successCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-danger">
+                                <i class="bi bi-x-circle"></i> 
+                                失败: <span id="failedCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> 
+                                总计: <span id="totalCount">0</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 详细进度列表 -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>论文上传状态</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="statusFilter" id="showAll" checked>
+                            <label class="btn btn-outline-primary" for="showAll">全部</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="showErrors">
+                            <label class="btn btn-outline-danger" for="showErrors">仅错误</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="showRetryable">
+                            <label class="btn btn-outline-warning" for="showRetryable">可重试</label>
+                        </div>
+                    </div>
+                    <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                        <div id="uploadDetailsList"></div>
+                    </div>
+                </div>
+
+                <!-- 错误汇总 -->
+                <div id="errorSummarySection" style="display: none;" class="mt-4">
+                    <div class="card border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <i class="bi bi-exclamation-triangle"></i> 错误汇总与建议
+                        </div>
+                        <div class="card-body">
+                            <div id="errorCategorySummary" class="mb-3"></div>
+                            <div id="recommendationsSection"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-warning" id="retryFailedBtn" style="display: none;">
+                    <i class="bi bi-arrow-clockwise"></i> 重试失败项
+                </button>
+                <button type="button" class="btn btn-info" id="exportFailedBtn" style="display: none;">
+                    <i class="bi bi-download"></i> 导出失败列表
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="uploadModalDoneBtn" style="display: none;">
+                    完成
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dify 批量验证进度模态框 -->
+<div class="modal fade" id="difyVerifyProgressModal" tabindex="-1" aria-labelledby="difyVerifyProgressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="difyVerifyProgressModalLabel">
+                    <i class="bi bi-shield-check"></i> 批量验证知识库文档状态
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="verifyModalCloseBtn"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 总体进度 -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">验证进度</span>
+                        <span id="verifyOverallProgress">0/0</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                             role="progressbar" style="width: 0%" 
+                             id="verifyOverallProgressBar">0%</div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <small class="text-success">
+                                <i class="bi bi-check-circle"></i> 
+                                已验证: <span id="verifySuccessCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-danger">
+                                <i class="bi bi-x-circle"></i> 
+                                验证失败: <span id="verifyFailedCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                文档丢失: <span id="verifyMissingCount">0</span>
+                            </small>
+                        </div>
+                        <div class="col-3">
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> 
+                                总计: <span id="verifyTotalCount">0</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 验证状态信息 -->
+                <div class="alert alert-info" id="verifyStatusMessage">
+                    <i class="bi bi-info-circle"></i> 
+                    <span id="verifyStatusText">正在初始化验证...</span>
+                </div>
+
+                <!-- 验证结果详情 -->
+                <div id="verifyResultsSection" style="display: none;">
+                    <!-- 失败和丢失的文档列表 -->
+                    <div id="verifyFailedSection" style="display: none;" class="mb-3">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <i class="bi bi-exclamation-triangle"></i> 验证失败的文档
+                            </div>
+                            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                                <div id="verifyFailedList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="verifyMissingSection" style="display: none;" class="mb-3">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <i class="bi bi-exclamation-triangle"></i> 服务器上丢失的文档
+                            </div>
+                            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                                <div id="verifyMissingList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="verifySuccessBtn" style="display: none;">
+                    <i class="bi bi-check-circle"></i> 验证完成
+                </button>
+                <button type="button" class="btn btn-warning" id="batchReuploadBtn" style="display: none;">
+                    <i class="bi bi-upload"></i> 重新上传丢失文档
+                </button>
+                <button type="button" class="btn btn-info" id="exportVerifyResultBtn" style="display: none;">
+                    <i class="bi bi-download"></i> 导出验证结果
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="verifyModalDoneBtn" style="display: none;">
+                    完成
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 一键上传总结模态框 -->
+<div class="modal fade" id="uploadSummaryModal" tabindex="-1" aria-labelledby="uploadSummaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadSummaryModalLabel">
+                    <i class="bi bi-cloud-upload"></i> 上传总结报告
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 总体统计 -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-primary" id="summaryTotalCount">0</h3>
+                                <p class="card-text">总计论文</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-success" id="summarySuccessCount">0</h3>
+                                <p class="card-text">上传成功</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-danger" id="summaryFailedCount">0</h3>
+                                <p class="card-text">上传失败</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-warning">
+                            <div class="card-body text-center">
+                                <h3 class="card-title text-warning" id="summarySkippedCount">0</h3>
+                                <p class="card-text">已跳过</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 失败原因统计 -->
+                <div id="failureAnalysisSection" style="display: none;" class="mb-4">
+                    <h6><i class="bi bi-exclamation-triangle"></i> 失败原因分析</h6>
+                    <div class="row" id="failureStatsContainer">
+                        <!-- 失败原因统计将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 失败论文列表 -->
+                <div id="failedPapersSection" style="display: none;">
+                    <h6><i class="bi bi-list-ul"></i> 失败论文详情</h6>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>失败论文列表</span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-danger" onclick="filterFailedPapers('all')">全部</button>
+                                <button type="button" class="btn btn-outline-warning" onclick="filterFailedPapers('task_missing')">缺少任务</button>
+                                <button type="button" class="btn btn-outline-info" onclick="filterFailedPapers('already_uploaded')">已上传</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="filterFailedPapers('other')">其他</button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                            <div id="failedPapersList">
+                                <!-- 失败论文列表将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下载建议和操作 -->
+                <div id="downloadSuggestionsSection" style="display: none;" class="mt-4">
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-lightbulb"></i> 处理建议</h6>
+                        <p class="mb-2">对于上传失败的论文，您可以:</p>
+                        <ul class="mb-3">
+                            <li><strong>修复问题后重新上传</strong>: 为缺少任务名称的论文分配任务，然后重新尝试上传</li>
+                            <li><strong>手动下载处理</strong>: 下载失败论文的PDF文件，进行手动处理</li>
+                            <li><strong>导出详细报告</strong>: 获取包含所有失败信息的CSV报告进行分析</li>
+                        </ul>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                            <button type="button" class="btn btn-warning" id="retryFailedUploadBtn">
+                                <i class="bi bi-arrow-clockwise"></i> 重新上传可修复的论文
+                            </button>
+                            <button type="button" class="btn btn-info" id="downloadFailedPapersBtn">
+                                <i class="bi bi-download"></i> 下载失败论文PDF
+                            </button>
+                            <button type="button" class="btn btn-outline-info" id="exportFailedReportBtn">
+                                <i class="bi bi-file-earmark-csv"></i> 导出失败报告
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="refreshPageBtn" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新页面
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

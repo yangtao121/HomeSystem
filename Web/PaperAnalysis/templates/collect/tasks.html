@@ -1,0 +1,905 @@
+{% extends "base.html" %}
+
+{% block title %}任务查看 - PaperGather{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1><i class="fas fa-tasks me-2"></i>任务查看</h1>
+            <div>
+                <a href="{{ url_for('collect.config') }}" class="btn btn-primary me-2">
+                    <i class="fas fa-plus me-1"></i>新建任务
+                </a>
+                <button class="btn btn-outline-secondary" onclick="refreshTaskList()">
+                    <i class="fas fa-sync-alt me-1"></i>刷新
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务统计概览 -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">定时任务</div>
+                        <div class="h5 mb-0 font-weight-bold" id="scheduledTasksCount">{{ scheduled_count | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">一次性任务</div>
+                        <div class="h5 mb-0 font-weight-bold" id="immediateTasksCount">{{ immediate_count | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-play fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">运行中任务</div>
+                        <div class="h5 mb-0 font-weight-bold" id="runningTasksCount">{{ running_count | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-cog fa-spin fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">总任务数</div>
+                        <div class="h5 mb-0 font-weight-bold" id="totalTasksCount">{{ total_count | default(0) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-list fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>任务列表
+                    </h5>
+                    <!-- 筛选器 -->
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="taskTypeFilter" style="width: auto;">
+                            <option value="all">全部类型</option>
+                            <option value="scheduled">定时任务</option>
+                            <option value="immediate">一次性任务</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="taskStatusFilter" style="width: auto;">
+                            <option value="all">全部状态</option>
+                            <option value="running">运行中</option>
+                            <option value="completed">已完成</option>
+                            <option value="failed">失败</option>
+                            <option value="stopped">已停止</option>
+                            <option value="paused">已暂停</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if tasks %}
+                <!-- 批量操作工具栏 -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                    <label class="form-check-label" for="selectAll">
+                                        全选
+                                    </label>
+                                </div>
+                                <button class="btn btn-outline-danger btn-sm" id="batchDeleteBtn" style="display: none;">
+                                    <i class="fas fa-trash me-1"></i>批量删除 (<span id="selectedCount">0</span>)
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm ms-2" id="batchStopBtn" style="display: none;">
+                                    <i class="fas fa-stop me-1"></i>批量停止 (<span id="selectedStopCount">0</span>)
+                                </button>
+                            </div>
+                            <small class="text-muted">
+                                共 <span id="totalTasksDisplay">{{ tasks|length }}</span> 个任务
+                                <span id="filteredTasksDisplay" style="display: none;">（已筛选）</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover" id="tasksTable">
+                        <thead>
+                            <tr>
+                                <th width="50px">
+                                    <input class="form-check-input" type="checkbox" id="selectAllHeader" style="margin: 0;">
+                                </th>
+                                <th>任务信息</th>
+                                <th>类型</th>
+                                <th>状态</th>
+                                <th>执行信息</th>
+                                <th>配置</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasksTableBody">
+                            {% for task in tasks %}
+                            <tr class="task-row" 
+                                data-task-id="{{ task.task_id }}" 
+                                data-task-type="{{ task.task_type }}"
+                                data-task-status="{{ task.status }}">
+                                <td>
+                                    <input class="form-check-input row-checkbox" type="checkbox" 
+                                           value="{{ task.task_id }}" style="margin: 0;">
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>{{ task.task_name or task.task_id[:8] + '...' }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            ID: <code>{{ task.task_id[:8] }}...</code>
+                                        </small>
+                                        <br>
+                                        <small class="text-muted">
+                                            创建: {{ task.start_time | format_date }}
+                                        </small>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if task.task_type == 'scheduled' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-clock me-1"></i>定时任务
+                                        </span>
+                                        {% if task.interval_seconds %}
+                                        <br>
+                                        <small class="text-muted">
+                                            间隔: {{ task.interval_seconds | format_duration }}
+                                        </small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-primary">
+                                            <i class="fas fa-play me-1"></i>一次性任务
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ task.status | status_badge }}">
+                                        {{ task.status | upper }}
+                                    </span>
+                                    {% if task.task_type == 'scheduled' and task.is_running %}
+                                    <br>
+                                    <small class="text-success">
+                                        <i class="fas fa-circle"></i> 活跃
+                                    </small>
+                                    {% endif %}
+                                    {% if task.progress is defined and task.progress > 0 %}
+                                    <br>
+                                    <div class="progress mt-1" style="width: 80px; height: 12px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ (task.progress * 100) | round(1) }}%"></div>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.task_type == 'scheduled' %}
+                                        <div class="mb-1">
+                                            <span class="badge bg-secondary">
+                                                执行 {{ task.execution_count or 0 }} 次
+                                            </span>
+                                        </div>
+                                        {% if task.last_executed_at %}
+                                        <small class="text-muted">
+                                            上次: {{ task.last_executed_at | format_date }}
+                                        </small>
+                                        <br>
+                                        {% endif %}
+                                        {% if task.next_execution_at %}
+                                        <small class="text-info">
+                                            下次: {{ task.next_execution_at | format_date }}
+                                        </small>
+                                        {% endif %}
+                                    {% else %}
+                                        {% if task.end_time %}
+                                        <small class="text-muted">
+                                            完成: {{ task.end_time | format_date }}
+                                        </small>
+                                        <br>
+                                        {% endif %}
+                                        {% if task.duration %}
+                                        <small class="text-muted">
+                                            耗时: {{ task.duration | format_duration }}
+                                        </small>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if task.papers_found is defined and task.papers_found is not none %}
+                                    <br>
+                                    <span class="badge bg-info">
+                                        {{ task.papers_found }} 篇论文
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 150px;">
+                                        {% if task.search_query %}
+                                        <small class="text-muted" title="{{ task.search_query }}">
+                                            <i class="fas fa-search me-1"></i>{{ task.search_query }}
+                                        </small>
+                                        <br>
+                                        {% endif %}
+                                        {% if task.llm_model_name %}
+                                        <small class="text-muted" title="{{ task.llm_model_name }}">
+                                            <i class="fas fa-robot me-1"></i>{{ task.llm_model_name }}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <!-- 查看详情 -->
+                                        <button class="btn btn-outline-info" 
+                                                onclick="showTaskDetails('{{ task.task_id }}')" 
+                                                title="查看详情">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        
+                                        <!-- 查看结果（仅完成的任务） -->
+                                        {% if task.status == 'completed' %}
+                                        <a href="{{ url_for('collect.task_results', task_id=task.task_id) }}" 
+                                           class="btn btn-outline-success" title="查看结果">
+                                            <i class="fas fa-search-plus"></i>
+                                        </a>
+                                        {% endif %}
+                                        
+                                        <!-- 定时任务特殊操作 -->
+                                        {% if task.task_type == 'scheduled' %}
+                                            {% if task.status == 'running' and task.is_running %}
+                                            <button class="btn btn-outline-success" 
+                                                    onclick="triggerScheduledTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
+                                                    title="立即执行">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button class="btn btn-outline-warning" 
+                                                    onclick="pauseScheduledTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
+                                                    title="暂停任务">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                            {% elif task.status == 'paused' %}
+                                            <button class="btn btn-outline-primary" 
+                                                    onclick="resumeScheduledTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
+                                                    title="恢复任务">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            {% endif %}
+                                            <button class="btn btn-outline-primary" 
+                                                    onclick="editTaskConfig('{{ task.task_id }}')" 
+                                                    title="编辑配置">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        {% endif %}
+                                        
+                                        <!-- 取消运行中任务 -->
+                                        {% if task.status in ['pending', 'running'] %}
+                                        <button class="btn btn-outline-warning" 
+                                                onclick="cancelTask('{{ task.task_id }}')" title="取消任务">
+                                            <i class="fas fa-stop"></i>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <!-- 删除任务 -->
+                                        <button class="btn btn-outline-danger" 
+                                                onclick="deleteTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
+                                                title="删除任务">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if pagination and pagination.total_pages > 1 %}
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.prev_num }}">上一页</a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in range(1, pagination.total_pages + 1) %}
+                            {% if page_num == pagination.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% elif page_num <= 3 or page_num > pagination.total_pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                            </li>
+                            {% elif page_num == 4 and pagination.page > 6 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% elif page_num == pagination.total_pages - 3 and pagination.page < pagination.total_pages - 5 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.next_num }}">下一页</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">暂无任务</h5>
+                    <p class="text-muted">还没有创建任何任务</p>
+                    <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>立即创建任务
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务详情模态框 -->
+<div class="modal fade" id="taskDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>任务详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="taskDetailsContent">
+                    <!-- 详情内容将通过JavaScript填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务配置编辑模态框 -->
+<div class="modal fade" id="taskEditModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>编辑定时任务配置
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="taskEditContent">
+                    <!-- 编辑表单将通过JavaScript填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveTaskConfig()">保存配置</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // 初始化筛选器事件
+    $('#taskTypeFilter, #taskStatusFilter').change(function() {
+        filterTasks();
+    });
+    
+    // 全选/取消全选功能
+    $('#selectAll, #selectAllHeader').change(function() {
+        const isChecked = $(this).prop('checked');
+        $('.row-checkbox:visible').prop('checked', isChecked);
+        $('#selectAll, #selectAllHeader').prop('checked', isChecked);
+        updateBatchButtons();
+    });
+    
+    // 单行复选框变化
+    $('.row-checkbox').change(function() {
+        const totalVisibleRows = $('.row-checkbox:visible').length;
+        const checkedVisibleRows = $('.row-checkbox:visible:checked').length;
+        
+        $('#selectAll, #selectAllHeader').prop('checked', checkedVisibleRows === totalVisibleRows && totalVisibleRows > 0);
+        updateBatchButtons();
+    });
+    
+    // 批量删除按钮点击
+    $('#batchDeleteBtn').click(function() {
+        const selectedIds = $('.row-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selectedIds.length === 0) {
+            showAlert('请先选择要删除的任务', 'warning');
+            return;
+        }
+        
+        batchDeleteTasks(selectedIds);
+    });
+    
+    // 批量停止按钮点击
+    $('#batchStopBtn').click(function() {
+        const selectedIds = $('.row-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selectedIds.length === 0) {
+            showAlert('请先选择要停止的任务', 'warning');
+            return;
+        }
+        
+        batchStopTasks(selectedIds);
+    });
+    
+    // 定时刷新任务状态（每30秒）
+    setInterval(refreshTaskStatus, 30000);
+});
+
+// 筛选任务
+function filterTasks() {
+    const typeFilter = $('#taskTypeFilter').val();
+    const statusFilter = $('#taskStatusFilter').val();
+    
+    let visibleCount = 0;
+    $('.task-row').each(function() {
+        const taskType = $(this).data('task-type');
+        const taskStatus = $(this).data('task-status');
+        
+        let showTask = true;
+        
+        // 类型筛选
+        if (typeFilter !== 'all' && taskType !== typeFilter) {
+            showTask = false;
+        }
+        
+        // 状态筛选
+        if (statusFilter !== 'all' && taskStatus !== statusFilter) {
+            showTask = false;
+        }
+        
+        if (showTask) {
+            $(this).show();
+            visibleCount++;
+        } else {
+            $(this).hide();
+        }
+    });
+    
+    // 更新显示统计
+    $('#totalTasksDisplay').text(visibleCount);
+    if (typeFilter !== 'all' || statusFilter !== 'all') {
+        $('#filteredTasksDisplay').show();
+    } else {
+        $('#filteredTasksDisplay').hide();
+    }
+    
+    // 重置选择状态
+    $('.row-checkbox').prop('checked', false);
+    $('#selectAll, #selectAllHeader').prop('checked', false);
+    updateBatchButtons();
+}
+
+// 更新批量操作按钮状态
+function updateBatchButtons() {
+    const checkedCount = $('.row-checkbox:checked').length;
+    const runnableTasksCount = $('.row-checkbox:checked').filter(function() {
+        const row = $(this).closest('tr');
+        const status = row.data('task-status');
+        return ['pending', 'running'].includes(status);
+    }).length;
+    
+    $('#selectedCount, #selectedStopCount').text(checkedCount);
+    
+    if (checkedCount > 0) {
+        $('#batchDeleteBtn').show();
+        if (runnableTasksCount > 0) {
+            $('#batchStopBtn').show();
+        } else {
+            $('#batchStopBtn').hide();
+        }
+    } else {
+        $('#batchDeleteBtn, #batchStopBtn').hide();
+    }
+}
+
+// 显示任务详情
+function showTaskDetails(taskId) {
+    // 从表格行中获取任务信息，或通过API获取详细信息
+    $.get(`/api/task/details/${taskId}`)
+        .then(response => {
+            if (response.success) {
+                displayTaskDetails(response.data);
+            } else {
+                showAlert(`获取任务详情失败: ${response.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('获取任务详情失败:', error);
+            showAlert('获取任务详情失败，请检查网络连接', 'danger');
+        });
+}
+
+// 显示任务详情内容
+function displayTaskDetails(taskData) {
+    const detailsHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6><i class="fas fa-info-circle me-2"></i>基本信息</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">任务ID:</td>
+                        <td><code>${taskData.task_id}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">任务名称:</td>
+                        <td>${taskData.task_name || '未命名'}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">任务类型:</td>
+                        <td>
+                            <span class="badge bg-${taskData.task_type === 'scheduled' ? 'success' : 'primary'}">
+                                ${taskData.task_type === 'scheduled' ? '定时任务' : '一次性任务'}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">状态:</td>
+                        <td><span class="badge bg-${getStatusBadgeClass(taskData.status)}">${taskData.status}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">创建时间:</td>
+                        <td>${formatDate(taskData.start_time)}</td>
+                    </tr>
+                    ${taskData.end_time ? `<tr><td class="text-muted">结束时间:</td><td>${formatDate(taskData.end_time)}</td></tr>` : ''}
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="fas fa-cog me-2"></i>配置信息</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">搜索查询:</td>
+                        <td>${taskData.search_query || '未配置'}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">LLM模型:</td>
+                        <td><code>${taskData.llm_model_name || '默认'}</code></td>
+                    </tr>
+                    ${taskData.task_type === 'scheduled' ? `
+                        <tr>
+                            <td class="text-muted">执行间隔:</td>
+                            <td>${formatDuration(taskData.interval_seconds)}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">执行次数:</td>
+                            <td><span class="badge bg-secondary">${taskData.execution_count || 0} 次</span></td>
+                        </tr>
+                        ${taskData.last_executed_at ? `<tr><td class="text-muted">上次执行:</td><td>${formatDate(taskData.last_executed_at)}</td></tr>` : ''}
+                        ${taskData.next_execution_at ? `<tr><td class="text-muted">下次执行:</td><td>${formatDate(taskData.next_execution_at)}</td></tr>` : ''}
+                    ` : ''}
+                    ${taskData.papers_found !== undefined ? `<tr><td class="text-muted">找到论文:</td><td><span class="badge bg-info">${taskData.papers_found} 篇</span></td></tr>` : ''}
+                </table>
+            </div>
+        </div>
+        ${taskData.error_message ? `
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6 class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>错误信息</h6>
+                <div class="alert alert-danger">
+                    <small>${taskData.error_message}</small>
+                </div>
+            </div>
+        </div>` : ''}
+    `;
+    
+    document.getElementById('taskDetailsContent').innerHTML = detailsHtml;
+    new bootstrap.Modal(document.getElementById('taskDetailsModal')).show();
+}
+
+// 刷新任务列表
+function refreshTaskList() {
+    location.reload();
+}
+
+// 刷新任务状态（静默更新）
+function refreshTaskStatus() {
+    $.get('/api/tasks/status')
+        .then(response => {
+            if (response.success) {
+                updateTaskStatuses(response.data);
+            }
+        })
+        .catch(error => {
+            console.error('刷新任务状态失败:', error);
+        });
+}
+
+// 更新任务状态显示
+function updateTaskStatuses(statusData) {
+    statusData.forEach(task => {
+        const row = $(`.task-row[data-task-id="${task.task_id}"]`);
+        if (row.length > 0) {
+            // 更新状态徽章
+            const statusBadge = row.find('.badge');
+            statusBadge.removeClass().addClass(`badge bg-${getStatusBadgeClass(task.status)}`).text(task.status.toUpperCase());
+            
+            // 更新进度条（如果有）
+            if (task.progress !== undefined) {
+                const progressBar = row.find('.progress-bar');
+                if (progressBar.length > 0) {
+                    progressBar.css('width', `${(task.progress * 100).toFixed(1)}%`);
+                }
+            }
+        }
+    });
+    
+    // 更新统计数字
+    updateTaskCounts();
+}
+
+// 更新任务统计数字
+function updateTaskCounts() {
+    const totalTasks = $('.task-row').length;
+    const scheduledTasks = $('.task-row[data-task-type="scheduled"]').length;
+    const immediateTasks = $('.task-row[data-task-type="immediate"]').length;
+    const runningTasks = $('.task-row[data-task-status="running"]').length;
+    
+    $('#totalTasksCount').text(totalTasks);
+    $('#scheduledTasksCount').text(scheduledTasks);
+    $('#immediateTasksCount').text(immediateTasks);
+    $('#runningTasksCount').text(runningTasks);
+}
+
+// 取消任务
+function cancelTask(taskId) {
+    if (!confirm('确定要取消任务 ' + taskId.substring(0, 8) + '... 吗？')) {
+        return;
+    }
+    
+    performTaskAction(`/api/task/cancel/${taskId}`, 'POST', '任务已取消', '取消任务失败');
+}
+
+// 删除任务
+function deleteTask(taskId, taskName) {
+    const confirmMessage = `确定要删除任务"${taskName}"吗？\n\n注意：此操作不可撤销。`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    performTaskAction(`/api/task/${taskId}`, 'DELETE', '任务删除成功', '删除任务失败');
+}
+
+// 批量删除任务
+function batchDeleteTasks(taskIds) {
+    const confirmMessage = `确定要删除选中的 ${taskIds.length} 个任务吗？\n\n注意：此操作不可撤销。`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    let completedCount = 0;
+    let failedCount = 0;
+    
+    const promises = taskIds.map(taskId => {
+        return fetch(`/api/task/${taskId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                completedCount++;
+                $(`.task-row[data-task-id="${taskId}"]`).fadeOut();
+            } else {
+                failedCount++;
+            }
+        })
+        .catch(() => failedCount++);
+    });
+    
+    Promise.all(promises).finally(() => {
+        if (failedCount === 0) {
+            showAlert(`成功删除 ${completedCount} 个任务`, 'success');
+        } else {
+            showAlert(`删除完成：成功 ${completedCount} 个，失败 ${failedCount} 个`, 'warning');
+        }
+        setTimeout(() => location.reload(), 1500);
+    });
+}
+
+// 批量停止任务
+function batchStopTasks(taskIds) {
+    const confirmMessage = `确定要停止选中的 ${taskIds.length} 个任务吗？`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    let completedCount = 0;
+    let failedCount = 0;
+    
+    const promises = taskIds.map(taskId => {
+        return fetch(`/api/task/cancel/${taskId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                completedCount++;
+            } else {
+                failedCount++;
+            }
+        })
+        .catch(() => failedCount++);
+    });
+    
+    Promise.all(promises).finally(() => {
+        if (failedCount === 0) {
+            showAlert(`成功停止 ${completedCount} 个任务`, 'success');
+        } else {
+            showAlert(`停止完成：成功 ${completedCount} 个，失败 ${failedCount} 个`, 'warning');
+        }
+        setTimeout(() => location.reload(), 1500);
+    });
+}
+
+// 定时任务操作函数（从scheduled_tasks.html移植并简化）
+function triggerScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要立即执行定时任务 "${taskName}" 吗？`)) {
+        return;
+    }
+    performTaskAction(`/api/scheduled_tasks/${taskId}/trigger`, 'POST', '定时任务已触发执行', '触发任务失败');
+}
+
+function pauseScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要暂停定时任务 "${taskName}" 吗？`)) {
+        return;
+    }
+    performTaskAction(`/api/scheduled_tasks/${taskId}/pause`, 'POST', '定时任务已暂停', '暂停任务失败');
+}
+
+function resumeScheduledTask(taskId, taskName) {
+    if (!confirm(`确定要恢复定时任务 "${taskName}" 吗？`)) {
+        return;
+    }
+    performTaskAction(`/api/scheduled_tasks/${taskId}/resume`, 'POST', '定时任务已恢复', '恢复任务失败');
+}
+
+function editTaskConfig(taskId) {
+    // 这里可以加载编辑表单，暂时简化处理
+    showAlert('编辑功能开发中...', 'info');
+}
+
+// 通用任务操作函数
+function performTaskAction(url, method, successMessage, errorMessage) {
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(successMessage, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(`${errorMessage}: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('任务操作失败:', error);
+        showAlert(`${errorMessage}，请检查网络连接`, 'danger');
+    });
+}
+
+// 工具函数
+function getStatusBadgeClass(status) {
+    const statusMap = {
+        'pending': 'warning',
+        'running': 'primary',
+        'completed': 'success',
+        'failed': 'danger',
+        'stopped': 'secondary',
+        'paused': 'warning'
+    };
+    return statusMap[status] || 'secondary';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '未知';
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN');
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '0秒';
+    
+    if (seconds < 60) {
+        return `${seconds}秒`;
+    } else if (seconds < 3600) {
+        return `${Math.round(seconds / 60)}分钟`;
+    } else if (seconds < 86400) {
+        return `${Math.round(seconds / 3600)}小时`;
+    } else {
+        return `${Math.round(seconds / 86400)}天`;
+    }
+}
+
+function showAlert(message, type = 'info', duration = 5000) {
+    const alertContainer = document.createElement('div');
+    alertContainer.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertContainer.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    
+    alertContainer.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertContainer);
+    
+    if (duration > 0) {
+        setTimeout(() => {
+            if (alertContainer.parentNode) {
+                alertContainer.parentNode.removeChild(alertContainer);
+            }
+        }, duration);
+    }
+    
+    return alertContainer;
+}
+</script>
+{% endblock %}

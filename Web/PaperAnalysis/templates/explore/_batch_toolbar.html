@@ -1,0 +1,110 @@
+<!-- 批量操作工具栏 -->
+<div class="batch-operations-toolbar mb-3" style="display: none;" id="batchToolbar">
+    <div class="card border-primary bg-light">
+        <div class="card-body py-3">
+            <!-- 第一行：选择统计和基本操作 -->
+            <div class="row align-items-center mb-3">
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-primary me-2 fs-6">
+                            <i class="bi bi-check2-square"></i> 已选择 <span id="selectedCount">0</span> 篇论文
+                        </span>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-primary" onclick="selectAllVisible()">
+                                <i class="bi bi-check-all"></i> 全选
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearSelection()">
+                                <i class="bi bi-x"></i> 清除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8 text-end">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleBatchSelect()">
+                        <i class="bi bi-x-circle"></i> 退出批量选择
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 第二行：操作分类 -->
+            <div class="row g-2">
+                <!-- 任务操作 -->
+                <div class="col-md-4">
+                    <div class="card border-success">
+                        <div class="card-header py-2 bg-success bg-opacity-10">
+                            <small class="fw-bold text-success">
+                                <i class="bi bi-briefcase"></i> 任务操作
+                            </small>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="mb-2">
+                                <input type="text" class="form-control form-control-sm" id="batchTaskName" 
+                                       placeholder="新任务名称" maxlength="255">
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" class="form-control form-control-sm" id="batchTaskId" 
+                                       placeholder="任务ID (可选)" maxlength="100">
+                            </div>
+                            <div class="d-grid gap-1">
+                                <button type="button" class="btn btn-success btn-sm" onclick="batchAssignTasks()">
+                                    <i class="bi bi-check-square"></i> 分配新任务
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="showBatchMigrationModal()">
+                                    <i class="bi bi-arrow-right-circle"></i> 批量迁移
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dify知识库操作 -->
+                <div class="col-md-4">
+                    <div class="card border-warning">
+                        <div class="card-header py-2 bg-warning bg-opacity-10">
+                            <small class="fw-bold text-warning">
+                                <i class="bi bi-cloud"></i> 知识库操作
+                            </small>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="d-grid gap-1">
+                                <button type="button" class="btn btn-warning btn-sm" onclick="batchUploadToDify()">
+                                    <i class="bi bi-cloud-upload"></i> 批量上传到Dify
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" onclick="batchVerifyDifyDocuments()">
+                                    <i class="bi bi-shield-check"></i> 验证知识库状态
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="batchRemoveFromDify()">
+                                    <i class="bi bi-cloud-minus"></i> 从知识库移除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 其他操作 -->
+                <div class="col-md-4">
+                    <div class="card border-info">
+                        <div class="card-header py-2 bg-info bg-opacity-10">
+                            <small class="fw-bold text-info">
+                                <i class="bi bi-gear"></i> 其他操作
+                            </small>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="d-grid gap-1">
+                                <button type="button" class="btn btn-info btn-sm" onclick="batchEditRelevance()">
+                                    <i class="bi bi-star"></i> 批量评分
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="batchExport()">
+                                    <i class="bi bi-download"></i> 导出选中
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="batchDeletePapers()">
+                                    <i class="bi bi-trash"></i> 批量删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

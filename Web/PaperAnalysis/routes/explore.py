@@ -82,16 +82,27 @@ def papers():
         has_prev = page > 1
         has_next = page < total_pages
         
-        pagination = {
-            'page': page,
-            'per_page': per_page,
-            'total': total,
-            'total_pages': total_pages,
-            'has_prev': has_prev,
-            'has_next': has_next,
-            'prev_num': page - 1 if has_prev else None,
-            'next_num': page + 1 if has_next else None
-        }
+        class Pagination:
+            def __init__(self, page, per_page, total):
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.total_pages = math.ceil(total / per_page)
+                self.has_prev = page > 1
+                self.has_next = page < self.total_pages
+                self.prev_num = page - 1 if self.has_prev else None
+                self.next_num = page + 1 if self.has_next else None
+            
+            def iter_pages(self, left_edge=2, right_edge=2, left_current=2, right_current=3):
+                """生成分页页码"""
+                last = self.total_pages
+                for num in range(1, last + 1):
+                    if (num <= left_edge or 
+                        (self.page - left_current - 1 < num < self.page + right_current) or
+                        num > last - right_edge):
+                        yield num
+        
+        pagination = Pagination(page, per_page, total)
         
         return render_template('explore/papers.html', 
                              papers=papers, 
@@ -212,3 +223,37 @@ def paper_analysis_view(arxiv_id):
     except Exception as e:
         logger.error(f"显示分析结果失败 {arxiv_id}: {e}")
         return render_template('error.html', error="加载分析结果失败"), 500
+
+
+@explore_bp.route('/batch_operations', methods=['GET', 'POST'])
+def batch_operations():
+    """批量操作页面"""
+    try:
+        selected_papers = []
+        
+        if request.method == 'POST':
+            # 从POST数据中获取选中的论文
+            selected_papers_data = request.form.get('selected_papers')
+            if selected_papers_data:
+                import json
+                selected_paper_ids = [p['arxiv_id'] for p in json.loads(selected_papers_data)]
+                # 获取完整的论文信息
+                for arxiv_id in selected_paper_ids:
+                    paper = paper_service.get_paper_detail(arxiv_id)
+                    if paper:
+                        selected_papers.append(paper)
+        
+        # 计算统计信息
+        with_task_count = len([p for p in selected_papers if p.get('task_name')])
+        without_task_count = len(selected_papers) - with_task_count
+        uploaded_to_dify_count = len([p for p in selected_papers if p.get('dify_document_id')])
+        
+        return render_template('explore/batch_operations.html',
+                             selected_papers=selected_papers,
+                             with_task_count=with_task_count,
+                             without_task_count=without_task_count,
+                             uploaded_to_dify_count=uploaded_to_dify_count)
+    
+    except Exception as e:
+        logger.error(f"批量操作页面加载失败: {e}")
+        return render_template('error.html', error="加载批量操作页面失败"), 500

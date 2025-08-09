@@ -17,7 +17,211 @@
     --dark-color: #343a40;
     --background-color: #f8f9fa;
     --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --card-hover-shadow: 0 4px 12px rgba(0,0,0,0.15);
     --border-radius: 8px;
+    --transition: all 0.2s ease;
+}
+
+/* 论文卡片优化样式 */
+.paper-item {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    padding: 1rem;
+    transition: var(--transition);
+    border: 1px solid #dee2e6;
+}
+
+.paper-item:hover {
+    box-shadow: var(--card-hover-shadow);
+    transform: translateY(-1px);
+}
+
+.paper-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.paper-title a {
+    color: var(--dark-color);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.paper-title a:hover {
+    color: var(--primary-color);
+}
+
+.paper-meta {
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+}
+
+.paper-meta i {
+    margin-right: 0.25rem;
+    opacity: 0.7;
+}
+
+/* 批量操作工具栏样式 */
+.batch-operations-toolbar {
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+}
+
+.batch-operations-toolbar .card {
+    border-left: 4px solid var(--primary-color);
+}
+
+/* 状态徽章样式 */
+.badge-pending { background-color: var(--warning-color); }
+.badge-completed { background-color: var(--success-color); }
+.badge-failed { background-color: var(--danger-color); }
+
+/* 搜索过滤器样式 */
+.search-container .card {
+    border: none;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    box-shadow: var(--card-shadow);
+}
+
+/* 论文卡片按钮优化 */
+.paper-item .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+
+.paper-item .btn i {
+    font-size: 1rem;
+    margin-bottom: 1px;
+}
+
+.paper-item .btn small {
+    font-size: 0.65rem;
+    line-height: 1;
+    font-weight: 500;
+}
+
+/* 按钮颜色优化 */
+.paper-item .btn-success {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.paper-item .btn-danger {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+}
+
+.paper-item .btn-warning {
+    background-color: var(--warning-color);
+    border-color: var(--warning-color);
+    color: var(--dark-color);
+}
+
+/* 按钮悬停效果 */
+.paper-item .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 编辑按钮优化 */
+.edit-task-btn, .btn-outline-primary {
+    font-size: 0.75rem !important;
+    padding: 0.2rem 0.5rem !important;
+}
+
+/* 超小按钮样式 */
+.btn-xs {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+}
+
+.btn-link.btn-xs {
+    padding: 0;
+    font-size: 0.9rem;
+}
+
+/* 论文信息层次优化 */
+.paper-task-info {
+    background: rgba(0, 123, 255, 0.05);
+    padding: 0.5rem;
+    border-radius: 4px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.paper-task-info .task-name-display {
+    font-weight: 500;
+    color: var(--dark-color);
+}
+
+.paper-relevance {
+    background: rgba(255, 193, 7, 0.05);
+    padding: 0.5rem;
+    border-radius: 4px;
+    border-left: 3px solid var(--warning-color);
+}
+
+/* 间距优化 */
+.paper-meta .row {
+    margin-bottom: 0;
+}
+
+.paper-meta .col-md-6,
+.paper-meta .col-md-3 {
+    margin-bottom: 0.25rem;
+}
+
+/* 关键词显示优化 */
+.paper-keywords {
+    background: rgba(108, 117, 125, 0.05);
+    padding: 0.5rem;
+    border-radius: 4px;
+    border-left: 3px solid var(--secondary-color);
+}
+
+/* 响应式改进 */
+@media (max-width: 768px) {
+    .paper-item .row {
+        flex-direction: column;
+    }
+    
+    .paper-item .col-md-8,
+    .paper-item .col-md-4 {
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .batch-operations-toolbar .row {
+        flex-direction: column;
+    }
+    
+    .batch-operations-toolbar .col-md-4 {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    /* 移动端按钮优化 */
+    .paper-item .btn {
+        font-size: 0.7rem;
+        padding: 0.3rem;
+    }
+    
+    .paper-item .btn small {
+        font-size: 0.6rem;
+    }
 }
 
 body {
