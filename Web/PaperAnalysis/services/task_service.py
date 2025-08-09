@@ -849,13 +849,19 @@ class PaperGatherService:
                 'user_requirements', 'llm_model_name', 'abstract_analysis_model',
                 'full_paper_analysis_model', 'deep_analysis_model', 'vision_model',
                 'relevance_threshold', 'deep_analysis_threshold', 'ocr_char_limit_for_analysis',
-                'enable_deep_analysis', 'custom_settings',
+                'enable_deep_analysis', 'custom_settings', 'analysis_timeout',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数
                 'task_name', 'task_id'
             }
             filtered_config = {k: v for k, v in config_dict_copy.items() if k in valid_params}
+            
+            # 记录模型配置参数（用于调试）
+            model_params = {k: v for k, v in filtered_config.items() 
+                          if k in ['llm_model_name', 'deep_analysis_model', 'vision_model', 
+                                  'analysis_timeout', 'enable_deep_analysis']}
+            logger.info(f"🎯 任务 {task_id} 使用的模型配置: {model_params}")
             
             # 添加任务追踪信息
             filtered_config['task_id'] = task_id  # 使用生成的任务ID
@@ -1036,13 +1042,19 @@ class PaperGatherService:
                 'user_requirements', 'llm_model_name', 'abstract_analysis_model',
                 'full_paper_analysis_model', 'deep_analysis_model', 'vision_model',
                 'relevance_threshold', 'deep_analysis_threshold', 'ocr_char_limit_for_analysis',
-                'enable_deep_analysis', 'custom_settings',
+                'enable_deep_analysis', 'custom_settings', 'analysis_timeout',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数
                 'task_name', 'task_id'
             }
             filtered_config = {k: v for k, v in config_dict.items() if k in valid_params}
+            
+            # 记录模型配置参数（用于调试）
+            model_params = {k: v for k, v in filtered_config.items() 
+                          if k in ['llm_model_name', 'deep_analysis_model', 'vision_model', 
+                                  'analysis_timeout', 'enable_deep_analysis']}
+            logger.info(f"🎯 定时任务 {task_id} 使用的模型配置: {model_params}")
             
             # 添加任务追踪信息
             filtered_config['task_id'] = task_id  # 使用指定的任务ID

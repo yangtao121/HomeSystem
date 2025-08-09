@@ -799,6 +799,180 @@ def load_settings():
         }), 500
 
 
+# === 任务历史管理相关API ===
+
+@api_bp.route('/task/history')
+def get_task_history():
+    """获取任务历史列表"""
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = min(int(request.args.get('per_page', 50)), 100)
+        
+        # 获取任务历史
+        tasks = paper_gather_service.get_task_history(limit=per_page * 5)  # 获取更多数据用于分页
+        
+        # 计算分页
+        total = len(tasks)
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_tasks = tasks[start_idx:end_idx]
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tasks': paginated_tasks,
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total,
+                    'total_pages': (total + per_page - 1) // per_page
+                }
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"获取任务历史失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/task/history/<task_id>', methods=['DELETE'])
+def delete_task_history(task_id):
+    """删除历史任务"""
+    try:
+        success, error_msg = paper_gather_service.delete_task_history(task_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '任务删除成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg or '删除失败'
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"删除任务历史失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/task/config/<task_id>')
+def get_task_config(task_id):
+    """获取特定任务的配置"""
+    try:
+        # 获取任务配置
+        task_config = paper_gather_service.get_task_config_by_id(task_id)
+        
+        if not task_config:
+            return jsonify({
+                'success': False,
+                'error': '任务不存在'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'task_id': task_id,
+                'config': task_config
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"获取任务配置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/config/presets')
+def get_config_presets():
+    """获取配置预设列表"""
+    try:
+        # 返回空的预设列表（可以后续扩展）
+        return jsonify({
+            'success': True,
+            'data': {
+                'presets': []
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"获取配置预设失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/config/presets', methods=['POST'])
+def create_config_preset():
+    """创建配置预设"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请求数据不能为空'
+            }), 400
+        
+        # 目前返回成功但不实际保存（可以后续扩展）
+        return jsonify({
+            'success': True,
+            'message': '预设创建成功（功能暂未完全实现）',
+            'preset_id': 'temp_id'
+        })
+    
+    except Exception as e:
+        logger.error(f"创建配置预设失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/config/presets/<preset_id>', methods=['DELETE'])
+def delete_config_preset(preset_id):
+    """删除配置预设"""
+    try:
+        # 目前返回成功但不实际删除（可以后续扩展）
+        return jsonify({
+            'success': True,
+            'message': '预设删除成功（功能暂未完全实现）'
+        })
+    
+    except Exception as e:
+        logger.error(f"删除配置预设失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/models')
+def get_models():
+    """获取可用的LLM模型列表"""
+    try:
+        models = paper_gather_service.get_available_models()
+        return jsonify({
+            'success': True,
+            'data': models
+        })
+    except Exception as e:
+        logger.error(f"获取模型列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 # === 系统状态相关API ===
 
 @api_bp.route('/running_tasks')

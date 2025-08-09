@@ -1,6 +1,97 @@
 // PaperGather 配置页面 JavaScript
 // 处理历史任务和配置预设功能
 
+// 工具函数
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function showNotification(message, type) {
+    // 创建 Bootstrap 警告提示
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'danger' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const alert = $(`
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
+    
+    // 添加到页面顶部容器
+    let container = $('#alertContainer');
+    if (container.length === 0) {
+        container = $('<div id="alertContainer" class="container mt-3"></div>');
+        $('main').prepend(container);
+    }
+    
+    container.append(alert);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        alert.alert('close');
+    }, 3000);
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '0秒';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    let result = [];
+    if (hours > 0) result.push(`${hours}小时`);
+    if (minutes > 0) result.push(`${minutes}分钟`);
+    if (secs > 0) result.push(`${secs}秒`);
+    
+    return result.length > 0 ? result.join('') : '0秒';
+}
+
+// API 工具函数
+const API = {
+    async request(url, options = {}) {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
+        }
+    },
+    
+    async get(url) {
+        return this.request(url, { method: 'GET' });
+    },
+    
+    async post(url, data) {
+        return this.request(url, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    async delete(url) {
+        return this.request(url, { method: 'DELETE' });
+    }
+};
+
 $(document).ready(function() {
     // 历史任务相关功能
     const HistoryTaskManager = {
@@ -35,7 +126,7 @@ $(document).ready(function() {
                 params.append('status', statusFilter);
             }
             
-            PaperGather.API.get(`/api/task/history?${params.toString()}`)
+            API.get(`/api/task/history?${params.toString()}`)
                 .then(response => {
                     if (response.success) {
                         this.currentTasks = response.data;
@@ -94,7 +185,7 @@ $(document).ready(function() {
                 const config = task.config || {};
                 const startTime = new Date(task.start_time).toLocaleString('zh-CN');
                 const statusBadge = this.getStatusBadge(task.status);
-                const duration = task.duration ? PaperGather.Utils.formatDuration(task.duration) : '未知';
+                const duration = task.duration ? formatDuration(task.duration) : '未知';
                 
                 html += `
                     <div class="list-group-item list-group-item-action">
@@ -170,19 +261,19 @@ $(document).ready(function() {
         
         // 加载任务配置
         loadTaskConfig: function(taskId) {
-            PaperGather.API.get(`/api/task/config/${taskId}`)
+            API.get(`/api/task/config/${taskId}`)
                 .then(response => {
                     if (response.success) {
                         this.fillConfigForm(response.data);
                         $('#historyTaskModal').modal('hide');
-                        PaperGather.Utils.showNotification('配置已加载成功', 'success');
+                        showNotification('配置已加载成功', 'success');
                     } else {
                         throw new Error(response.error);
                     }
                 })
                 .catch(error => {
                     console.error('加载任务配置失败:', error);
-                    PaperGather.Utils.showNotification(`加载配置失败: ${error.message}`, 'danger');
+                    showNotification(`加载配置失败: ${error.message}`, 'danger');
                 });
         },
         
@@ -252,7 +343,7 @@ $(document).ready(function() {
         // 编辑历史任务
         editTask: function(taskId) {
             // 先获取任务配置
-            PaperGather.API.get(`/api/task/config/${taskId}`)
+            API.get(`/api/task/config/${taskId}`)
                 .then(response => {
                     if (response.success) {
                         // 存储当前编辑的任务ID
@@ -269,7 +360,7 @@ $(document).ready(function() {
                 })
                 .catch(error => {
                     console.error('获取任务配置失败:', error);
-                    PaperGather.Utils.showNotification(`获取任务配置失败: ${error.message}`, 'danger');
+                    showNotification(`获取任务配置失败: ${error.message}`, 'danger');
                 });
         },
         
@@ -322,7 +413,7 @@ $(document).ready(function() {
         // 保存编辑的任务
         saveEditedTask: function() {
             if (!this.currentEditingTaskId) {
-                PaperGather.Utils.showNotification('未找到要编辑的任务ID', 'danger');
+                showNotification('未找到要编辑的任务ID', 'danger');
                 return;
             }
             
@@ -363,7 +454,7 @@ $(document).ready(function() {
             saveBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>保存中...').prop('disabled', true);
             
             // 发送更新请求
-            PaperGather.API.request(`/api/task/history/${this.currentEditingTaskId}`, {
+            API.request(`/api/task/history/${this.currentEditingTaskId}`, {
                 method: 'PUT',
                 body: JSON.stringify(updateData),
                 headers: {
@@ -373,7 +464,7 @@ $(document).ready(function() {
                 .then(response => {
                     if (response.success) {
                         $('#editTaskModal').modal('hide');
-                        PaperGather.Utils.showNotification('历史任务更新成功', 'success');
+                        showNotification('历史任务更新成功', 'success');
                         // 重新加载任务列表
                         this.loadHistoryTasks();
                     } else {
@@ -382,7 +473,7 @@ $(document).ready(function() {
                 })
                 .catch(error => {
                     console.error('更新历史任务失败:', error);
-                    PaperGather.Utils.showNotification(`更新失败: ${error.message}`, 'danger');
+                    showNotification(`更新失败: ${error.message}`, 'danger');
                 })
                 .finally(() => {
                     // 恢复按钮状态
@@ -404,10 +495,10 @@ $(document).ready(function() {
             deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>删除中...';
             deleteBtn.disabled = true;
             
-            PaperGather.API.delete(`/api/task/history/${taskId}`)
+            API.delete(`/api/task/history/${taskId}`)
                 .then(response => {
                     if (response.success) {
-                        PaperGather.Utils.showNotification('历史任务删除成功', 'success');
+                        showNotification('历史任务删除成功', 'success');
                         // 重新加载任务列表
                         this.loadHistoryTasks();
                     } else {
@@ -416,7 +507,7 @@ $(document).ready(function() {
                 })
                 .catch(error => {
                     console.error('删除历史任务失败:', error);
-                    PaperGather.Utils.showNotification(`删除失败: ${error.message}`, 'danger');
+                    showNotification(`删除失败: ${error.message}`, 'danger');
                 })
                 .finally(() => {
                     // 恢复按钮状态
@@ -448,7 +539,7 @@ $(document).ready(function() {
                 </div>
             `);
             
-            PaperGather.API.get('/api/config/presets')
+            API.get('/api/config/presets')
                 .then(response => {
                     if (response.success) {
                         this.currentPresets = response.data;
@@ -533,13 +624,13 @@ $(document).ready(function() {
         loadPreset: function(presetId) {
             const preset = this.currentPresets.find(p => p.id === presetId);
             if (!preset) {
-                PaperGather.Utils.showNotification('预设不存在', 'danger');
+                showNotification('预设不存在', 'danger');
                 return;
             }
             
             HistoryTaskManager.fillConfigForm(preset.config);
             $('#presetModal').modal('hide');
-            PaperGather.Utils.showNotification('预设配置已加载成功', 'success');
+            showNotification('预设配置已加载成功', 'success');
         },
         
         // 删除预设
@@ -548,10 +639,10 @@ $(document).ready(function() {
                 return;
             }
             
-            PaperGather.API.delete(`/api/config/presets/${presetId}`)
+            API.delete(`/api/config/presets/${presetId}`)
                 .then(response => {
                     if (response.success) {
-                        PaperGather.Utils.showNotification('预设删除成功', 'success');
+                        showNotification('预设删除成功', 'success');
                         this.loadPresets(); // 重新加载列表
                     } else {
                         throw new Error(response.error);
@@ -559,7 +650,7 @@ $(document).ready(function() {
                 })
                 .catch(error => {
                     console.error('删除预设失败:', error);
-                    PaperGather.Utils.showNotification(`删除预设失败: ${error.message}`, 'danger');
+                    showNotification(`删除预设失败: ${error.message}`, 'danger');
                 });
         },
         
@@ -576,7 +667,7 @@ $(document).ready(function() {
             const description = $('#presetDescription').val().trim();
             
             if (!name) {
-                PaperGather.Utils.showNotification('请输入预设名称', 'warning');
+                showNotification('请输入预设名称', 'warning');
                 return;
             }
             
@@ -589,18 +680,18 @@ $(document).ready(function() {
                 config: config
             };
             
-            PaperGather.API.post('/api/config/presets', data)
+            API.post('/api/config/presets', data)
                 .then(response => {
                     if (response.success) {
                         $('#savePresetModal').modal('hide');
-                        PaperGather.Utils.showNotification('预设保存成功', 'success');
+                        showNotification('预设保存成功', 'success');
                     } else {
                         throw new Error(response.error);
                     }
                 })
                 .catch(error => {
                     console.error('保存预设失败:', error);
-                    PaperGather.Utils.showNotification(`保存预设失败: ${error.message}`, 'danger');
+                    showNotification(`保存预设失败: ${error.message}`, 'danger');
                 });
         },
         
@@ -666,8 +757,8 @@ $(document).ready(function() {
         HistoryTaskManager.loadHistoryTasks();
     });
     
-    $('#historySearchInput').on('input', PaperGather.Utils.debounce(function() {
-        HistoryTaskManager.renderHistoryTasks(HistoryTaskManager.currentTasks, $(this).val());
+    $('#historySearchInput').on('input', debounce(function(event) {
+        HistoryTaskManager.renderHistoryTasks(HistoryTaskManager.currentTasks, $(event.target).val());
     }, 300));
     
     // 编辑模态框的阈值滑块事件

@@ -73,6 +73,12 @@ def execute_task():
         mode = data.get('mode', TaskMode.IMMEDIATE.value)
         config_data = data.get('config', {})
         
+        # 记录接收到的模型配置参数（用于调试）
+        received_model_params = {k: v for k, v in config_data.items() 
+                               if k in ['llm_model_name', 'deep_analysis_model', 'vision_model', 
+                                       'analysis_timeout', 'enable_deep_analysis']}
+        logger.info(f"📥 收到任务配置的模型参数: {received_model_params}")
+        
         # 验证任务名称
         task_name = config_data.get('task_name', '').strip()
         if not task_name:

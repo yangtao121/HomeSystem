@@ -831,13 +831,13 @@ function validateConfig() {
     });
 }
 
-function executeTask() {
+async function executeTask() {
     // 再次验证表单（防止直接调用此函数绕过验证）
     if (!validateForm()) {
         return;
     }
     
-    const formData = getFormData();
+    let formData = getFormData();
     const mode = $('input[name="execution_mode"]:checked').val();
     
     // 确保任务名称存在
@@ -846,7 +846,59 @@ function executeTask() {
         return;
     }
     
-    $('#executeBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>执行中...');
+    $('#executeBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>获取系统设置...');
+    
+    try {
+        // 获取系统设置中的模型配置
+        const systemSettings = await window.SystemSettings.get();
+        console.log('获取到的系统设置:', systemSettings);
+        
+        // 将系统设置中的模型配置合并到任务配置中
+        if (systemSettings) {
+            // LLM模型配置
+            if (systemSettings.llm_model_name) {
+                formData.llm_model_name = systemSettings.llm_model_name;
+            }
+            if (systemSettings.relevance_threshold !== undefined) {
+                formData.relevance_threshold = systemSettings.relevance_threshold;
+            }
+            
+            // 高级模型配置
+            if (systemSettings.abstract_analysis_model) {
+                formData.abstract_analysis_model = systemSettings.abstract_analysis_model;
+            }
+            if (systemSettings.full_paper_analysis_model) {
+                formData.full_paper_analysis_model = systemSettings.full_paper_analysis_model;
+            }
+            if (systemSettings.deep_analysis_model) {
+                formData.deep_analysis_model = systemSettings.deep_analysis_model;
+            }
+            if (systemSettings.vision_model) {
+                formData.vision_model = systemSettings.vision_model;
+            }
+            
+            // 深度分析配置
+            if (systemSettings.enable_deep_analysis !== undefined) {
+                formData.enable_deep_analysis = systemSettings.enable_deep_analysis;
+            }
+            if (systemSettings.deep_analysis_threshold !== undefined) {
+                formData.deep_analysis_threshold = systemSettings.deep_analysis_threshold;
+            }
+            if (systemSettings.ocr_char_limit_for_analysis !== undefined) {
+                formData.ocr_char_limit_for_analysis = systemSettings.ocr_char_limit_for_analysis;
+            }
+            if (systemSettings.analysis_timeout !== undefined) {
+                formData.analysis_timeout = systemSettings.analysis_timeout;
+            }
+        }
+        
+        console.log('合并系统设置后的任务配置:', formData);
+        
+    } catch (error) {
+        console.warn('获取系统设置失败，使用基础配置:', error);
+    }
+    
+    $('#executeBtn').html('<i class="fas fa-spinner fa-spin me-1"></i>执行中...');
     
     $.ajax({
         url: '/task/execute',
