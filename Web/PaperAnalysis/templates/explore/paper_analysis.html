@@ -1279,17 +1279,30 @@ function startReanalysis(arxivId) {
     
     showFormulaCorrectionToast('正在启动重新分析...', 'info');
     
-    // 调用深度分析API
-    fetch(`/api/analysis/paper/${arxivId}/analyze`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            config: {
-                // 重新分析配置
-            }
-        })
+    // 获取系统设置并调用深度分析API
+    window.SystemSettings.getAnalysisConfig().then(config => {
+        console.log('使用系统配置进行重新分析:', config);
+        
+        return fetch(`/api/analysis/paper/${arxivId}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                config: config
+            })
+        });
+    }).catch(error => {
+        console.error('获取系统配置失败，使用默认配置:', error);
+        
+        // 如果获取配置失败，使用默认配置
+        return fetch(`/api/analysis/paper/${arxivId}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        });
     })
     .then(response => {
         console.log('重新分析API响应状态码:', response.status);

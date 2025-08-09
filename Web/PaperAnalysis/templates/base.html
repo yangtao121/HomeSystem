@@ -153,6 +153,60 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     
+    <!-- 系统设置工具函数 -->
+    <script>
+    // 全局函数：获取系统设置
+    window.SystemSettings = {
+        cache: null,
+        cacheTime: null,
+        
+        // 获取系统设置（带缓存）
+        async get(useCache = true) {
+            // 如果缓存存在且在5分钟内，直接返回缓存
+            if (useCache && this.cache && this.cacheTime && (Date.now() - this.cacheTime < 300000)) {
+                return this.cache;
+            }
+            
+            try {
+                const response = await fetch('/api/settings/load');
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        this.cache = result.config || {};
+                        this.cacheTime = Date.now();
+                        return this.cache;
+                    }
+                }
+                console.warn('加载系统设置失败，使用空配置');
+                return {};
+            } catch (error) {
+                console.error('获取系统设置异常:', error);
+                return {};
+            }
+        },
+        
+        // 清除缓存
+        clearCache() {
+            this.cache = null;
+            this.cacheTime = null;
+        },
+        
+        // 获取深度分析配置
+        async getAnalysisConfig() {
+            const settings = await this.get();
+            return {
+                analysis_model: settings.deep_analysis_model || settings.llm_model_name || 'deepseek.DeepSeek_V3',
+                vision_model: settings.vision_model || 'ollama.Qwen2_5_VL_7B',
+                timeout: settings.analysis_timeout || 600,
+                enable_deep_analysis: settings.enable_deep_analysis !== false,
+                deep_analysis_threshold: settings.deep_analysis_threshold || 0.8,
+                ocr_char_limit_for_analysis: settings.ocr_char_limit_for_analysis || 10000,
+                relevance_threshold: settings.relevance_threshold || 0.7
+            };
+        }
+    };
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>

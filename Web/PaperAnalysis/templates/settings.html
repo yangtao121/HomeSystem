@@ -66,6 +66,10 @@
             <h4 class="mb-0"><i class="fas fa-brain me-2"></i>LLM模型配置</h4>
         </div>
         <div class="settings-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>说明：</strong>这里配置的模型将被论文浏览页面的"开始深度分析"功能和深度分析报告页面的"重新分析"功能共同使用。
+            </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="llm_model_name" class="form-label">默认LLM模型 *</label>
@@ -115,6 +119,10 @@
                     <div class="card-body">
                         <h6><i class="fas fa-cogs me-2"></i>专用模型配置</h6>
                         <p class="text-muted small mb-3">为不同分析任务选择专门的模型。留空则使用默认模型。</p>
+                        <div class="alert alert-success small mb-3">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>重要：</strong>这里设置的"深度分析模型"和"视觉模型"将被论文浏览和深度分析报告页面的分析功能使用。
+                        </div>
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -181,6 +189,10 @@
             <h4 class="mb-0"><i class="fas fa-microscope me-2"></i>深度分析配置</h4>
         </div>
         <div class="settings-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>注意：</strong>深度分析和视觉模型的选择在上方的"LLM模型配置"中的高级模型配置部分进行设置。这里主要配置分析参数和阈值。
+            </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <div class="form-check form-switch">

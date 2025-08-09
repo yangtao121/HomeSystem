@@ -63,18 +63,56 @@ class AnalysisServiceAdapter:
         }
     
     def load_config(self) -> Dict[str, Any]:
-        """从Redis加载配置，如果不存在则使用默认配置"""
+        """从Redis加载配置，优先使用新的系统设置，如果不存在则使用旧配置和默认配置"""
         config = self.default_config.copy()
         
         if self.redis_client:
             try:
-                config_key = "analysis_config:global"
-                saved_config = self.redis_client.get(config_key)
-                if saved_config:
+                # 优先尝试加载新的系统设置
+                system_config_key = "system_settings:global"
+                saved_system_config = self.redis_client.get(system_config_key)
+                if saved_system_config:
                     import json
-                    saved_data = json.loads(saved_config)
-                    config.update(saved_data)
-                    logger.info(f"从Redis加载配置: {config}")
+                    system_data = json.loads(saved_system_config)
+                    
+                    # 从系统设置中提取深度分析相关配置
+                    analysis_config = {}
+                    
+                    # 模型配置映射
+                    if system_data.get('deep_analysis_model'):
+                        analysis_config['analysis_model'] = system_data['deep_analysis_model']
+                    elif system_data.get('llm_model_name'):
+                        analysis_config['analysis_model'] = system_data['llm_model_name']
+                    
+                    if system_data.get('vision_model'):
+                        analysis_config['vision_model'] = system_data['vision_model']
+                    
+                    if system_data.get('analysis_timeout'):
+                        analysis_config['timeout'] = system_data['analysis_timeout']
+                    
+                    # 深度分析相关配置
+                    if 'enable_deep_analysis' in system_data:
+                        analysis_config['enable_deep_analysis'] = system_data['enable_deep_analysis']
+                    if 'deep_analysis_threshold' in system_data:
+                        analysis_config['deep_analysis_threshold'] = system_data['deep_analysis_threshold']
+                    if 'ocr_char_limit_for_analysis' in system_data:
+                        analysis_config['ocr_char_limit_for_analysis'] = system_data['ocr_char_limit_for_analysis']
+                    if 'relevance_threshold' in system_data:
+                        analysis_config['relevance_threshold'] = system_data['relevance_threshold']
+                    
+                    config.update(analysis_config)
+                    logger.info(f"从系统设置加载深度分析配置: {analysis_config}")
+                
+                else:
+                    # 如果系统设置不存在，尝试加载旧的分析配置（向后兼容）
+                    old_config_key = "analysis_config:global"
+                    saved_old_config = self.redis_client.get(old_config_key)
+                    if saved_old_config:
+                        import json
+                        old_data = json.loads(saved_old_config)
+                        config.update(old_data)
+                        logger.info(f"从旧配置加载深度分析配置: {old_data}")
+                
             except Exception as e:
                 logger.warning(f"从Redis加载配置失败，使用默认配置: {e}")
         

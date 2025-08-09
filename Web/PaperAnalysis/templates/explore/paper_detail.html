@@ -634,13 +634,28 @@
         const apiUrl = '/api/analysis/paper/' + arxivId + '/analyze';
         console.log('发送API请求到: ' + apiUrl);
         
-        // 发送分析请求
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({}) // 添加空的JSON请求体
+        // 获取系统设置并发送分析请求
+        window.SystemSettings.getAnalysisConfig().then(config => {
+            console.log('使用系统配置进行深度分析:', config);
+            
+            return fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ config: config })
+            });
+        }).catch(error => {
+            console.error('获取系统配置失败，使用默认配置:', error);
+            
+            // 如果获取配置失败，使用默认配置
+            return fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
         })
         .then(response => {
             console.log('收到响应，状态码: ' + response.status);
