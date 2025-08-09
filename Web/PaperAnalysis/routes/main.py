@@ -61,3 +61,29 @@ def index():
 def about():
     """关于页面"""
     return render_template('about.html')
+
+
+@main_bp.route('/settings')
+def settings():
+    """系统设置页面"""
+    try:
+        # 获取可用模型列表
+        available_models = []
+        try:
+            # 这里应该调用获取模型列表的服务
+            # 暂时使用空列表，实际实现时需要从服务中获取
+            from services.task_service import paper_gather_service
+            available_models = paper_gather_service.get_available_models()
+        except Exception as e:
+            logger.warning(f"获取模型列表失败: {e}")
+            available_models = []
+        
+        # 获取默认配置
+        default_config = DEFAULT_TASK_CONFIG
+        
+        return render_template('settings.html',
+                             available_models=available_models,
+                             default_config=default_config)
+    except Exception as e:
+        logger.error(f"设置页面加载失败: {e}")
+        return render_template('error.html', error="设置页面加载失败，请检查系统状态"), 500

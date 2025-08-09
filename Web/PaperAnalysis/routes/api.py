@@ -669,6 +669,98 @@ def save_analysis_config():
         }), 500
 
 
+@api_bp.route('/settings/save', methods=['POST'])
+def save_settings():
+    """保存系统设置（模型设置和深度分析设置）"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请求数据不能为空'
+            }), 400
+        
+        # 验证必要字段
+        llm_model_name = data.get('llm_model_name')
+        if not llm_model_name:
+            return jsonify({
+                'success': False,
+                'error': 'LLM模型名称不能为空'
+            }), 400
+        
+        # 构建配置
+        config = {
+            # LLM配置
+            'llm_model_name': llm_model_name,
+            'relevance_threshold': data.get('relevance_threshold', 0.7),
+            'abstract_analysis_model': data.get('abstract_analysis_model'),
+            'full_paper_analysis_model': data.get('full_paper_analysis_model'),
+            'deep_analysis_model': data.get('deep_analysis_model'),
+            'vision_model': data.get('vision_model'),
+            
+            # 深度分析配置
+            'enable_deep_analysis': data.get('enable_deep_analysis', True),
+            'deep_analysis_threshold': data.get('deep_analysis_threshold', 0.8),
+            'ocr_char_limit_for_analysis': data.get('ocr_char_limit_for_analysis', 10000),
+            'analysis_timeout': data.get('analysis_timeout', 600)
+        }
+        
+        # 保存到Redis
+        config_key = "system_settings:global"
+        if redis_client:
+            try:
+                redis_client.set(config_key, json.dumps(config))
+                logger.info(f"系统设置已保存到Redis: {config}")
+            except Exception as e:
+                logger.error(f"保存系统设置到Redis失败: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'保存设置失败: {str(e)}'
+                }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': '设置保存成功',
+            'config': config
+        })
+        
+    except Exception as e:
+        logger.error(f"保存系统设置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"保存设置失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/settings/load', methods=['GET'])
+def load_settings():
+    """加载系统设置"""
+    try:
+        config_key = "system_settings:global"
+        config = {}
+        
+        if redis_client:
+            try:
+                config_data = redis_client.get(config_key)
+                if config_data:
+                    config = json.loads(config_data)
+                    logger.info(f"从Redis加载系统设置: {config}")
+            except Exception as e:
+                logger.error(f"从Redis加载系统设置失败: {e}")
+        
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+        
+    except Exception as e:
+        logger.error(f"加载系统设置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"加载设置失败: {str(e)}"
+        }), 500
+
+
 # === 系统状态相关API ===
 
 @api_bp.route('/running_tasks')
