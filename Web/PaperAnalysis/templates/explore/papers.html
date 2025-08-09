@@ -46,79 +46,49 @@
 {% include 'explore/_search_filters.html' %}
 
 <!-- 搜索结果信息 -->
-<div class="row mb-3">
-    <div class="col">
-        <div class="card bg-light border-info">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                        <span class="badge bg-info me-2">
-                            <i class="bi bi-file-text"></i> 共找到 <strong>{{ pagination.total }}</strong> 篇论文
-                        </span>
-                        {% if query or category or status or task_name or task_id %}
-                        <div class="d-flex flex-wrap gap-1">
-                            {% if query %}
-                            <span class="badge bg-primary">
-                                <i class="bi bi-search"></i> "{{ query }}"
-                            </span>
-                            {% endif %}
-                            {% if category %}
-                            <span class="badge bg-success">
-                                <i class="bi bi-tag"></i> {{ category }}
-                            </span>
-                            {% endif %}
-                            {% if status %}
-                            <span class="badge bg-warning text-dark">
-                                <i class="bi bi-gear"></i> {{ status }}
-                            </span>
-                            {% endif %}
-                            {% if task_name %}
-                            <span class="badge bg-secondary">
-                                <i class="bi bi-briefcase"></i> {{ task_name }}
-                            </span>
-                            {% endif %}
-                            {% if task_id %}
-                            <span class="badge bg-dark">
-                                <i class="bi bi-hash"></i> {{ task_id }}
-                            </span>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <small class="text-muted">
-                            显示第 {{ (pagination.page - 1) * pagination.per_page + 1 }} - 
-                            {{ [(pagination.page * pagination.per_page), pagination.total]|min }} 条
-                        </small>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-primary" onclick="toggleBatchSelect()" id="batchSelectBtn">
-                                <i class="bi bi-check-square"></i> 批量选择
-                            </button>
-                            <div class="dropdown">
-                                <button class="btn btn-warning dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    <i class="bi bi-lightning"></i> 快速操作
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li>
-                                        <a class="dropdown-item" href="#" onclick="oneClickUploadAll()">
-                                            <i class="bi bi-cloud-upload"></i> 一键上传全部
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#" onclick="batchVerifyDifyDocuments()">
-                                            <i class="bi bi-shield-check"></i> 一键验证知识库
-                                        </a>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        <a class="dropdown-item" href="#" onclick="showBatchOperations()">
-                                            <i class="bi bi-gear-wide-connected"></i> 高级批量操作
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
+<div class="row mb-2">
+    <div class="col-md-8">
+        <!-- 左侧空白区域，为Bootstrap Select下拉框预留充足的展开空间 -->
+    </div>
+    <div class="col-md-4">
+        <div class="d-flex align-items-center justify-content-end gap-2">
+            <!-- 显示条数 -->
+            <small class="text-muted">
+                显示 {{ (pagination.page - 1) * pagination.per_page + 1 }}-{{ [(pagination.page * pagination.per_page), pagination.total]|min }}
+            </small>
+            
+            <!-- 论文统计 -->
+            <span class="badge bg-info">
+                共 <strong>{{ pagination.total }}</strong> 篇
+            </span>
+            
+            <!-- 批量选择和快速操作按钮 -->
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-primary" onclick="toggleBatchSelect()" id="batchSelectBtn">
+                    <i class="bi bi-check-square"></i> 批量选择
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-warning dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-lightning"></i> 快速操作
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="oneClickUploadAll()">
+                                <i class="bi bi-cloud-upload"></i> 一键上传全部
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="batchVerifyDifyDocuments()">
+                                <i class="bi bi-shield-check"></i> 一键验证知识库
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="showBatchOperations()">
+                                <i class="bi bi-gear-wide-connected"></i> 高级批量操作
+                            </a>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>

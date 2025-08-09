@@ -28,6 +28,16 @@
     position: relative; /* 确保下拉菜单可以正确定位 */
 }
 
+/* 搜索过滤器容器优化 */
+.search-container {
+    margin-bottom: 1rem !important; /* 减少底部间距 */
+}
+
+/* 搜索结果信息栏紧凑化 */
+.search-container + .row {
+    margin-bottom: 1rem !important; /* 减少搜索结果信息的底部间距 */
+}
+
 .bootstrap-select > .dropdown-toggle {
     width: 100% !important;
     height: calc(2.25rem + 2px) !important; /* 匹配 Bootstrap form-control 高度 */
