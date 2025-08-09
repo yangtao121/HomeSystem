@@ -120,9 +120,9 @@ class YouTubeDownloaderTool(BaseTool):
             下载结果信息
         """
         try:
-            # 验证平台支持
+            # 验证平台支持 - 仅记录警告，不阻止下载
             if not self._is_supported_platform(url):
-                return f"警告: 平台可能不受支持，但将尝试下载: {url}"
+                logger.warning(f"平台可能不受支持，尝试使用yt-dlp下载: {url}")
             
             # 检查磁盘空间
             if not self._check_disk_space():
@@ -208,7 +208,25 @@ class YouTubeDownloaderTool(BaseTool):
         
         # 文件大小限制
         if max_filesize:
-            ydl_opts['max_filesize'] = max_filesize
+            # 确保max_filesize格式正确
+            try:
+                # 如果是字符串格式如"500M"，转换为数字格式
+                if isinstance(max_filesize, str):
+                    if max_filesize.upper().endswith('M'):
+                        size_value = int(float(max_filesize[:-1]) * 1024 * 1024)
+                    elif max_filesize.upper().endswith('G'):
+                        size_value = int(float(max_filesize[:-1]) * 1024 * 1024 * 1024)
+                    elif max_filesize.upper().endswith('K'):
+                        size_value = int(float(max_filesize[:-1]) * 1024)
+                    else:
+                        size_value = int(max_filesize)
+                    ydl_opts['max_filesize'] = size_value
+                else:
+                    ydl_opts['max_filesize'] = max_filesize
+            except (ValueError, TypeError) as e:
+                logger.warning(f"无法解析文件大小限制 '{max_filesize}': {e}")
+                # 设置默认限制 500MB
+                ydl_opts['max_filesize'] = 500 * 1024 * 1024
         
         # 音频专用配置
         if audio_only:
@@ -256,18 +274,35 @@ class YouTubeDownloaderTool(BaseTool):
         """检查是否为支持的平台"""
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
+        path = parsed.path.lower()
         
         # 去除www前缀
         if domain.startswith('www.'):
             domain = domain[4:]
         
-        return any(platform in domain for platform in self._supported_platforms)
+        # 检查已知平台
+        if any(platform in domain for platform in self._supported_platforms):
+            return True
+        
+        # 检查是否为直接视频链接
+        video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.m4v']
+        if any(path.endswith(ext) for ext in video_extensions):
+            logger.info(f"检测到直接视频链接: {url}")
+            return True
+        
+        # 检查常见的学术/技术网站
+        academic_domains = ['github.io', 'stanford.edu', 'mit.edu', 'berkeley.edu', 'arxiv.org']
+        if any(academic_domain in domain for academic_domain in academic_domains):
+            return True
+            
+        return False
     
     def _check_disk_space(self, min_space_mb: int = 1024) -> bool:
         """检查磁盘空间是否足够"""
         try:
             stat = os.statvfs(self._download_dir)
-            free_space_mb = (stat.f_frsize * stat.f_avail) / (1024 * 1024)
+            # 修复属性访问问题
+            free_space_mb = (stat.f_frsize * stat.f_bavail) / (1024 * 1024)
             return free_space_mb > min_space_mb
         except Exception as e:
             logger.warning(f"无法检查磁盘空间: {e}")
