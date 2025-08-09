@@ -1017,7 +1017,7 @@ window.MathJax = {
                 <div class="action-buttons">
                     <div class="primary-actions">
                         <button id="formulaCorrectionBtn" class="btn btn-action btn-warning" 
-                                onclick="startFormulaCorrection()" title="修复分析报告中的公式错误">
+                                disabled title="公式纠错功能暂时不可用 - API端点未实现">
                             <i class="bi bi-gear-fill"></i>
                             <span>公式纠错</span>
                         </button>
@@ -1439,11 +1439,25 @@ document.addEventListener('DOMContentLoaded', function() {
         Prism.highlightAll();
     }
     
-    // 重新渲染MathJax（如果存在）
-    if (typeof MathJax !== 'undefined') {
+    // 重新渲染MathJax（如果存在且已初始化）
+    if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
         MathJax.typesetPromise().catch(function (err) {
-            console.log('MathJax rendering error:', err);
+            console.error('MathJax渲染错误:', err);
+            // 如果是严重错误，弹出警告
+            if (err.message && err.message.indexOf('typesetPromise') === -1) {
+                alert('MathJax数学公式渲染出现错误: ' + err.message);
+            }
         });
+    } else if (typeof MathJax !== 'undefined') {
+        // MathJax存在但未完全初始化，稍后重试
+        setTimeout(function() {
+            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                MathJax.typesetPromise().catch(function (err) {
+                    console.error('MathJax延迟渲染错误:', err);
+                    alert('MathJax数学公式渲染出现错误: ' + err.message);
+                });
+            }
+        }, 1000);
     }
 });
 
@@ -1746,7 +1760,12 @@ document.addEventListener('keydown', function(e) {
     
 });
 
-// === 公式纠错相关函数 ===
+// === 公式纠错相关函数 === 
+// 注意：此部分功能已禁用，因为对应的API端点不存在
+// 如需重新启用，请确保实现以下API端点：
+// - GET /api/paper/{arxiv_id}/formula_correction_status
+// - POST /api/paper/{arxiv_id}/correct_formulas  
+// - POST /api/paper/{arxiv_id}/cancel_formula_correction
 
 // 全局变量
 let formulaCorrectionPollingInterval = null;
@@ -2073,7 +2092,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检查是否有正在进行的纠错任务
     const arxivId = getArxivId();
     if (arxivId) {
-        checkFormulaCorrectionStatus(arxivId);
+        // 注释掉公式纠错状态检查 - 对应API端点不存在
+        // checkFormulaCorrectionStatus(arxivId);
+        console.log('页面加载完成，ArXiv ID:', arxivId);
     }
 });
 </script>
