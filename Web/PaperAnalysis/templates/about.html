@@ -171,26 +171,72 @@
                     </div>
 
                     <h3 class="section-title mb-4">
-                        <i class="bi bi-info-circle me-2 section-icon"></i>版本信息
+                        <i class="bi bi-gear me-2 section-icon"></i>系统状态
                     </h3>
-                    <div class="version-info-card mb-5">
+                    <div class="system-status-loading mb-5" id="systemStatusLoading">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2 text-muted">正在检测系统状态...</p>
+                        </div>
+                    </div>
+                    <div class="system-status-container mb-5" id="systemStatusContainer" style="display: none;">
                         <div class="row">
-                            <div class="col-md-6">
-                                <div class="version-item">
-                                    <strong>当前版本:</strong> <span class="version-tag">v2.0.0</span>
+                            <!-- 数据库状态 -->
+                            <div class="col-md-6 mb-3">
+                                <h6 class="status-section-title">数据库服务</h6>
+                                <div class="status-item">
+                                    <span class="status-label">PostgreSQL:</span>
+                                    <span id="postgresqlStatus" class="status-badge status-unknown">检测中</span>
                                 </div>
-                                <div class="version-item">
-                                    <strong>发布日期:</strong> {{ now.strftime('%Y-%m-%d') }}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="version-item">
-                                    <strong>系统状态:</strong> <span class="status-badge status-running">正常运行</span>
-                                </div>
-                                <div class="version-item">
-                                    <strong>数据库:</strong> <span class="status-badge status-info">已连接</span>
+                                <div class="status-item">
+                                    <span class="status-label">Redis:</span>
+                                    <span id="redisStatus" class="status-badge status-unknown">检测中</span>
                                 </div>
                             </div>
+                            
+                            <!-- 外部服务状态 -->
+                            <div class="col-md-6 mb-3">
+                                <h6 class="status-section-title">外部服务</h6>
+                                <div class="status-item">
+                                    <span class="status-label">SiYuan笔记:</span>
+                                    <span id="siyuanStatus" class="status-badge status-unknown">检测中</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Dify知识库:</span>
+                                    <span id="difyStatus" class="status-badge status-unknown">检测中</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Ollama本地:</span>
+                                    <span id="ollamaStatus" class="status-badge status-unknown">检测中</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- LLM服务状态 -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6 class="status-section-title">AI模型服务</h6>
+                                <div class="llm-status-summary">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div class="llm-summary-info">
+                                            <span class="llm-count">可用模型: <strong id="availableLLMCount">-</strong> 个</span>
+                                            <span class="llm-providers ms-3">提供商: <strong id="totalProviders">-</strong> 个</span>
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm" id="showLLMModelsBtn" onclick="showLLMModels()">
+                                            <i class="bi bi-list me-1"></i>查看详情
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 刷新按钮 -->
+                        <div class="text-center mt-4">
+                            <button class="btn btn-outline-secondary" id="refreshStatusBtn" onclick="refreshSystemStatus()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>刷新状态
+                            </button>
                         </div>
                     </div>
 
@@ -212,6 +258,67 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LLM模型列表弹窗 -->
+<div class="modal fade" id="llmModelsModal" tabindex="-1" aria-labelledby="llmModelsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="llmModelsModalLabel">
+                    <i class="bi bi-cpu me-2"></i>支持的AI模型列表
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="llm-models-loading" id="llmModelsLoading">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2 text-muted">正在加载模型信息...</p>
+                    </div>
+                </div>
+                <div class="llm-models-content" id="llmModelsContent" style="display: none;">
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="llm-summary-stats">
+                                <div class="row text-center">
+                                    <div class="col-md-4">
+                                        <div class="stat-item">
+                                            <div class="stat-number" id="totalChatModels">-</div>
+                                            <div class="stat-label">聊天模型</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-item">
+                                            <div class="stat-number" id="totalEmbeddingModels">-</div>
+                                            <div class="stat-label">嵌入模型</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-item">
+                                            <div class="stat-number" id="totalProvidersModal">-</div>
+                                            <div class="stat-label">服务提供商</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="providers-container" id="providersContainer">
+                        <!-- 动态加载的提供商和模型信息 -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="refreshLLMModels()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                </button>
             </div>
         </div>
     </div>
@@ -638,6 +745,179 @@ body {
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
+/* System Status Styles */
+.system-status-container {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, rgba(139, 92, 246, 0.03) 100%);
+    border-radius: 15px;
+    padding: 2rem;
+    border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.status-section-title {
+    color: #374151;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-label {
+    color: #4b5563;
+    font-weight: 500;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-online {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.status-offline {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.status-unknown {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+    box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+}
+
+.llm-status-summary {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-light);
+}
+
+.llm-summary-info {
+    color: #4b5563;
+}
+
+.llm-count, .llm-providers {
+    font-size: 0.95rem;
+}
+
+/* LLM Modal Styles */
+.llm-summary-stats {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    padding: 0.5rem;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #6366f1;
+    line-height: 1;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.provider-section {
+    margin-bottom: 2rem;
+}
+
+.provider-header {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px 12px 0 0;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.provider-content {
+    background: white;
+    border: 1px solid rgba(99, 102, 241, 0.1);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    padding: 1.5rem;
+}
+
+.model-card {
+    background: rgba(249, 250, 251, 0.8);
+    border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.model-card:hover {
+    background: rgba(99, 102, 241, 0.05);
+    border-color: rgba(99, 102, 241, 0.2);
+}
+
+.model-name {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.25rem;
+}
+
+.model-description {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.model-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.feature-tag {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.model-type-chat {
+    border-left: 4px solid #10b981;
+}
+
+.model-type-embedding {
+    border-left: 4px solid #3b82f6;
+}
+
 /* System Info */
 .system-info {
     padding: 2rem 0;
@@ -757,8 +1037,9 @@ body {
 </style>
 
 <script>
-// 初始化AOS动画
+// 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 初始化AOS动画
     AOS.init({
         duration: 800,
         easing: 'ease-in-out-cubic',
@@ -766,6 +1047,249 @@ document.addEventListener('DOMContentLoaded', function() {
         offset: 100,
         delay: 100
     });
+    
+    // 加载系统状态
+    loadSystemStatus();
 });
+
+// 加载系统状态
+async function loadSystemStatus() {
+    try {
+        const response = await fetch('/api/about/system_status');
+        const data = await response.json();
+        
+        if (data.success) {
+            updateSystemStatus(data.data);
+            showSystemStatus();
+        } else {
+            showSystemStatusError(data.error || '获取系统状态失败');
+        }
+    } catch (error) {
+        console.error('加载系统状态失败:', error);
+        showSystemStatusError('网络连接失败');
+    }
+}
+
+// 更新系统状态显示
+function updateSystemStatus(statusData) {
+    // 更新数据库状态
+    updateStatusBadge('postgresqlStatus', statusData.database.postgresql);
+    updateStatusBadge('redisStatus', statusData.database.redis);
+    
+    // 更新外部服务状态
+    updateStatusBadge('siyuanStatus', statusData.external_services.siyuan);
+    updateStatusBadge('difyStatus', statusData.external_services.dify);
+    updateStatusBadge('ollamaStatus', statusData.external_services.ollama);
+    
+    // 更新LLM服务信息
+    document.getElementById('availableLLMCount').textContent = statusData.llm_services.available_count || 0;
+    document.getElementById('totalProviders').textContent = statusData.llm_services.total_providers || 0;
+}
+
+// 更新状态徽章
+function updateStatusBadge(elementId, isOnline) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    element.className = 'status-badge';
+    if (isOnline) {
+        element.classList.add('status-online');
+        element.textContent = '在线';
+    } else {
+        element.classList.add('status-offline');
+        element.textContent = '离线';
+    }
+}
+
+// 显示系统状态
+function showSystemStatus() {
+    document.getElementById('systemStatusLoading').style.display = 'none';
+    document.getElementById('systemStatusContainer').style.display = 'block';
+}
+
+// 显示系统状态错误
+function showSystemStatusError(errorMessage) {
+    const loadingDiv = document.getElementById('systemStatusLoading');
+    loadingDiv.innerHTML = `
+        <div class="text-center">
+            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+            <p class="mt-2 text-muted">系统状态获取失败</p>
+            <p class="text-danger small">${errorMessage}</p>
+            <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadSystemStatus()">
+                <i class="bi bi-arrow-clockwise me-1"></i>重试
+            </button>
+        </div>
+    `;
+}
+
+// 刷新系统状态
+async function refreshSystemStatus() {
+    const refreshBtn = document.getElementById('refreshStatusBtn');
+    const originalText = refreshBtn.innerHTML;
+    
+    // 显示加载状态
+    refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise rotating me-1"></i>刷新中...';
+    refreshBtn.disabled = true;
+    
+    try {
+        await loadSystemStatus();
+    } finally {
+        // 恢复按钮状态
+        setTimeout(() => {
+            refreshBtn.innerHTML = originalText;
+            refreshBtn.disabled = false;
+        }, 1000);
+    }
+}
+
+// 显示LLM模型列表弹窗
+async function showLLMModels() {
+    const modal = new bootstrap.Modal(document.getElementById('llmModelsModal'));
+    modal.show();
+    
+    // 重置内容
+    document.getElementById('llmModelsLoading').style.display = 'block';
+    document.getElementById('llmModelsContent').style.display = 'none';
+    
+    await loadLLMModels();
+}
+
+// 加载LLM模型列表
+async function loadLLMModels() {
+    try {
+        const response = await fetch('/api/about/llm_models');
+        const data = await response.json();
+        
+        if (data.success) {
+            updateLLMModelsDisplay(data.data);
+            showLLMModelsContent();
+        } else {
+            showLLMModelsError(data.error || '获取模型列表失败');
+        }
+    } catch (error) {
+        console.error('加载LLM模型失败:', error);
+        showLLMModelsError('网络连接失败');
+    }
+}
+
+// 更新LLM模型显示
+function updateLLMModelsDisplay(modelsData) {
+    // 更新统计数据
+    document.getElementById('totalChatModels').textContent = modelsData.total_chat_models;
+    document.getElementById('totalEmbeddingModels').textContent = modelsData.total_embedding_models;
+    document.getElementById('totalProvidersModal').textContent = modelsData.total_providers;
+    
+    // 生成提供商内容
+    const providersContainer = document.getElementById('providersContainer');
+    providersContainer.innerHTML = '';
+    
+    Object.entries(modelsData.providers).forEach(([providerKey, providerInfo]) => {
+        const providerHtml = generateProviderHtml(providerKey, providerInfo);
+        providersContainer.innerHTML += providerHtml;
+    });
+}
+
+// 生成提供商HTML
+function generateProviderHtml(providerKey, providerInfo) {
+    let html = `
+        <div class="provider-section">
+            <div class="provider-header">
+                <i class="bi bi-cloud me-2"></i>${providerInfo.name}
+            </div>
+            <div class="provider-content">
+    `;
+    
+    // 聊天模型
+    if (providerInfo.chat_models && providerInfo.chat_models.length > 0) {
+        html += `<h6 class="mb-3"><i class="bi bi-chat-dots me-2"></i>聊天模型 (${providerInfo.chat_models.length})</h6>`;
+        providerInfo.chat_models.forEach(model => {
+            html += generateModelCardHtml(model, 'chat');
+        });
+    }
+    
+    // 嵌入模型
+    if (providerInfo.embedding_models && providerInfo.embedding_models.length > 0) {
+        html += `<h6 class="mb-3 mt-4"><i class="bi bi-vector-pen me-2"></i>嵌入模型 (${providerInfo.embedding_models.length})</h6>`;
+        providerInfo.embedding_models.forEach(model => {
+            html += generateModelCardHtml(model, 'embedding');
+        });
+    }
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// 生成模型卡片HTML
+function generateModelCardHtml(model, type) {
+    const features = [];
+    
+    if (type === 'chat') {
+        if (model.supports_functions) features.push('函数调用');
+        if (model.supports_vision) features.push('视觉理解');
+        if (model.supports_thinking) features.push('思维链');
+        if (model.max_tokens) features.push(`${model.max_tokens} tokens`);
+    } else {
+        if (model.dimensions) features.push(`${model.dimensions}D`);
+        if (model.max_input) features.push(`${model.max_input} input`);
+    }
+    
+    const featuresHtml = features.map(feature => 
+        `<span class="feature-tag">${feature}</span>`
+    ).join('');
+    
+    return `
+        <div class="model-card model-type-${type}">
+            <div class="model-name">${model.display_name}</div>
+            <div class="model-description">${model.description || '暂无描述'}</div>
+            <div class="model-features">${featuresHtml}</div>
+        </div>
+    `;
+}
+
+// 显示LLM模型内容
+function showLLMModelsContent() {
+    document.getElementById('llmModelsLoading').style.display = 'none';
+    document.getElementById('llmModelsContent').style.display = 'block';
+}
+
+// 显示LLM模型错误
+function showLLMModelsError(errorMessage) {
+    const loadingDiv = document.getElementById('llmModelsLoading');
+    loadingDiv.innerHTML = `
+        <div class="text-center">
+            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+            <p class="mt-2 text-muted">模型列表获取失败</p>
+            <p class="text-danger small">${errorMessage}</p>
+            <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadLLMModels()">
+                <i class="bi bi-arrow-clockwise me-1"></i>重试
+            </button>
+        </div>
+    `;
+}
+
+// 刷新LLM模型列表
+async function refreshLLMModels() {
+    document.getElementById('llmModelsLoading').style.display = 'block';
+    document.getElementById('llmModelsContent').style.display = 'none';
+    await loadLLMModels();
+}
+
+// 添加旋转动画的CSS
+const style = document.createElement('style');
+style.textContent = `
+    .rotating {
+        animation: rotation 1s infinite linear;
+    }
+    
+    @keyframes rotation {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}
