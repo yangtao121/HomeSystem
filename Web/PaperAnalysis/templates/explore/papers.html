@@ -216,14 +216,18 @@
             btn.innerHTML = '<i class="bi bi-x-square"></i> 退出选择';
             btn.classList.remove('btn-outline-primary');
             btn.classList.add('btn-primary');
-            checkboxes.forEach(cb => cb.closest('.col-md-1').style.display = 'block');
+            checkboxes.forEach(cb => {
+                const container = cb.closest('.me-3');
+                if (container) container.style.display = 'block';
+            });
         } else {
             btn.innerHTML = '<i class="bi bi-check-square"></i> 批量选择';
             btn.classList.remove('btn-primary');
             btn.classList.add('btn-outline-primary');
             checkboxes.forEach(cb => {
                 cb.checked = false;
-                cb.closest('.col-md-1').style.display = 'none';
+                const container = cb.closest('.me-3');
+                if (container) container.style.display = 'none';
             });
             selectedPapers = [];
             if (toolbar) toolbar.style.display = 'none';
@@ -271,20 +275,376 @@
         }
     }
 
-    // 一键上传全部功能 - 简化版本，只显示提示
+    // 一键上传全部功能
     function oneClickUploadAll() {
-        if (confirm('该操作将上传所有当前搜索结果中未上传的论文到Dify知识库。\n\n请确认是否继续？')) {
-            // 可以在这里实现一键上传逻辑
-            alert('一键上传功能正在开发中，请使用批量选择后进行批量上传。');
+        // 确认操作
+        const confirmMessage = `确定要一键上传所有符合条件的论文到Dify知识库吗？\n\n此操作将：\n• 自动筛选未上传且有任务名称的论文\n• 批量上传到对应的知识库\n• 提供详细的上传总结和失败报告\n\n上传过程可能需要较长时间，请耐心等待。`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
         }
+        
+        // 初始化并显示上传进度模态框
+        initOneClickUploadModal();
+        const modal = new bootstrap.Modal(document.getElementById('difyUploadProgressModal'));
+        modal.show();
+        
+        // 开始一键上传
+        startOneClickUpload();
+    }
+    
+    function initOneClickUploadModal() {
+        // 重置进度信息
+        document.getElementById('overallProgress').textContent = '0/0';
+        document.getElementById('overallProgressBar').style.width = '0%';
+        document.getElementById('overallProgressBar').textContent = '0%';
+        document.getElementById('successCount').textContent = '0';
+        document.getElementById('failedCount').textContent = '0';
+        document.getElementById('totalCount').textContent = '0';
+        
+        // 清空详细进度列表
+        const progressList = document.getElementById('uploadDetailsList');
+        if (progressList) {
+            progressList.innerHTML = '';
+        }
+        
+        // 隐藏错误汇总和完成操作按钮
+        const errorSection = document.getElementById('errorSummarySection');
+        if (errorSection) errorSection.style.display = 'none';
+        
+        const retryBtn = document.getElementById('retryFailedBtn');
+        if (retryBtn) retryBtn.style.display = 'none';
+        
+        const exportBtn = document.getElementById('exportFailedBtn');
+        if (exportBtn) exportBtn.style.display = 'none';
+        
+        const doneBtn = document.getElementById('uploadModalDoneBtn');
+        if (doneBtn) doneBtn.style.display = 'none';
+        
+        const closeBtn = document.getElementById('uploadModalCloseBtn');
+        if (closeBtn) closeBtn.disabled = true;
+    }
+    
+    function startOneClickUpload() {
+        // 调用后端API开始一键上传
+        fetch('/api/dify_upload_all_eligible', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                exclude_already_uploaded: true,
+                require_task_name: true
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                handleOneClickUploadResult(data);
+            } else {
+                console.error('一键上传失败:', data);
+                let errorMessage = data.error || '未知错误';
+                showAlert(`一键上传失败: ${errorMessage}`, 'error');
+                handleOneClickUploadError(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('一键上传网络错误:', error);
+            let errorMessage = '网络连接失败';
+            
+            if (error.message.includes('HTTP 503')) {
+                errorMessage = 'Dify 服务不可用，请检查服务状态';
+            } else if (error.message.includes('HTTP 408')) {
+                errorMessage = '上传操作超时，请稍后重试';
+            } else if (error.message.includes('HTTP 500')) {
+                errorMessage = '服务器内部错误，请查看日志';
+            }
+            
+            showAlert(`一键上传失败: ${errorMessage}`, 'error');
+            handleOneClickUploadError(error.toString());
+        });
+    }
+    
+    function handleOneClickUploadResult(result) {
+        const {
+            total_eligible,
+            success_count,
+            failed_count,
+            successful_papers,
+            failed_papers,
+            failure_summary,
+            suggestions,
+            message
+        } = result;
+        
+        // 更新进度显示
+        document.getElementById('overallProgress').textContent = `${total_eligible}/${total_eligible}`;
+        document.getElementById('overallProgressBar').style.width = '100%';
+        document.getElementById('overallProgressBar').textContent = '100%';
+        document.getElementById('successCount').textContent = success_count;
+        document.getElementById('failedCount').textContent = failed_count;
+        document.getElementById('totalCount').textContent = total_eligible;
+        
+        // 显示详细结果
+        const progressList = document.getElementById('uploadDetailsList');
+        if (progressList) {
+            progressList.innerHTML = '';
+            
+            // 显示成功的论文
+            successful_papers.forEach(paper => {
+                const item = document.createElement('div');
+                item.className = 'mb-2 p-2 border rounded bg-success-subtle';
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${paper.arxiv_id}</strong>
+                            <small class="text-muted d-block">${paper.title}</small>
+                        </div>
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> 上传成功
+                        </span>
+                    </div>
+                `;
+                progressList.appendChild(item);
+            });
+            
+            // 显示失败的论文
+            failed_papers.forEach(paper => {
+                const item = document.createElement('div');
+                item.className = 'mb-2 p-2 border rounded bg-danger-subtle';
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${paper.arxiv_id}</strong>
+                            <small class="text-muted d-block">${paper.title}</small>
+                            <small class="text-danger">${paper.error}</small>
+                        </div>
+                        <span class="badge bg-danger">
+                            <i class="bi bi-x-circle"></i> 上传失败
+                        </span>
+                    </div>
+                `;
+                progressList.appendChild(item);
+            });
+        }
+        
+        // 显示错误汇总
+        if (failed_count > 0) {
+            showErrorSummary(failure_summary, suggestions);
+        }
+        
+        // 启用关闭按钮和完成按钮
+        const closeBtn = document.getElementById('uploadModalCloseBtn');
+        if (closeBtn) closeBtn.disabled = false;
+        
+        const doneBtn = document.getElementById('uploadModalDoneBtn');
+        if (doneBtn) doneBtn.style.display = 'inline-block';
+        
+        // 显示结果消息
+        showAlert(message, success_count > 0 ? 'success' : 'warning');
+    }
+    
+    function handleOneClickUploadError(error) {
+        // 更新进度显示为错误状态
+        const progressBar = document.getElementById('overallProgressBar');
+        if (progressBar) {
+            progressBar.classList.remove('progress-bar-animated');
+            progressBar.classList.add('bg-danger');
+            progressBar.textContent = '错误';
+            progressBar.style.width = '100%';
+        }
+        
+        // 更新错误统计
+        const failedCountElem = document.getElementById('failedCount');
+        if (failedCountElem) failedCountElem.textContent = '1';
+        
+        const progressElem = document.getElementById('overallProgress');
+        if (progressElem) progressElem.textContent = '错误';
+        
+        // 显示错误详情
+        const progressList = document.getElementById('uploadDetailsList');
+        if (progressList) {
+            const errorItem = document.createElement('div');
+            errorItem.className = 'mb-2 p-2 border rounded bg-danger-subtle';
+            errorItem.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>系统错误</strong>
+                        <small class="text-danger d-block">${error}</small>
+                    </div>
+                    <span class="badge bg-danger">
+                        <i class="bi bi-exclamation-triangle"></i> 错误
+                    </span>
+                </div>
+            `;
+            progressList.appendChild(errorItem);
+        }
+        
+        // 启用关闭按钮
+        const closeBtn = document.getElementById('uploadModalCloseBtn');
+        if (closeBtn) closeBtn.disabled = false;
+        
+        const doneBtn = document.getElementById('uploadModalDoneBtn');
+        if (doneBtn) doneBtn.style.display = 'inline-block';
+    }
+    
+    function showErrorSummary(failure_summary, suggestions) {
+        const errorSection = document.getElementById('errorSummarySection');
+        const categorySummary = document.getElementById('errorCategorySummary');
+        const recommendationsSection = document.getElementById('recommendationsSection');
+        
+        if (!errorSection || !categorySummary || !recommendationsSection) {
+            return; // 如果元素不存在就跳过
+        }
+        
+        // 生成错误分类汇总
+        let categoryHtml = '<h6>错误分类统计:</h6><ul>';
+        for (const [errorType, count] of Object.entries(failure_summary)) {
+            const errorTypeNames = {
+                'pdf_download_error': 'PDF下载失败',
+                'client_error': '客户端错误',
+                'dataset_error': '知识库错误',
+                'network_error': '网络错误',
+                'task_error': '任务配置错误',
+                'already_uploaded': '已上传',
+                'unknown_error': '未知错误'
+            };
+            categoryHtml += `<li>${errorTypeNames[errorType] || errorType}: ${count} 篇</li>`;
+        }
+        categoryHtml += '</ul>';
+        categorySummary.innerHTML = categoryHtml;
+        
+        // 生成建议
+        if (suggestions && suggestions.length > 0) {
+            let suggestionsHtml = '<h6>解决建议:</h6><ul>';
+            suggestions.forEach(suggestion => {
+                suggestionsHtml += `<li>${suggestion}</li>`;
+            });
+            suggestionsHtml += '</ul>';
+            recommendationsSection.innerHTML = suggestionsHtml;
+        }
+        
+        errorSection.style.display = 'block';
     }
 
-    // 一键验证知识库功能 - 简化版本
+    // 一键验证知识库功能
     function batchVerifyDifyDocuments() {
-        if (confirm('该操作将验证所有当前搜索结果中已上传的文档在Dify知识库中的状态。\n\n请确认是否继续？')) {
-            // 可以在这里实现一键验证逻辑
-            alert('一键验证功能正在开发中，请使用批量选择后进行批量验证。');
+        // 确认操作
+        const confirmMessage = `确定要验证所有已上传文档在Dify知识库中的状态吗？\n\n此操作将：\n• 检查所有已上传论文是否在Dify服务器上存在\n• 识别丢失或损坏的文档引用\n• 提供详细的验证报告\n\n验证过程可能需要一些时间，请耐心等待。`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
         }
+        
+        // 对于验证功能，我们可以显示一个简化的进度提示
+        showAlert('正在验证知识库文档状态，请稍候...', 'info');
+        
+        // 开始验证
+        startBatchVerification();
+    }
+    
+    function startBatchVerification() {
+        // 调用后端API开始批量验证
+        fetch('/api/dify_batch_verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                handleBatchVerifyResult(data);
+            } else {
+                console.error('批量验证失败:', data);
+                showAlert(`批量验证失败: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('批量验证网络错误:', error);
+            showAlert(`批量验证失败: 网络连接错误`, 'error');
+        });
+    }
+    
+    function handleBatchVerifyResult(result) {
+        const {
+            total,
+            verified,
+            failed,
+            missing,
+            failed_papers,
+            missing_papers,
+            message
+        } = result;
+        
+        let detailMessage = `验证完成！\n\n`;
+        detailMessage += `总计: ${total} 篇\n`;
+        detailMessage += `验证通过: ${verified} 篇\n`;
+        detailMessage += `验证失败: ${failed} 篇\n`;
+        detailMessage += `文档丢失: ${missing} 篇\n\n`;
+        
+        if (failed > 0 || missing > 0) {
+            detailMessage += `问题详情:\n`;
+            if (failed_papers && failed_papers.length > 0) {
+                detailMessage += `验证失败的论文:\n`;
+                failed_papers.slice(0, 3).forEach(paper => {
+                    detailMessage += `- ${paper.arxiv_id}: ${paper.error}\n`;
+                });
+                if (failed_papers.length > 3) {
+                    detailMessage += `- 还有 ${failed_papers.length - 3} 篇...\n`;
+                }
+            }
+            
+            if (missing_papers && missing_papers.length > 0) {
+                detailMessage += `文档丢失的论文:\n`;
+                missing_papers.slice(0, 3).forEach(paper => {
+                    detailMessage += `- ${paper.arxiv_id}: ${paper.error}\n`;
+                });
+                if (missing_papers.length > 3) {
+                    detailMessage += `- 还有 ${missing_papers.length - 3} 篇...\n`;
+                }
+            }
+        }
+        
+        // 显示结果
+        alert(detailMessage);
+        showAlert(message, verified > 0 ? 'success' : 'warning');
+    }
+    
+    // 通用消息提示函数
+    function showAlert(message, type = 'info') {
+        // 创建alert元素
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+        alertDiv.style.position = 'fixed';
+        alertDiv.style.top = '20px';
+        alertDiv.style.right = '20px';
+        alertDiv.style.zIndex = '9999';
+        alertDiv.style.maxWidth = '400px';
+        
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // 自动移除
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.parentNode.removeChild(alertDiv);
+            }
+        }, 5000);
     }
 </script>
 {% endblock %}

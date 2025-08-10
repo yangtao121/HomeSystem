@@ -5,7 +5,8 @@
 from flask import Blueprint, request, jsonify, send_file
 from services.task_service import paper_gather_service
 from services.paper_gather_service import paper_data_service
-from services.paper_explore_service import PaperService, DifyService
+from services.paper_explore_service import PaperService
+from services.dify_service import DifyService
 from HomeSystem.integrations.paper_analysis.analysis_service import PaperAnalysisService
 import logging
 import os
@@ -1407,4 +1408,127 @@ def translate_chinese_search():
         return jsonify({
             'success': False,
             'error': f"转换失败: {str(e)}"
+        }), 500
+
+
+# === Dify知识库相关API ===
+
+@api_bp.route('/dify_upload_all_eligible', methods=['POST'])
+def api_dify_upload_all_eligible():
+    """一键上传全部符合条件的论文到Dify知识库"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        filters = data.get('filters', {})
+        
+        # 调用批量上传服务
+        result = dify_service.upload_all_eligible_papers_with_summary(filters)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"一键上传全部失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"上传失败: {str(e)}",
+            'total_eligible': 0,
+            'success_count': 0,
+            'failed_count': 0,
+            'progress': 0
+        }), 500
+
+
+@api_bp.route('/dify_batch_verify', methods=['POST'])
+def api_dify_batch_verify():
+    """一键验证知识库中所有文档的状态"""
+    try:
+        # 调用批量验证服务
+        result = dify_service.batch_verify_all_documents()
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"一键验证知识库失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"验证失败: {str(e)}",
+            'total': 0,
+            'verified': 0,
+            'failed': 0,
+            'missing': 0,
+            'progress': 0
+        }), 500
+
+
+@api_bp.route('/dify_upload/<arxiv_id>', methods=['POST'])
+def api_dify_upload_single(arxiv_id):
+    """上传单个论文到Dify知识库"""
+    try:
+        result = dify_service.upload_paper_to_dify(arxiv_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"上传论文到Dify失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"上传失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/dify_status/<arxiv_id>')
+def api_dify_status(arxiv_id):
+    """检查单个论文在Dify中的状态"""
+    try:
+        result = dify_service.verify_dify_document(arxiv_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        logger.error(f"检查Dify状态失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"状态检查失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/dify_statistics')
+def api_dify_statistics():
+    """获取Dify知识库统计信息"""
+    try:
+        # 获取基本统计
+        eligible_papers = dify_service.get_eligible_papers_for_upload()
+        
+        # 计算已上传的论文数量
+        all_papers = paper_explore_service.get_paper_statistics()
+        uploaded_count = all_papers.get('dify_uploaded', 0) if all_papers else 0
+        
+        statistics = {
+            'total_papers': all_papers.get('total_papers', 0) if all_papers else 0,
+            'eligible_for_upload': len(eligible_papers),
+            'already_uploaded': uploaded_count,
+            'dify_service_available': dify_service.is_available()
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': statistics
+        })
+        
+    except Exception as e:
+        logger.error(f"获取Dify统计信息失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"获取统计失败: {str(e)}"
         }), 500

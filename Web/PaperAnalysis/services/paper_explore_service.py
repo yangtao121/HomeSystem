@@ -1633,6 +1633,41 @@ class PaperService:
         except Exception as e:
             logger.error(f"获取任务名称列表失败: {e}")
             return []
+    
+    def get_paper_statistics(self) -> Dict[str, Any]:
+        """获取论文统计信息，包括Dify相关统计"""
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 基础统计
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total_papers,
+                        COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_papers,
+                        COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending_papers,
+                        COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed_papers,
+                        COUNT(CASE WHEN research_objectives IS NOT NULL AND research_objectives != '' THEN 1 END) as analyzed_papers,
+                        COUNT(CASE WHEN task_name IS NOT NULL AND task_name != '' THEN 1 END) as papers_with_tasks,
+                        COUNT(CASE WHEN dify_document_id IS NOT NULL AND dify_document_id != '' THEN 1 END) as dify_uploaded
+                    FROM arxiv_papers
+                """)
+                
+                stats = dict(cursor.fetchone())
+                
+                return stats
+                
+        except Exception as e:
+            logger.error(f"获取论文统计失败: {e}")
+            return {
+                'total_papers': 0,
+                'completed_papers': 0, 
+                'pending_papers': 0,
+                'failed_papers': 0,
+                'analyzed_papers': 0,
+                'papers_with_tasks': 0,
+                'dify_uploaded': 0
+            }
 
 
 class DifyService:
