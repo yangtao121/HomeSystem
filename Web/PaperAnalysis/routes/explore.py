@@ -5,6 +5,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file
 from services.paper_explore_service import PaperService, DifyService
 from HomeSystem.integrations.paper_analysis.analysis_service import PaperAnalysisService
+from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
 import logging
 import math
 import os
@@ -18,6 +19,7 @@ explore_bp = Blueprint('explore', __name__, url_prefix='/explore')
 # 初始化服务
 paper_service = PaperService()
 dify_service = DifyService()
+db_ops = DatabaseOperations()
 
 # 添加HomeSystem模块路径以导入LLMFactory
 PROJECT_ROOT = os.path.join(os.path.dirname(__file__), '..', '..', '..')
@@ -172,11 +174,15 @@ def papers():
 def paper_detail(arxiv_id):
     """论文详情页面"""
     try:
-        paper = paper_service.get_paper_detail(arxiv_id)
-        if not paper:
+        # 使用DatabaseOperations查询，确保与上传流程使用相同数据源
+        paper_model = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_id)
+        if not paper_model:
             return render_template('error.html', error="论文不存在"), 404
         
-        # 获取导航信息
+        # 转换为字典格式，保持模板兼容性
+        paper = paper_model.to_dict()
+        
+        # 获取导航信息（仍使用原服务，因为需要复杂查询）
         navigation = paper_service.get_paper_navigation(arxiv_id)
         
         return render_template('explore/paper_detail.html', paper=paper, navigation=navigation)
@@ -262,9 +268,11 @@ def paper_analysis_view(arxiv_id):
                                    error="分析结果不存在，请先进行深度分析"), 404
         
         # 获取论文基本信息
-        paper = paper_service.get_paper_detail(arxiv_id)
-        if not paper:
+        paper_model = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_id)
+        if not paper_model:
             return render_template('error.html', error="论文不存在"), 404
+        
+        paper = paper_model.to_dict()
         
         return render_template('explore/paper_analysis.html', 
                              paper=paper, 
@@ -289,8 +297,9 @@ def batch_operations():
                 selected_paper_ids = [p['arxiv_id'] for p in json.loads(selected_papers_data)]
                 # 获取完整的论文信息
                 for arxiv_id in selected_paper_ids:
-                    paper = paper_service.get_paper_detail(arxiv_id)
-                    if paper:
+                    paper_model = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_id)
+                    if paper_model:
+                        paper = paper_model.to_dict()
                         selected_papers.append(paper)
         
         # 计算统计信息

@@ -382,14 +382,11 @@ function updateRelevanceScore(arxivId, score) {
 function uploadSinglePaperToDify(arxivId) {
     showToast('正在上传到Dify知识库...', 'info');
     
-    fetch('/api/upload_to_dify', {
+    fetch(`/api/dify_upload/${arxivId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            arxiv_ids: [arxivId]
-        })
+        }
     })
     .then(response => response.json())
     .then(data => {
@@ -417,14 +414,11 @@ function removeSinglePaperFromDify(arxivId) {
     
     showToast('正在从Dify知识库移除...', 'info');
     
-    fetch('/api/remove_from_dify', {
+    fetch(`/api/dify_remove/${arxivId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            arxiv_ids: [arxivId]
-        })
+        }
     })
     .then(response => response.json())
     .then(data => {
@@ -461,7 +455,7 @@ function updateDifyButtonStatus(arxivId, isUploaded) {
         if (isUploaded) {
             buttonsDiv.innerHTML = `
                 <button class="btn btn-sm btn-outline-danger" 
-                        onclick="removePaperFromDifyList('${arxivId}')"
+                        onclick="removeSinglePaperFromDify('${arxivId}')"
                         title="从Dify知识库中移除此论文">
                     <i class="bi bi-cloud-minus"></i> 从知识库移除
                 </button>
@@ -469,7 +463,7 @@ function updateDifyButtonStatus(arxivId, isUploaded) {
         } else {
             buttonsDiv.innerHTML = `
                 <button class="btn btn-sm btn-outline-success" 
-                        onclick="uploadPaperToDifyList('${arxivId}')"
+                        onclick="uploadSinglePaperToDify('${arxivId}')"
                         title="上传到知识库">
                     <i class="bi bi-cloud-upload"></i> 上传
                 </button>

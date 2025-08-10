@@ -186,14 +186,14 @@
                             <div class="col-6" id="dify-buttons-{{ paper.arxiv_id }}">
                                 {% if paper.dify_document_id %}
                                     <button class="btn btn-sm btn-danger w-100" 
-                                            onclick="removePaperFromDifyList('{{ paper.arxiv_id }}')"
+                                            onclick="removeSinglePaperFromDify('{{ paper.arxiv_id }}')"
                                             title="从Dify知识库中移除此论文">
                                         <i class="bi bi-cloud-minus"></i>
                                         <small class="d-block">移除</small>
                                     </button>
                                 {% else %}
                                     <button class="btn btn-sm btn-success w-100" 
-                                            onclick="uploadPaperToDifyList('{{ paper.arxiv_id }}')"
+                                            onclick="uploadSinglePaperToDify('{{ paper.arxiv_id }}')"
                                             title="上传到知识库">
                                         <i class="bi bi-cloud-upload"></i>
                                         <small class="d-block">上传</small>

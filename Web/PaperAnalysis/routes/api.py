@@ -8,6 +8,7 @@ from services.paper_gather_service import paper_data_service
 from services.paper_explore_service import PaperService
 from services.dify_service import DifyService
 from HomeSystem.integrations.paper_analysis.analysis_service import PaperAnalysisService
+from HomeSystem.integrations.database import ArxivPaperModel
 import logging
 import os
 import sys
@@ -1484,6 +1485,12 @@ def api_dify_upload_single(arxiv_id):
         }), 500
 
 
+@api_bp.route('/dify_remove/<arxiv_id>', methods=['POST', 'DELETE'])
+def api_dify_remove_single(arxiv_id):
+    """移除单个论文从Dify知识库（无/api/前缀版本）"""
+    return api_dify_remove_single_paper(arxiv_id)
+
+
 @api_bp.route('/dify_status/<arxiv_id>')
 def api_dify_status(arxiv_id):
     """检查单个论文在Dify中的状态"""
@@ -1494,12 +1501,158 @@ def api_dify_status(arxiv_id):
             return jsonify(result)
         else:
             return jsonify(result), 404
-            
     except Exception as e:
         logger.error(f"检查Dify状态失败 {arxiv_id}: {e}")
         return jsonify({
             'success': False,
             'error': f"状态检查失败: {str(e)}"
+        }), 500
+
+@api_bp.route('/api/upload_to_dify', methods=['POST'])
+def api_upload_to_dify():
+    """批量上传论文到Dify知识库 - 兼容前端调用"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        if not arxiv_ids:
+            return jsonify({'success': False, 'error': '未提供论文ID列表'}), 400
+        
+        # 如果只有一个ID，直接调用单篇上传
+        if len(arxiv_ids) == 1:
+            result = dify_service.upload_paper_to_dify(arxiv_ids[0])
+            return jsonify(result)
+        
+        # 多个ID的情况，调用批量上传
+        results = {
+            'success_count': 0,
+            'failed_count': 0,
+            'results': []
+        }
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                result = dify_service.upload_paper_to_dify(arxiv_id)
+                if result.get('success'):
+                    results['success_count'] += 1
+                    results['results'].append({
+                        'arxiv_id': arxiv_id,
+                        'status': 'success',
+                        'message': '上传成功'
+                    })
+                else:
+                    results['failed_count'] += 1
+                    results['results'].append({
+                        'arxiv_id': arxiv_id,
+                        'status': 'failed',
+                        'error': result.get('error', '未知错误')
+                    })
+            except Exception as e:
+                results['failed_count'] += 1
+                results['results'].append({
+                    'arxiv_id': arxiv_id,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+        
+        # 如果全部成功
+        if results['failed_count'] == 0:
+            return jsonify({
+                'success': True,
+                'message': f'成功上传{results["success_count"]}篇论文',
+                'data': results
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'上传失败{results["failed_count"]}篇，成功{results["success_count"]}篇',
+                'data': results
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"批量上传论文到Dify失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/api/remove_from_dify', methods=['POST'])
+def api_remove_from_dify():
+    """从Dify知识库移除论文 - 兼容前端调用"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        if not arxiv_ids:
+            return jsonify({'success': False, 'error': '未提供论文ID列表'}), 400
+        
+        # 检查是否有移除功能
+        if not hasattr(dify_service, 'remove_paper_from_dify'):
+            return jsonify({
+                'success': False,
+                'error': '暂不支持从Dify移除论文功能'
+            }), 501
+        
+        # 如果只有一个ID
+        if len(arxiv_ids) == 1:
+            result = dify_service.remove_paper_from_dify(arxiv_ids[0])
+            return jsonify(result)
+        
+        # 多个ID的情况
+        results = {
+            'success_count': 0,
+            'failed_count': 0,
+            'results': []
+        }
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                result = dify_service.remove_paper_from_dify(arxiv_id)
+                if result.get('success'):
+                    results['success_count'] += 1
+                    results['results'].append({
+                        'arxiv_id': arxiv_id,
+                        'status': 'success',
+                        'message': '移除成功'
+                    })
+                else:
+                    results['failed_count'] += 1
+                    results['results'].append({
+                        'arxiv_id': arxiv_id,
+                        'status': 'failed',
+                        'error': result.get('error', '未知错误')
+                    })
+            except Exception as e:
+                results['failed_count'] += 1
+                results['results'].append({
+                    'arxiv_id': arxiv_id,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+        
+        # 返回结果
+        if results['failed_count'] == 0:
+            return jsonify({
+                'success': True,
+                'message': f'成功移除{results["success_count"]}篇论文',
+                'data': results
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'移除失败{results["failed_count"]}篇，成功{results["success_count"]}篇',
+                'data': results
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"从Dify移除论文失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 
@@ -1531,4 +1684,171 @@ def api_dify_statistics():
         return jsonify({
             'success': False,
             'error': f"获取统计失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/dify_upload/<arxiv_id>', methods=['POST'])
+def api_dify_upload_single_paper(arxiv_id):
+    """单个论文上传到Dify知识库 - 兼容ExplorePaperData调用模式"""
+    try:
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        # 调用shared service上传
+        result = dify_service.upload_paper_to_dify(arxiv_id)
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': '论文上传成功',
+                'data': {
+                    'arxiv_id': arxiv_id,
+                    'dataset_id': result.get('dataset_id'),
+                    'document_id': result.get('document_id'),
+                    'document_name': result.get('document_name')
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', '上传失败')
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"上传单个论文到Dify失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dify_remove/<arxiv_id>', methods=['POST', 'DELETE'])
+def api_dify_remove_single_paper(arxiv_id):
+    """从Dify知识库移除单个论文 - 兼容ExplorePaperData调用模式"""
+    try:
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        # 调用shared service移除
+        result = dify_service.remove_paper_from_dify(arxiv_id)
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': '论文移除成功',
+                'data': {
+                    'arxiv_id': arxiv_id
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', '移除失败')
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"从Dify移除单个论文失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dify_verify/<arxiv_id>', methods=['POST'])
+def api_dify_verify_single_paper(arxiv_id):
+    """验证论文是否存在于Dify服务器 - 兼容ExplorePaperData调用模式"""
+    try:
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        # 调用shared service验证
+        result = dify_service.verify_dify_document(arxiv_id)
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', '验证失败')
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"验证Dify文档失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dify_clean/<arxiv_id>', methods=['POST'])
+def api_dify_clean_single_paper(arxiv_id):
+    """清理无效的Dify文档记录 - 兼容ExplorePaperData调用模式"""
+    try:
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        # 获取论文数据并清理无效记录
+        paper_dict = dify_service._get_paper_data(arxiv_id)
+        if not paper_dict:
+            return jsonify({'success': False, 'error': '论文不存在'}), 400
+        
+        # 清理数据库中的Dify信息
+        if dify_service.db_ops:
+            paper = dify_service.db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_id)
+            if paper:
+                arxiv_paper = paper if isinstance(paper, ArxivPaperModel) else ArxivPaperModel.from_dict(paper.to_dict())
+                arxiv_paper.clear_dify_info()
+                
+                clear_data = {
+                    'dify_dataset_id': arxiv_paper.dify_dataset_id,
+                    'dify_document_id': arxiv_paper.dify_document_id,
+                    'dify_document_name': arxiv_paper.dify_document_name,
+                    'dify_character_count': arxiv_paper.dify_character_count,
+                    'dify_segment_count': arxiv_paper.dify_segment_count,
+                    'dify_upload_time': arxiv_paper.dify_upload_time,
+                    'dify_metadata': json.dumps(arxiv_paper.dify_metadata) if arxiv_paper.dify_metadata else '{}'
+                }
+                
+                success = dify_service.db_ops.update(arxiv_paper, clear_data)
+                if success:
+                    return jsonify({
+                        'success': True,
+                        'message': '无效记录已清理',
+                        'data': {'arxiv_id': arxiv_id}
+                    })
+                else:
+                    return jsonify({'success': False, 'error': '清理失败'}), 500
+            else:
+                return jsonify({'success': False, 'error': '论文不存在'}), 400
+        else:
+            return jsonify({'success': False, 'error': '数据库服务不可用'}), 500
+            
+    except Exception as e:
+        logger.error(f"清理Dify记录失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/dify_validate_upload/<arxiv_id>')
+def api_dify_validate_upload_single_paper(arxiv_id):
+    """验证论文上传前置条件 - 兼容ExplorePaperData调用模式"""
+    try:
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        # 调用shared service验证上传前置条件
+        result = dify_service.validate_upload_preconditions(arxiv_id)
+        
+        return jsonify(result)
+            
+    except Exception as e:
+        logger.error(f"验证上传前置条件失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
