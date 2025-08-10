@@ -275,13 +275,6 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                         
-                                        <!-- 查看结果（仅完成的任务） -->
-                                        {% if task.status == 'completed' %}
-                                        <a href="{{ url_for('collect.task_results', task_id=task.task_id) }}" 
-                                           class="btn btn-outline-success" title="查看结果">
-                                            <i class="fas fa-search-plus"></i>
-                                        </a>
-                                        {% endif %}
                                         
                                         <!-- 定时任务特殊操作 -->
                                         {% if task.task_type == 'scheduled' %}
@@ -430,6 +423,7 @@
     </div>
 </div>
 
+
 {% endblock %}
 
 {% block scripts %}
@@ -575,6 +569,17 @@ function showTaskDetails(taskId) {
 
 // 显示任务详情内容
 function displayTaskDetails(taskData) {
+    // 从结果数据中提取配置信息
+    const config = taskData.result_data?.config || {};
+    
+    // 搜索模式映射
+    const searchModeMap = {
+        'latest': '最新论文',
+        'most_relevant': '最相关',
+        'date_range': '日期范围',
+        'after_year': '指定年份后'
+    };
+    
     const detailsHtml = `
         <div class="row">
             <div class="col-md-6">
@@ -586,7 +591,7 @@ function displayTaskDetails(taskData) {
                     </tr>
                     <tr>
                         <td class="text-muted">任务名称:</td>
-                        <td>${taskData.task_name || '未命名'}</td>
+                        <td><strong>${config.task_name || taskData.task_name || '未命名'}</strong></td>
                     </tr>
                     <tr>
                         <td class="text-muted">任务类型:</td>
@@ -605,23 +610,73 @@ function displayTaskDetails(taskData) {
                         <td>${formatDate(taskData.start_time)}</td>
                     </tr>
                     ${taskData.end_time ? `<tr><td class="text-muted">结束时间:</td><td>${formatDate(taskData.end_time)}</td></tr>` : ''}
+                    ${taskData.duration ? `<tr><td class="text-muted">执行时长:</td><td>${formatDuration(taskData.duration)}</td></tr>` : ''}
+                    ${taskData.papers_found !== undefined ? `<tr><td class="text-muted">找到论文:</td><td><span class="badge bg-info">${taskData.papers_found} 篇</span></td></tr>` : ''}
                 </table>
             </div>
             <div class="col-md-6">
-                <h6><i class="fas fa-cog me-2"></i>配置信息</h6>
+                <h6><i class="fas fa-search me-2"></i>搜索配置</h6>
                 <table class="table table-sm table-borderless">
                     <tr>
-                        <td class="text-muted">搜索查询:</td>
-                        <td>${taskData.search_query || '未配置'}</td>
+                        <td class="text-muted">搜索关键词:</td>
+                        <td><code>${config.search_query || taskData.search_query || '未配置'}</code></td>
                     </tr>
                     <tr>
-                        <td class="text-muted">LLM模型:</td>
-                        <td><code>${taskData.llm_model_name || '默认'}</code></td>
+                        <td class="text-muted">搜索模式:</td>
+                        <td><span class="badge bg-secondary">${searchModeMap[config.search_mode] || config.search_mode || '未知'}</span></td>
                     </tr>
+                    <tr>
+                        <td class="text-muted">最大论文数:</td>
+                        <td>${config.max_papers_per_search || '20'}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">相关性阈值:</td>
+                        <td>${config.relevance_threshold || '0.7'}</td>
+                    </tr>
+                    ${config.start_year ? `<tr><td class="text-muted">开始年份:</td><td>${config.start_year}</td></tr>` : ''}
+                    ${config.end_year ? `<tr><td class="text-muted">结束年份:</td><td>${config.end_year}</td></tr>` : ''}
+                    ${config.after_year ? `<tr><td class="text-muted">指定年份后:</td><td>${config.after_year}</td></tr>` : ''}
+                </table>
+            </div>
+        </div>
+        
+        ${config.user_requirements ? `
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6><i class="fas fa-user me-2"></i>用户需求描述</h6>
+                <div class="alert alert-info">
+                    <small>${config.user_requirements}</small>
+                </div>
+            </div>
+        </div>` : ''}
+        
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h6><i class="fas fa-robot me-2"></i>模型配置</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">主要LLM模型:</td>
+                        <td><code>${config.llm_model_name || taskData.llm_model_name || '默认'}</code></td>
+                    </tr>
+                    ${config.abstract_analysis_model ? `<tr><td class="text-muted">摘要分析模型:</td><td><code>${config.abstract_analysis_model}</code></td></tr>` : ''}
+                    ${config.full_paper_analysis_model ? `<tr><td class="text-muted">全文分析模型:</td><td><code>${config.full_paper_analysis_model}</code></td></tr>` : ''}
+                    ${config.deep_analysis_model ? `<tr><td class="text-muted">深度分析模型:</td><td><code>${config.deep_analysis_model}</code></td></tr>` : ''}
+                    ${config.vision_model ? `<tr><td class="text-muted">视觉模型:</td><td><code>${config.vision_model}</code></td></tr>` : ''}
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6><i class="fas fa-cogs me-2"></i>高级设置</h6>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted">深度分析:</td>
+                        <td><span class="badge bg-${config.enable_deep_analysis ? 'success' : 'secondary'}">${config.enable_deep_analysis ? '启用' : '禁用'}</span></td>
+                    </tr>
+                    ${config.deep_analysis_threshold ? `<tr><td class="text-muted">深度分析阈值:</td><td>${config.deep_analysis_threshold}</td></tr>` : ''}
+                    ${config.ocr_char_limit_for_analysis ? `<tr><td class="text-muted">OCR字符限制:</td><td>${config.ocr_char_limit_for_analysis.toLocaleString()}</td></tr>` : ''}
                     ${taskData.task_type === 'scheduled' ? `
                         <tr>
                             <td class="text-muted">执行间隔:</td>
-                            <td>${formatDuration(taskData.interval_seconds)}</td>
+                            <td>${formatDuration(config.interval_seconds)}</td>
                         </tr>
                         <tr>
                             <td class="text-muted">执行次数:</td>
@@ -630,10 +685,10 @@ function displayTaskDetails(taskData) {
                         ${taskData.last_executed_at ? `<tr><td class="text-muted">上次执行:</td><td>${formatDate(taskData.last_executed_at)}</td></tr>` : ''}
                         ${taskData.next_execution_at ? `<tr><td class="text-muted">下次执行:</td><td>${formatDate(taskData.next_execution_at)}</td></tr>` : ''}
                     ` : ''}
-                    ${taskData.papers_found !== undefined ? `<tr><td class="text-muted">找到论文:</td><td><span class="badge bg-info">${taskData.papers_found} 篇</span></td></tr>` : ''}
                 </table>
             </div>
         </div>
+        
         ${taskData.error_message ? `
         <div class="row mt-3">
             <div class="col-12">
@@ -901,5 +956,6 @@ function showAlert(message, type = 'info', duration = 5000) {
     
     return alertContainer;
 }
+
 </script>
 {% endblock %}

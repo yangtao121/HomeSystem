@@ -174,16 +174,16 @@
                                     深度分析进行中...
                                 </button>
                                 {% elif paper.deep_analysis_status == 'failed' %}
-                                <button class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
                                     <i class="bi bi-arrow-repeat"></i> 重试深度分析
                                 </button>
                                 {% else %}
-                                <button class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
                                     <i class="bi bi-lightbulb"></i> 开始深度分析
                                 </button>
                                 {% endif %}
                             {% else %}
-                            <button class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                            <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
                                 <i class="bi bi-lightbulb"></i> 开始深度分析
                             </button>
                             {% endif %}
@@ -299,7 +299,7 @@
                         <i class="bi bi-info-circle"></i>
                         以下内容来自数据库存储的翻译数据，质量可能有限。建议进行深度分析以获得更优质的内容。
                     </div>
-                    <button class="btn btn-success btn-sm start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                    <button id="deep-analysis-btn-alt-{{ paper.arxiv_id }}" class="btn btn-success btn-sm start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
                         <i class="bi bi-lightbulb"></i> 立即深度分析
                     </button>
                 </div>
@@ -483,7 +483,7 @@
 
 {% endblock %}
 
-{% block extra_scripts %}
+{% block scripts %}
 <style>
     .cursor-pointer {
         cursor: pointer;
@@ -544,157 +544,218 @@
 </style>
 
 <script>
-    // Deep Analysis Functions - Simplified and Reliable
-    console.log('🚀 Defining deep analysis functions...');
+    // 深度分析功能JavaScript - 参考重新分析按钮的成功模式
+    console.log('🚀 开始加载论文详情页面深度分析JavaScript');
+    console.log('📍 当前页面URL:', window.location.href);
+    console.log('📍 页面加载状态:', document.readyState);
+    console.log('📍 当前时间:', new Date().toLocaleTimeString());
     
-    // Wait for DOM and jQuery to be ready
-    $(document).ready(function() {
-        console.log('🚀 DOM ready, setting up event delegation...');
-        
-        // Event delegation for deep analysis buttons - this ensures buttons work regardless of when they're created
-        $(document).on('click', '.start-deep-analysis', function(e) {
-            e.preventDefault();
-            e.stopPropagation(); // 防止事件冒泡导致重复触发
-            
-            // 检查按钮是否被禁用
-            if (this.disabled || $(this).hasClass('disabled')) {
-                console.log('⚠️ 按钮已被禁用，忽略点击事件');
-                return false;
-            }
-            
-            const arxivId = $(this).data('arxiv-id');
-            console.log('🎯 Start analysis event delegation triggered for arxivId:', arxivId);
-            startDeepAnalysis(arxivId);
-        });
-        
-        // Event delegation for cancel analysis buttons
-        $(document).on('click', '.cancel-deep-analysis', function(e) {
-            e.preventDefault();
-            e.stopPropagation(); // 防止事件冒泡导致重复触发
-            const arxivId = $(this).data('arxiv-id');
-            console.log('🎯 Cancel analysis event delegation triggered for arxivId:', arxivId);
-            cancelDeepAnalysis(arxivId);
-        });
-        
-        // Test if jQuery and event delegation is working
-        console.log('✅ Event delegation setup complete');
-        console.log('找到深度分析按钮数量:', $('.start-deep-analysis').length);
-        
-        // Debug: Add click listener to test if any clicks are registered
-        $('.start-deep-analysis').each(function(index) {
-            console.log(`按钮 ${index + 1}: class="${this.className}", data-arxiv-id="${$(this).data('arxiv-id')}"`);
-        });
-    });
-    
-    // Removed native JavaScript event delegation to prevent duplicate triggers
-    
-    // Global function: Start Deep Analysis
+    // 全局函数：启动深度分析（完全参考startReanalysis的结构）
     function startDeepAnalysis(arxivId) {
-        console.log('🔥 startDeepAnalysis被调用! arxivId:', arxivId);
+        console.log('🚀 启动深度分析函数被调用, ArXiv ID:', arxivId);
         
-        // 检查按钮是否被禁用
-        const startButton = document.querySelector('.start-deep-analysis[data-arxiv-id="' + arxivId + '"]');
-        if (startButton && startButton.disabled) {
-            console.log('⚠️ 分析按钮已被禁用，跳过执行');
-            showAlert('该论文正在分析中，请稍后再试', 'warning');
+        if (!arxivId) {
+            console.error('❌ 无法获取论文ID');
+            alert('无法获取论文ID，请刷新页面重试');
             return;
         }
         
-        if (!confirm('确定要开始深度分析吗？此过程可能需要几分钟时间。')) {
-            console.log('用户取消了分析请求');
+        // 确认对话框（立即显示，用于测试按钮响应）
+        console.log('🎯 显示确认对话框');
+        if (!confirm('确定要开始深度分析吗？\n\n⚠️ 注意：此过程可能需要几分钟时间，期间请不要关闭页面。')) {
+            console.log('ℹ️ 用户取消了深度分析请求');
             return;
         }
         
-        const analysisSection = document.getElementById('deep-analysis-section');
-        if (!analysisSection) {
-            console.error('找不到deep-analysis-section元素');
-            alert('页面元素异常，请刷新页面重试');
-            return;
+        console.log('✅ 用户确认开始深度分析');
+        
+        // 禁用深度分析按钮
+        const primaryBtn = document.getElementById('deep-analysis-btn-' + arxivId);
+        const altBtn = document.getElementById('deep-analysis-btn-alt-' + arxivId);
+        
+        if (primaryBtn) {
+            primaryBtn.disabled = true;
+            primaryBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 分析中...';
+            console.log('🔒 主要分析按钮已禁用');
+        }
+        if (altBtn) {
+            altBtn.disabled = true;
+            altBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 分析中...';
+            console.log('🔒 备选分析按钮已禁用');
         }
         
-        console.log('更新UI为分析中状态');
-        // 禁用所有深度分析按钮，防止重复点击
-        disableDeepAnalysisButtons(arxivId);
+        console.log('📤 准备调用深度分析API');
         
-        // 显示分析中状态
-        analysisSection.innerHTML = `
-            <div class="d-grid gap-1">
-                <button class="btn btn-info" disabled>
-                    <div class="spinner-border spinner-border-sm me-2" role="status">
-                        <span class="visually-hidden">分析中...</span>
-                    </div>
-                    深度分析进行中...
-                </button>
-                <button class="btn btn-outline-danger btn-sm cancel-deep-analysis" data-arxiv-id="${arxivId}">
-                    <i class="bi bi-x-circle"></i> 取消分析
-                </button>
-            </div>
-        `;
+        // 获取系统配置并发送分析请求
+        const requestPromise = window.SystemSettings ? 
+            window.SystemSettings.getAnalysisConfig().then(config => {
+                console.log('✅ 成功获取系统配置:', config);
+                return { config: config };
+            }).catch(error => {
+                console.warn('⚠️ 获取系统配置失败，使用空配置:', error);
+                return {};
+            }) :
+            Promise.resolve({});
         
         const apiUrl = '/api/analysis/paper/' + arxivId + '/analyze';
-        console.log('发送API请求到: ' + apiUrl);
+        console.log('🚀 API请求URL:', apiUrl);
         
-        // 获取系统设置并发送分析请求
-        window.SystemSettings.getAnalysisConfig().then(config => {
-            console.log('使用系统配置进行深度分析:', config);
-            
-            return fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ config: config })
-            });
-        }).catch(error => {
-            console.error('获取系统配置失败，使用默认配置:', error);
-            
-            // 如果获取配置失败，使用默认配置
-            return fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            });
-        })
-        .then(response => {
-            console.log('收到响应，状态码: ' + response.status);
-            
-            if (!response.ok) {
-                throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-            }
-            
-            return response.json();
-        })
-        .then(data => {
-            console.log('API响应成功:', data);
-            
-            if (data.success) {
-                console.log('分析启动成功');
-                showAlert('深度分析已启动！正在处理中...', 'success');
+        requestPromise
+            .then(requestBody => {
+                console.log('📤 发送请求，配置:', requestBody);
                 
-                // 保持分析中状态，等待用户刷新页面查看进度
-                // 不需要额外修改，因为上面已经设置了分析中状态
-            } else {
-                console.error('启动失败:', data.error);
-                showAlert('启动分析失败: ' + (data.error || '未知错误'), 'error');
+                return fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+            })
+            .then(response => {
+                console.log('📨 收到API响应，状态码:', response.status);
                 
-                // 恢复按钮并重新启用
-                enableDeepAnalysisButtons(arxivId);
-                analysisSection.innerHTML = '<button class="btn btn-outline-primary start-deep-analysis" data-arxiv-id="' + arxivId + '"><i class="bi bi-lightbulb"></i> 开始深度分析</button>';
-            }
-        })
-        .catch(error => {
-            console.error('请求失败:', error);
-            
-            const errorMessage = '启动分析时发生错误: ' + error.message;
-            showAlert(errorMessage, 'error');
-            
-            // 恢复按钮并重新启用
-            enableDeepAnalysisButtons(arxivId);
-            analysisSection.innerHTML = '<button class="btn btn-outline-primary start-deep-analysis" data-arxiv-id="' + arxivId + '"><i class="bi bi-lightbulb"></i> 开始深度分析</button>';
-        });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                console.log('📊 API响应数据:', data);
+                
+                if (data.success) {
+                    console.log('✅ 深度分析启动成功');
+                    alert('深度分析已成功启动！正在后台处理中，系统将自动监控进度。');
+                    
+                    // 启动状态轮询
+                    startDeepAnalysisPolling(arxivId);
+                } else {
+                    console.error('❌ 分析启动失败:', data.error);
+                    alert('启动分析失败: ' + (data.error || '未知错误'));
+                    
+                    // 恢复按钮状态
+                    if (primaryBtn) {
+                        primaryBtn.disabled = false;
+                        primaryBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 开始深度分析';
+                    }
+                    if (altBtn) {
+                        altBtn.disabled = false;
+                        altBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 立即深度分析';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('💥 深度分析API调用失败:', error);
+                alert('启动分析时发生错误: ' + error.message);
+                
+                // 恢复按钮状态
+                if (primaryBtn) {
+                    primaryBtn.disabled = false;
+                    primaryBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 开始深度分析';
+                }
+                if (altBtn) {
+                    altBtn.disabled = false;
+                    altBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 立即深度分析';
+                }
+            });
     }
+    
+    console.log('✅ startDeepAnalysis函数定义完成');
+    console.log('🔍 startDeepAnalysis函数类型:', typeof startDeepAnalysis);
+    
+    // 智能获取ArXiv ID的函数
+    function getArxivIdFromPage() {
+        // 方法1: 从URL路径解析 (/explore/paper/ARXIV_ID)
+        const urlPath = window.location.pathname;
+        const pathMatch = urlPath.match(/\/explore\/paper\/([^\/]+)/);
+        if (pathMatch && pathMatch[1]) {
+            console.log('✅ 从URL路径获取到ArXiv ID:', pathMatch[1]);
+            return pathMatch[1];
+        }
+        
+        // 方法2: 从DOM元素获取（备选方案）
+        const arxivIdElement = document.querySelector('[data-arxiv-id]');
+        if (arxivIdElement) {
+            const arxivId = arxivIdElement.getAttribute('data-arxiv-id');
+            console.log('✅ 从DOM元素获取到ArXiv ID:', arxivId);
+            return arxivId;
+        }
+        
+        console.error('❌ 无法从URL或DOM中获取ArXiv ID');
+        return null;
+    }
+    
+    // DOMContentLoaded事件处理（完全参考重新分析按钮的模式）
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🎯 DOMContentLoaded事件触发');
+        
+        // 使用智能方法获取ArXiv ID
+        const arxivId = getArxivIdFromPage();
+        console.log('📄 页面ArXiv ID:', arxivId);
+        
+        if (!arxivId) {
+            console.error('❌ 无法获取ArXiv ID，深度分析功能将无法使用');
+            return;
+        }
+        
+        // 绑定主要深度分析按钮事件
+        console.log('🔍 开始绑定主要深度分析按钮事件');
+        const primaryBtn = document.getElementById('deep-analysis-btn-' + arxivId);
+        console.log('🔍 找到主要分析按钮:', primaryBtn);
+        
+        if (primaryBtn) {
+            console.log('✅ 主要分析按钮存在，开始绑定事件');
+            primaryBtn.addEventListener('click', function(e) {
+                console.log('🔥 主要深度分析按钮被点击!');
+                e.preventDefault();
+                
+                const buttonArxivId = this.getAttribute('data-arxiv-id');
+                console.log('📄 获取到按钮ArXiv ID:', buttonArxivId);
+                console.log('🔍 startDeepAnalysis函数类型:', typeof startDeepAnalysis);
+                
+                if (buttonArxivId && typeof startDeepAnalysis === 'function') {
+                    console.log('✅ 开始调用startDeepAnalysis函数');
+                    startDeepAnalysis(buttonArxivId);
+                } else {
+                    console.error('❌ startDeepAnalysis函数不可用或ArXiv ID缺失');
+                    console.error('   ArXiv ID:', buttonArxivId);
+                    console.error('   函数类型:', typeof startDeepAnalysis);
+                }
+            });
+            console.log('✅ 主要深度分析按钮事件绑定完成');
+        } else {
+            console.log('ℹ️ 主要深度分析按钮未找到（可能处于不同状态）');
+        }
+        
+        // 绑定备选深度分析按钮事件
+        console.log('🔍 开始绑定备选深度分析按钮事件');
+        const altBtn = document.getElementById('deep-analysis-btn-alt-' + arxivId);
+        console.log('🔍 找到备选分析按钮:', altBtn);
+        
+        if (altBtn) {
+            console.log('✅ 备选分析按钮存在，开始绑定事件');
+            altBtn.addEventListener('click', function(e) {
+                console.log('🔥 备选深度分析按钮被点击!');
+                e.preventDefault();
+                
+                const buttonArxivId = this.getAttribute('data-arxiv-id');
+                console.log('📄 获取到按钮ArXiv ID:', buttonArxivId);
+                
+                if (buttonArxivId && typeof startDeepAnalysis === 'function') {
+                    console.log('✅ 开始调用startDeepAnalysis函数');
+                    startDeepAnalysis(buttonArxivId);
+                } else {
+                    console.error('❌ startDeepAnalysis函数不可用或ArXiv ID缺失');
+                }
+            });
+            console.log('✅ 备选深度分析按钮事件绑定完成');
+        } else {
+            console.log('ℹ️ 备选深度分析按钮未找到');
+        }
+        
+        console.log('🎯 深度分析按钮事件绑定完成');
+    });
     
     // Global function: Cancel Deep Analysis  
     function cancelDeepAnalysis(arxivId) {
@@ -746,15 +807,98 @@
         });
     }
     
+    // 全局函数：深度分析状态轮询
+    function startDeepAnalysisPolling(arxivId) {
+        console.log('🔄 开始深度分析状态轮询:', arxivId);
+        
+        const pollInterval = setInterval(() => {
+            console.log('📡 轮询分析状态:', arxivId);
+            
+            fetch(`/api/analysis/paper/${arxivId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('📊 分析状态轮询结果:', data);
+                
+                if (data.success) {
+                    const status = data.status;
+                    console.log('📋 当前分析状态:', status);
+                    
+                    if (status === 'completed') {
+                        clearInterval(pollInterval);
+                        console.log('✅ 深度分析完成！准备刷新页面');
+                        showAlert('深度分析完成！页面将自动刷新显示结果...', 'success', 3000);
+                        
+                        // 3秒后刷新页面以显示分析结果
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                        
+                    } else if (status === 'failed') {
+                        clearInterval(pollInterval);
+                        console.error('❌ 深度分析失败');
+                        showAlert('深度分析失败，请查看错误信息或重试', 'error', 5000);
+                        
+                        // 恢复深度分析按钮状态
+                        enableDeepAnalysisButtons(arxivId);
+                        
+                    } else if (status === 'cancelled') {
+                        clearInterval(pollInterval);
+                        console.log('⚠️ 深度分析已被取消');
+                        showAlert('深度分析已被取消', 'warning', 3000);
+                        
+                        // 恢复深度分析按钮状态
+                        enableDeepAnalysisButtons(arxivId);
+                        
+                    } else if (status === 'processing') {
+                        // 继续轮询
+                        console.log('⏳ 深度分析仍在进行中...');
+                    } else {
+                        console.log('📝 分析状态:', status);
+                    }
+                } else {
+                    console.error('❌ 获取分析状态失败:', data.error);
+                    // 不停止轮询，继续尝试
+                }
+            })
+            .catch(error => {
+                console.error('💥 状态轮询网络错误:', error);
+                // 不停止轮询，继续尝试
+            });
+        }, 5000); // 每5秒轮询一次
+        
+        // 15分钟后停止轮询（避免无限轮询）
+        setTimeout(() => {
+            clearInterval(pollInterval);
+            console.log('⏰ 深度分析轮询超时，停止轮询');
+            showAlert('深度分析监控超时，请手动刷新页面查看结果', 'warning', 5000);
+            
+            // 恢复深度分析按钮状态
+            enableDeepAnalysisButtons(arxivId);
+        }, 15 * 60 * 1000); // 15分钟超时
+    }
+    
     // Make functions globally accessible
     window.startDeepAnalysis = startDeepAnalysis;
     window.cancelDeepAnalysis = cancelDeepAnalysis;
+    window.startDeepAnalysisPolling = startDeepAnalysisPolling;
+    window.getArxivIdFromPage = getArxivIdFromPage;
     
     console.log('✅ Deep analysis functions registered globally');
     console.log('startDeepAnalysis 类型:', typeof window.startDeepAnalysis);
     console.log('cancelDeepAnalysis 类型:', typeof window.cancelDeepAnalysis);
+    console.log('getArxivIdFromPage 类型:', typeof window.getArxivIdFromPage);
     
     // Helper functions for button state management
+    function restoreAnalysisButton(arxivId, analysisSection) {
+        console.log('🔄 恢复深度分析按钮状态:', arxivId);
+        enableDeepAnalysisButtons(arxivId);
+        analysisSection.innerHTML = `
+            <button class="btn btn-outline-primary w-100 start-deep-analysis" data-arxiv-id="${arxivId}">
+                <i class="bi bi-lightbulb"></i> 开始深度分析
+            </button>
+        `;
+    }
+    
     function disableDeepAnalysisButtons(arxivId) {
         console.log('🔒 禁用深度分析按钮:', arxivId);
         const buttons = document.querySelectorAll('.start-deep-analysis[data-arxiv-id="' + arxivId + '"]');
@@ -1403,7 +1547,7 @@
         
         // ESC 键返回列表
         if (e.key === 'Escape') {
-            window.location.href = '{{ url_for("papers") }}';
+            window.location.href = '{{ url_for("explore.papers") }}';
         }
         
         // P 键打开PDF（如果有）
@@ -1417,7 +1561,7 @@
         if (e.key === 'ArrowLeft') {
             e.preventDefault();
             // {% if navigation.previous %}
-            window.location.href = '{{ url_for("paper_detail", arxiv_id=navigation.previous.arxiv_id) }}';
+            window.location.href = '{{ url_for("explore.paper_detail", arxiv_id=navigation.previous.arxiv_id) }}';
             // {% else %}
             showAlert('已是第一篇论文', 'info');
             // {% endif %}
@@ -1427,7 +1571,7 @@
         if (e.key === 'ArrowRight') {
             e.preventDefault();
             // {% if navigation.next %}
-            window.location.href = '{{ url_for("paper_detail", arxiv_id=navigation.next.arxiv_id) }}';
+            window.location.href = '{{ url_for("explore.paper_detail", arxiv_id=navigation.next.arxiv_id) }}';
             // {% else %}
             showAlert('已是最后一篇论文', 'info');
             // {% endif %}

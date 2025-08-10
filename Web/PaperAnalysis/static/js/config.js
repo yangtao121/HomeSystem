@@ -129,8 +129,8 @@ $(document).ready(function() {
             API.get(`/api/task/history?${params.toString()}`)
                 .then(response => {
                     if (response.success) {
-                        this.currentTasks = response.data;
-                        this.renderHistoryTasks(response.data, searchTerm);
+                        this.currentTasks = response.data.tasks;
+                        this.renderHistoryTasks(response.data.tasks, searchTerm);
                     } else {
                         throw new Error(response.error);
                     }

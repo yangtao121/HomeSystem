@@ -27,6 +27,7 @@ from routes.main import main_bp
 from routes.collect import collect_bp
 from routes.explore import explore_bp
 from routes.analysis import analysis_bp, images_bp
+from routes.task import task_bp
 from routes.api import api_bp
 
 # 导入ArxivSearchMode用于JSON序列化
@@ -64,6 +65,7 @@ app.register_blueprint(collect_bp)
 app.register_blueprint(explore_bp)
 app.register_blueprint(analysis_bp)
 app.register_blueprint(images_bp)  # 图片服务蓝图
+app.register_blueprint(task_bp, url_prefix='/task')  # 任务执行蓝图
 app.register_blueprint(api_bp)
 
 # 添加模板上下文处理器

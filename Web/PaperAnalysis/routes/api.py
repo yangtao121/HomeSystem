@@ -801,6 +801,30 @@ def load_settings():
 
 # === 任务历史管理相关API ===
 
+@api_bp.route('/task/details/<task_id>')
+def get_task_details(task_id):
+    """获取任务详细信息 - 用于前端模态框显示"""
+    try:
+        result = paper_gather_service.get_task_result(task_id)
+        if not result:
+            return jsonify({
+                'success': False,
+                'error': '任务不存在'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        logger.error(f"获取任务详情失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+
 @api_bp.route('/task/history')
 def get_task_history():
     """获取任务历史列表"""
@@ -1026,6 +1050,36 @@ def get_system_stats():
         })
     except Exception as e:
         logger.error(f"获取系统统计数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/tasks/status')
+def get_tasks_status():
+    """获取所有活动任务的状态 - 用于前端定时刷新"""
+    try:
+        # 获取运行中任务详情
+        running_tasks = paper_gather_service.get_running_tasks_detail()
+        
+        # 格式化任务状态数据供前端使用
+        status_data = []
+        for task in running_tasks:
+            status_data.append({
+                'task_id': task.get('task_id', ''),
+                'status': task.get('status', 'unknown'),
+                'progress': task.get('progress', 0.0),
+                'start_time': task.get('start_time'),
+                'duration': task.get('duration')
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': status_data
+        })
+    except Exception as e:
+        logger.error(f"获取任务状态失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1279,3 +1333,54 @@ def _process_markdown_for_download(content: str, arxiv_id: str) -> str:
     except Exception as e:
         logger.error(f"处理Markdown下载内容失败: {e}")
         return content
+
+
+# === 中文搜索助手API ===
+
+@api_bp.route('/search/translate', methods=['POST'])
+def translate_chinese_search():
+    """中文搜索需求转换为英文搜索关键词和需求描述"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供JSON数据'
+            }), 400
+        
+        chinese_input = data.get('chinese_input', '').strip()
+        model_name = data.get('model_name', 'ollama.Qwen3_30B')
+        
+        if not chinese_input:
+            return jsonify({
+                'success': False,
+                'error': '请输入中文搜索需求'
+            }), 400
+        
+        # 导入并创建中文搜索助手
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        from HomeSystem.workflow.paper_gather_task.chinese_search_assistant import ChineseSearchAssistantLLM
+        
+        assistant = ChineseSearchAssistantLLM(model_name=model_name)
+        result = assistant.convert_chinese_to_english_search(chinese_input)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'search_keywords': result.search_keywords,
+                'user_requirements': result.user_requirements,
+                'suggested_task_name': result.suggested_task_name,
+                'confidence': result.confidence,
+                'notes': result.notes,
+                'model_used': model_name
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"中文搜索转换失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"转换失败: {str(e)}"
+        }), 500
