@@ -347,10 +347,10 @@
                                                     <i class="bi bi-arrow-repeat"></i>
                                                     <span>{{ task.execution_count or 0 }} 次</span>
                                                 </div>
-                                                {% if task.total_papers is defined and task.total_papers > 0 %}
+                                                {% if task.papers_found is defined and task.papers_found is not none and task.papers_found > 0 %}
                                                 <div class="paper-count-badge">
                                                     <i class="bi bi-file-text"></i>
-                                                    <span>{{ task.total_papers }} 篇论文</span>
+                                                    <span>{{ task.papers_found }} 篇论文</span>
                                                 </div>
                                                 {% endif %}
                                             </div>
@@ -385,10 +385,10 @@
                                                     <span class="completion-text">已完成</span>
                                                 </div>
                                                 {% endif %}
-                                                {% if task.total_papers is defined and task.total_papers > 0 %}
+                                                {% if task.papers_found is defined and task.papers_found is not none and task.papers_found > 0 %}
                                                 <div class="paper-count-badge">
                                                     <i class="bi bi-file-text"></i>
-                                                    <span>{{ task.total_papers }} 篇论文</span>
+                                                    <span>{{ task.papers_found }} 篇论文</span>
                                                 </div>
                                                 {% endif %}
                                             </div>
