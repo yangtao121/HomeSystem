@@ -3,72 +3,122 @@
 {% block title %}PaperAnalysis - 综合仪表板{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- 页面标题和快速操作 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="display-6 mb-2">
-                        <i class="bi bi-speedometer2 me-2 text-primary"></i>
-                        PaperAnalysis 综合仪表板
-                    </h1>
-                    <p class="text-muted mb-0">论文收集、浏览与深度分析的统一平台</p>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-outline-secondary" id="refreshBtn" onclick="refreshDashboard()">
-                        <i class="bi bi-arrow-clockwise me-1"></i>刷新数据
-                    </button>
-                    <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
-                        <i class="fas fa-plus me-1"></i>新建收集任务
-                    </a>
-                    <a href="{{ url_for('explore.papers') }}" class="btn btn-success">
-                        <i class="bi bi-search me-1"></i>浏览论文
-                    </a>
+<!-- 顶部渐变背景区域 -->
+<div class="hero-section">
+    <div class="container-fluid">
+        <!-- 页面标题和快速操作 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="hero-title-wrapper">
+                        <h1 class="hero-title animated-title">
+                            <i class="bi bi-speedometer2 me-3 hero-icon"></i>
+                            <span class="title-gradient">PaperAnalysis</span>
+                            <span class="title-subtitle">综合仪表板</span>
+                        </h1>
+                        <p class="hero-subtitle animated-subtitle">📚 论文收集、浏览与深度分析的统一平台 🚀</p>
+                    </div>
+                    <div class="hero-action-buttons">
+                        <button class="btn modern-action-btn refresh-btn" id="refreshBtn" onclick="refreshDashboard()">
+                            <div class="btn-icon-wrapper">
+                                <i class="bi bi-arrow-clockwise btn-icon"></i>
+                            </div>
+                            <div class="btn-content">
+                                <span class="btn-title">刷新数据</span>
+                                <span class="btn-subtitle">Refresh</span>
+                            </div>
+                        </button>
+                        <a href="{{ url_for('collect.config') }}" class="btn modern-action-btn create-btn">
+                            <div class="btn-icon-wrapper">
+                                <i class="bi bi-plus-circle btn-icon"></i>
+                            </div>
+                            <div class="btn-content">
+                                <span class="btn-title">新建任务</span>
+                                <span class="btn-subtitle">Create Task</span>
+                            </div>
+                        </a>
+                        <a href="{{ url_for('explore.papers') }}" class="btn modern-action-btn browse-btn">
+                            <div class="btn-icon-wrapper">
+                                <i class="bi bi-search btn-icon"></i>
+                            </div>
+                            <div class="btn-content">
+                                <span class="btn-title">浏览论文</span>
+                                <span class="btn-subtitle">Browse Papers</span>
+                            </div>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
+<div class="container-fluid main-content">
 
     <!-- 核心统计卡片 -->
-    <div class="row mb-4">
+    <div class="row stats-section mb-5">
         <!-- 总论文数 -->
-        <div class="col-xl-4 col-md-4 col-sm-12 mb-3">
-            <div class="card border-0 shadow-sm h-100 stats-card">
-                <div class="card-body text-center">
-                    <div class="stats-icon bg-primary bg-opacity-10 rounded-circle mx-auto mb-2">
-                        <i class="bi bi-file-earmark-text text-primary fs-4"></i>
+        <div class="col-xl-4 col-md-6 col-sm-12 mb-4">
+            <div class="stats-card stats-card-primary" data-aos="fade-up" data-aos-delay="100">
+                <div class="stats-card-inner">
+                    <div class="stats-icon-wrapper">
+                        <div class="stats-icon-bg"></div>
+                        <i class="bi bi-file-earmark-text stats-icon"></i>
                     </div>
-                    <div class="stats-number text-primary">
-                        {{ explore_stats.basic.total_papers if explore_stats else 0 }}
+                    <div class="stats-content">
+                        <div class="stats-number">
+                            {{ explore_stats.basic.total_papers if explore_stats else 0 }}
+                        </div>
+                        <div class="stats-label">总论文数</div>
+                        <div class="stats-trend">
+                            <i class="bi bi-arrow-up text-success"></i>
+                            <span class="text-success">+12%</span>
+                        </div>
                     </div>
-                    <div class="stats-label">总论文数</div>
                 </div>
             </div>
         </div>
 
         <!-- 运行中任务 -->
-        <div class="col-xl-4 col-md-4 col-sm-12 mb-3">
-            <div class="card border-0 shadow-sm h-100 stats-card">
-                <div class="card-body text-center">
-                    <div class="stats-icon bg-warning bg-opacity-10 rounded-circle mx-auto mb-2">
-                        <i class="fas fa-cog fa-spin text-warning fs-4"></i>
+        <div class="col-xl-4 col-md-6 col-sm-12 mb-4">
+            <div class="stats-card stats-card-warning" data-aos="fade-up" data-aos-delay="200">
+                <div class="stats-card-inner">
+                    <div class="stats-icon-wrapper">
+                        <div class="stats-icon-bg"></div>
+                        <i class="bi bi-gear-fill stats-icon rotating"></i>
                     </div>
-                    <div class="stats-number text-warning">{{ running_tasks_count or 0 }}</div>
-                    <div class="stats-label">运行中任务</div>
+                    <div class="stats-content">
+                        <div class="stats-number">
+                            {{ running_tasks_count or 0 }}
+                        </div>
+                        <div class="stats-label">运行中任务</div>
+                        <div class="stats-trend">
+                            <div class="pulse-indicator"></div>
+                            <span class="text-warning">实时更新</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 定时任务 -->
-        <div class="col-xl-4 col-md-4 col-sm-12 mb-3">
-            <div class="card border-0 shadow-sm h-100 stats-card">
-                <div class="card-body text-center">
-                    <div class="stats-icon bg-info bg-opacity-10 rounded-circle mx-auto mb-2">
-                        <i class="fas fa-clock text-info fs-4"></i>
+        <div class="col-xl-4 col-md-6 col-sm-12 mb-4">
+            <div class="stats-card stats-card-info" data-aos="fade-up" data-aos-delay="300">
+                <div class="stats-card-inner">
+                    <div class="stats-icon-wrapper">
+                        <div class="stats-icon-bg"></div>
+                        <i class="bi bi-clock-fill stats-icon"></i>
                     </div>
-                    <div class="stats-number text-info">{{ scheduled_tasks|length if scheduled_tasks else 0 }}</div>
-                    <div class="stats-label">定时任务</div>
+                    <div class="stats-content">
+                        <div class="stats-number">
+                            {{ scheduled_tasks|length if scheduled_tasks else 0 }}
+                        </div>
+                        <div class="stats-label">定时任务</div>
+                        <div class="stats-trend">
+                            <i class="bi bi-calendar-check text-info"></i>
+                            <span class="text-info">已配置</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -78,143 +128,378 @@
     <div class="row">
         <!-- 可视化图表和数据趋势 -->
         <div class="col-12 mb-4">
-            <!-- Tab导航 -->
-            <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="papers-tab" data-bs-toggle="tab" data-bs-target="#papers-pane" 
-                            type="button" role="tab">
-                        <i class="bi bi-file-earmark-text me-1"></i>最近论文
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks-pane" 
-                            type="button" role="tab">
-                        <i class="fas fa-tasks me-1"></i>任务执行历史
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" 
-                            type="button" role="tab">
-                        <i class="bi bi-bar-chart me-1"></i>数据分析
-                    </button>
-                </li>
-            </ul>
+            <!-- Modern Tab导航 -->
+            <div class="modern-tabs-wrapper" data-aos="fade-up" data-aos-delay="400">
+                <ul class="nav modern-tabs" id="dashboardTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="papers-tab" data-bs-toggle="tab" data-bs-target="#papers-pane" 
+                                type="button" role="tab">
+                            <div class="tab-icon">
+                                <i class="bi bi-file-earmark-text"></i>
+                            </div>
+                            <div class="tab-content-wrapper">
+                                <span class="tab-title">最近论文</span>
+                                <span class="tab-subtitle">Recent Papers</span>
+                            </div>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks-pane" 
+                                type="button" role="tab">
+                            <div class="tab-icon">
+                                <i class="bi bi-list-task"></i>
+                            </div>
+                            <div class="tab-content-wrapper">
+                                <span class="tab-title">任务历史</span>
+                                <span class="tab-subtitle">Task History</span>
+                            </div>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" 
+                                type="button" role="tab">
+                            <div class="tab-icon">
+                                <i class="bi bi-bar-chart-line"></i>
+                            </div>
+                            <div class="tab-content-wrapper">
+                                <span class="tab-title">数据分析</span>
+                                <span class="tab-subtitle">Analytics</span>
+                            </div>
+                        </button>
+                    </li>
+                </ul>
+            </div>
 
-            <div class="tab-content border border-top-0 rounded-bottom shadow-sm" id="dashboardTabContent">
+            <div class="tab-content modern-tab-content" id="dashboardTabContent">
                 <!-- 最近论文 -->
-                <div class="tab-pane fade show active p-3" id="papers-pane" role="tabpanel">
-                    {% if recent_papers %}
-                    <div class="row">
-                        {% for paper in recent_papers[:6] %}
-                        <div class="col-md-6 mb-3">
-                            <div class="card h-100 border-0 bg-light hover-card">
-                                <div class="card-body">
-                                    <h6 class="card-title mb-2">
-                                        <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.id) }}" 
-                                           class="text-decoration-none">
-                                            {{ paper.title[:80] }}{% if paper.title|length > 80 %}...{% endif %}
-                                        </a>
-                                    </h6>
-                                    <p class="card-text small text-muted mb-2">
-                                        {{ paper.abstract[:100] }}{% if paper.abstract|length > 100 %}...{% endif %}
-                                    </p>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted">
-                                            <i class="bi bi-calendar me-1"></i>
-                                            {{ moment(paper.created_at).fromNow() }}
-                                        </small>
-                                        {% if paper.task_name %}
-                                        <span class="badge bg-primary">{{ paper.task_name }}</span>
-                                        {% endif %}
+                <div class="tab-pane fade show active" id="papers-pane" role="tabpanel">
+                    <div class="tab-content-wrapper">
+                        {% if recent_papers %}
+                        <div class="row">
+                            {% for paper in recent_papers[:6] %}
+                            <div class="col-md-6 mb-3">
+                                <div class="modern-paper-card h-100" data-aos="fade-up" data-aos-delay="{{ loop.index * 100 }}">
+                                    <div class="paper-card-header">
+                                        <div class="paper-type-badge"></div>
+                                        <div class="paper-actions">
+                                            {% if paper.task_name %}
+                                            <span class="task-badge">{{ paper.task_name }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="paper-card-body">
+                                        <h6 class="paper-title">
+                                            <a href="{{ url_for('explore.paper_detail', arxiv_id=paper.arxiv_id) }}" 
+                                               class="paper-link">
+                                                {{ paper.title[:75] }}{% if paper.title|length > 75 %}...{% endif %}
+                                            </a>
+                                        </h6>
+                                        <p class="paper-abstract">
+                                            {{ paper.abstract[:100] }}{% if paper.abstract|length > 100 %}...{% endif %}
+                                        </p>
+                                        <div class="paper-footer">
+                                            <div class="paper-date">
+                                                <i class="bi bi-calendar3"></i>
+                                                {{ moment(paper.created_at).fromNow() }}
+                                            </div>
+                                            <div class="paper-actions-right">
+                                                <span class="view-indicator">
+                                                    <i class="bi bi-eye"></i>
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
+                        <div class="text-center mt-4">
+                            <a href="{{ url_for('explore.papers') }}" class="btn btn-gradient-primary btn-lg">
+                                <i class="bi bi-arrow-right me-2"></i>查看所有论文
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <i class="bi bi-file-earmark-text"></i>
+                            </div>
+                            <h5 class="empty-state-title">暂无论文数据</h5>
+                            <p class="empty-state-text">开始收集您感兴趣的研究论文，构建您的知识库</p>
+                            <a href="{{ url_for('collect.config') }}" class="btn btn-gradient-primary btn-lg">
+                                <i class="bi bi-plus-circle me-2"></i>开始收集
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
-                    <div class="text-center mt-3">
-                        <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-primary">
-                            查看所有论文
-                        </a>
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5">
-                        <i class="bi bi-file-earmark-text text-muted display-4 mb-3"></i>
-                        <h5 class="text-muted">暂无论文数据</h5>
-                        <p class="text-muted">开始收集您感兴趣的研究论文</p>
-                        <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
-                            <i class="fas fa-plus me-1"></i>开始收集
-                        </a>
-                    </div>
-                    {% endif %}
                 </div>
 
                 <!-- 任务执行历史 -->
-                <div class="tab-pane fade p-3" id="tasks-pane" role="tabpanel">
-                    {% if recent_tasks %}
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>任务名称</th>
-                                    <th>状态</th>
-                                    <th>开始时间</th>
-                                    <th>耗时</th>
-                                    <th>结果</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for task in recent_tasks[:8] %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ task.task_name or '未命名任务' }}</strong><br>
-                                        <small class="text-muted">{{ (task.search_query or '无搜索查询')[:50] }}{% if (task.search_query or '') |length > 50 %}...{% endif %}</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-{{ task.status|status_badge }}">
-                                            {{ task.status }}
-                                        </span>
-                                    </td>
-                                    <td>{{ moment(task.start_time).format('MM-DD HH:mm') }}</td>
-                                    <td>{{ task.duration|format_duration if task.duration else '-' }}</td>
-                                    <td>
-                                        {% if task.status == 'completed' %}
-                                            <span class="text-success">
-                                                <i class="fas fa-check-circle me-1"></i>
-                                                {{ task.papers_found or 0 }} 篇论文
-                                            </span>
-                                        {% elif task.status == 'failed' %}
-                                            <span class="text-danger">
-                                                <i class="fas fa-times-circle me-1"></i>
-                                                失败
-                                            </span>
-                                        {% else %}
-                                            <span class="text-info">
-                                                <i class="fas fa-spinner me-1"></i>
-                                                进行中
-                                            </span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <div class="tab-pane fade" id="tasks-pane" role="tabpanel">
+                    <div class="tab-content-wrapper full-width-content">
+                        {% if recent_tasks %}
+                        <div class="table-responsive enhanced-table-container">
+                            <table class="modern-table enhanced-task-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="task-basic-info">任务信息</th>
+                                        <th class="task-query-info">搜索详情</th>
+                                        <th class="task-config-info">配置信息</th>
+                                        <th class="task-status-info">执行状态</th>
+                                        <th class="task-result-info">详细结果</th>
+                                        <th class="task-actions">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for task in recent_tasks[:8] %}
+                                    <tr class="modern-table-row expandable-row" data-aos="fade-up" data-aos-delay="{{ loop.index * 50 }}" data-task-id="{{ task.id }}">
+                                        <td class="task-basic-info">
+                                            <div class="task-info-cell">
+                                                <div class="task-name-wrapper">
+                                                    <strong class="task-name">{{ task.task_name or '未命名任务' }}</strong>
+                                                    {% if task.id %}
+                                                    <span class="task-id-badge">#{{ task.id }}</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="task-timestamp">
+                                                    <i class="bi bi-calendar3 me-1"></i>
+                                                    {{ moment(task.start_time).format('MM-DD HH:mm') }}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="task-query-info">
+                                            <div class="query-content-wrapper">
+                                                {% if task.search_query %}
+                                                <div class="search-query-display">
+                                                    <i class="bi bi-search query-icon"></i>
+                                                    <span class="query-text">{{ task.search_query }}</span>
+                                                </div>
+                                                {% else %}
+                                                <div class="no-query-display">
+                                                    <i class="bi bi-dash-circle query-icon text-muted"></i>
+                                                    <span class="query-text text-muted">无搜索查询</span>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td class="task-config-info">
+                                            <div class="config-summary">
+                                                {% if task.search_mode %}
+                                                <div class="config-item">
+                                                    <i class="bi bi-funnel config-icon"></i>
+                                                    <span class="config-label">模式:</span>
+                                                    <span class="config-value">{{ task.search_mode }}</span>
+                                                </div>
+                                                {% endif %}
+                                                {% if task.start_date or task.end_date %}
+                                                <div class="config-item">
+                                                    <i class="bi bi-calendar-range config-icon"></i>
+                                                    <span class="config-label">日期:</span>
+                                                    <span class="config-value">
+                                                        {% if task.start_date %}{{ task.start_date }}{% endif %}
+                                                        {% if task.start_date and task.end_date %} ~ {% endif %}
+                                                        {% if task.end_date %}{{ task.end_date }}{% endif %}
+                                                    </span>
+                                                </div>
+                                                {% endif %}
+                                                {% if task.category_filter %}
+                                                <div class="config-item">
+                                                    <i class="bi bi-tag config-icon"></i>
+                                                    <span class="config-label">分类:</span>
+                                                    <span class="config-value">{{ task.category_filter }}</span>
+                                                </div>
+                                                {% endif %}
+                                                <button class="btn btn-link btn-sm config-expand-btn" onclick="toggleTaskDetails('{{ task.id }}')">
+                                                    <i class="bi bi-chevron-down"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td class="task-status-info">
+                                            <div class="status-cell">
+                                                <span class="status-badge status-{{ task.status }}">
+                                                    {% if task.status == 'completed' %}
+                                                        <i class="bi bi-check-circle"></i> 已完成
+                                                    {% elif task.status == 'failed' %}
+                                                        <i class="bi bi-x-circle"></i> 失败
+                                                    {% elif task.status == 'running' %}
+                                                        <i class="bi bi-arrow-clockwise rotating"></i> 进行中
+                                                    {% else %}
+                                                        <i class="bi bi-clock"></i> {{ task.status }}
+                                                    {% endif %}
+                                                </span>
+                                                {% if task.duration %}
+                                                <div class="duration-display">
+                                                    <i class="bi bi-stopwatch duration-icon"></i>
+                                                    <span class="duration-text">{{ task.duration|format_duration }}</span>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td class="task-result-info">
+                                            <div class="result-cell">
+                                                {% if task.status == 'completed' %}
+                                                    <div class="result-success">
+                                                        <div class="result-main">
+                                                            <i class="bi bi-file-earmark-text me-1"></i>
+                                                            <strong>{{ task.papers_found or 0 }}</strong> 篇论文
+                                                        </div>
+                                                        {% if task.papers_found and task.papers_found > 0 %}
+                                                        <div class="result-detail">
+                                                            <a href="{{ url_for('explore.papers', task_id=task.id) }}" class="result-link">
+                                                                查看论文 <i class="bi bi-arrow-right"></i>
+                                                            </a>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% elif task.status == 'failed' %}
+                                                    <div class="result-failed">
+                                                        <div class="result-main">
+                                                            <i class="bi bi-exclamation-triangle me-1"></i>
+                                                            执行失败
+                                                        </div>
+                                                        {% if task.error_message %}
+                                                        <div class="result-detail error-detail">
+                                                            {{ task.error_message[:50] }}{% if task.error_message|length > 50 %}...{% endif %}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% else %}
+                                                    <div class="result-running">
+                                                        <div class="result-main">
+                                                            <div class="running-indicator"></div>
+                                                            <span>执行中</span>
+                                                        </div>
+                                                        {% if task.current_progress %}
+                                                        <div class="result-detail">
+                                                            {{ task.current_progress }}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td class="task-actions">
+                                            <div class="action-buttons">
+                                                {% if task.status == 'completed' and task.papers_found > 0 %}
+                                                <a href="{{ url_for('explore.papers', task_id=task.id) }}" class="btn btn-primary btn-sm action-btn">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                {% endif %}
+                                                <a href="{{ url_for('collect.tasks') }}?highlight={{ task.id }}" class="btn btn-outline-secondary btn-sm action-btn">
+                                                    <i class="bi bi-info-circle"></i>
+                                                </a>
+                                                {% if task.status == 'failed' %}
+                                                <button class="btn btn-outline-warning btn-sm action-btn" onclick="retryTask('{{ task.id }}')">
+                                                    <i class="bi bi-arrow-clockwise"></i>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <!-- 详细信息展开行 -->
+                                    <tr class="task-detail-row" id="detail-{{ task.id }}" style="display: none;">
+                                        <td colspan="6">
+                                            <div class="task-detail-content">
+                                                <div class="row">
+                                                    <div class="col-md-4">
+                                                        <h6 class="detail-section-title">
+                                                            <i class="bi bi-gear me-1"></i>完整配置
+                                                        </h6>
+                                                        <div class="config-details">
+                                                            {% if task.search_query %}
+                                                            <div class="detail-item">
+                                                                <label>搜索查询:</label>
+                                                                <span class="detail-value">{{ task.search_query }}</span>
+                                                            </div>
+                                                            {% endif %}
+                                                            {% if task.search_mode %}
+                                                            <div class="detail-item">
+                                                                <label>搜索模式:</label>
+                                                                <span class="detail-value">{{ task.search_mode }}</span>
+                                                            </div>
+                                                            {% endif %}
+                                                            {% if task.max_results %}
+                                                            <div class="detail-item">
+                                                                <label>最大结果数:</label>
+                                                                <span class="detail-value">{{ task.max_results }}</span>
+                                                            </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <h6 class="detail-section-title">
+                                                            <i class="bi bi-clock-history me-1"></i>执行信息
+                                                        </h6>
+                                                        <div class="execution-details">
+                                                            <div class="detail-item">
+                                                                <label>开始时间:</label>
+                                                                <span class="detail-value">{{ moment(task.start_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
+                                                            </div>
+                                                            {% if task.end_time %}
+                                                            <div class="detail-item">
+                                                                <label>结束时间:</label>
+                                                                <span class="detail-value">{{ moment(task.end_time).format('YYYY-MM-DD HH:mm:ss') }}</span>
+                                                            </div>
+                                                            {% endif %}
+                                                            {% if task.duration %}
+                                                            <div class="detail-item">
+                                                                <label>总耗时:</label>
+                                                                <span class="detail-value">{{ task.duration|format_duration }}</span>
+                                                            </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <h6 class="detail-section-title">
+                                                            <i class="bi bi-bar-chart me-1"></i>结果详情
+                                                        </h6>
+                                                        <div class="result-details">
+                                                            {% if task.papers_found %}
+                                                            <div class="detail-item">
+                                                                <label>找到论文:</label>
+                                                                <span class="detail-value text-success">{{ task.papers_found }} 篇</span>
+                                                            </div>
+                                                            {% endif %}
+                                                            {% if task.error_message %}
+                                                            <div class="detail-item">
+                                                                <label>错误信息:</label>
+                                                                <span class="detail-value text-danger">{{ task.error_message }}</span>
+                                                            </div>
+                                                            {% endif %}
+                                                            {% if task.status == 'completed' %}
+                                                            <div class="detail-actions">
+                                                                <a href="{{ url_for('explore.papers', task_id=task.id) }}" class="btn btn-primary btn-sm">
+                                                                    <i class="bi bi-eye me-1"></i>查看所有论文
+                                                                </a>
+                                                            </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-center mt-4">
+                            <a href="{{ url_for('collect.tasks') }}" class="btn btn-gradient-primary btn-lg">
+                                <i class="bi bi-arrow-right me-2"></i>查看所有任务
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <i class="bi bi-list-task"></i>
+                            </div>
+                            <h5 class="empty-state-title">暂无任务执行记录</h5>
+                            <p class="empty-state-text">开始创建您的第一个论文收集任务，自动化您的研究流程</p>
+                            <a href="{{ url_for('collect.config') }}" class="btn btn-gradient-primary btn-lg">
+                                <i class="bi bi-plus-circle me-2"></i>创建任务
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
-                    <div class="text-center mt-3">
-                        <a href="{{ url_for('collect.tasks') }}" class="btn btn-outline-primary">
-                            查看所有任务
-                        </a>
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5">
-                        <i class="fas fa-tasks text-muted display-4 mb-3"></i>
-                        <h5 class="text-muted">暂无任务执行记录</h5>
-                        <p class="text-muted">开始创建您的第一个论文收集任务</p>
-                        <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
-                            <i class="fas fa-plus me-1"></i>创建任务
-                        </a>
-                    </div>
-                    {% endif %}
                 </div>
 
                 <!-- 数据分析图表 -->
@@ -271,24 +556,909 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- AOS Animation Library -->
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<style>
+/* ==============================================
+   现代化首页样式 - 丰富色彩版本
+============================================== */
+
+/* 根变量定义 */
+:root {
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    --info-gradient: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    --danger-gradient: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
+    --glass-bg: rgba(255, 255, 255, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --shadow-light: 0 8px 32px rgba(31, 38, 135, 0.15);
+    --shadow-medium: 0 12px 40px rgba(31, 38, 135, 0.25);
+    --shadow-strong: 0 16px 48px rgba(31, 38, 135, 0.35);
+}
+
+/* 页面整体背景 */
+body {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+}
+
+/* Hero Section - 顶部渐变区域 */
+.hero-section {
+    background: var(--primary-gradient);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+    padding: 2rem 0 3rem;
+    margin: -1.5rem -15px 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 20%, transparent 70%);
+    animation: floatBubble 20s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes floatBubble {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-20px) rotate(2deg); }
+    66% { transform: translateY(10px) rotate(-1deg); }
+}
+
+/* Hero Title Styling */
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: white;
+    text-shadow: 2px 4px 20px rgba(0,0,0,0.3);
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 2;
+}
+
+.hero-icon {
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem;
+    border-radius: 50%;
+    backdrop-filter: blur(10px);
+    animation: iconPulse 3s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+    50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(255,255,255,0.5); }
+}
+
+.title-gradient {
+    background: linear-gradient(45deg, #fff, #e0e8ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.title-subtitle {
+    font-size: 0.7em;
+    opacity: 0.9;
+    margin-left: 1rem;
+}
+
+.hero-subtitle {
+    font-size: 1.25rem;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 1px 2px 10px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 2;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+}
+
+.btn-glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+}
+
+.btn-glass:hover {
+    background: rgba(255,255,255,0.25);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-light);
+    color: white;
+}
+
+.btn-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-gradient-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+    color: white;
+}
+
+.btn-gradient-success {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+}
+
+.btn-gradient-success:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(79, 172, 254, 0.6);
+    color: white;
+}
+
+/* Main Content */
+.main-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* Stats Cards */
+.stats-section {
+    margin-top: -2rem;
+    position: relative;
+    z-index: 2;
+}
+
+.stats-card {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem 1.5rem;
+    box-shadow: var(--shadow-light);
+    border: 1px solid rgba(255,255,255,0.3);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.stats-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 20px 20px 0 0;
+}
+
+.stats-card-primary::before {
+    background: var(--primary-gradient);
+}
+
+.stats-card-warning::before {
+    background: var(--warning-gradient);
+}
+
+.stats-card-info::before {
+    background: var(--info-gradient);
+}
+
+.stats-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: var(--shadow-strong);
+}
+
+.stats-card-inner {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stats-icon-wrapper {
+    position: relative;
+    margin-right: 1.5rem;
+    flex-shrink: 0;
+}
+
+.stats-icon-bg {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    opacity: 0.1;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.stats-card-primary .stats-icon-bg {
+    background: var(--primary-gradient);
+}
+
+.stats-card-warning .stats-icon-bg {
+    background: var(--warning-gradient);
+}
+
+.stats-card-info .stats-icon-bg {
+    background: var(--info-gradient);
+}
+
+.stats-icon {
+    font-size: 2rem;
+    position: relative;
+    z-index: 1;
+    color: #667eea;
+    transition: all 0.3s ease;
+}
+
+.stats-card-warning .stats-icon {
+    color: #fa709a;
+}
+
+.stats-card-info .stats-icon {
+    color: #4facfe;
+}
+
+.rotating {
+    animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.stats-content {
+    flex: 1;
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+}
+
+.stats-card-warning .stats-number {
+    background: var(--warning-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.stats-card-info .stats-number {
+    background: var(--info-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.stats-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stats-trend {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.pulse-indicator {
+    width: 8px;
+    height: 8px;
+    background: var(--warning-gradient);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+}
+
+/* Modern Tabs */
+.modern-tabs-wrapper {
+    margin: 2rem 0;
+}
+
+.modern-tabs {
+    background: white;
+    border-radius: 15px;
+    padding: 0.5rem;
+    box-shadow: var(--shadow-light);
+    border: none;
+    margin-bottom: 0;
+}
+
+.modern-tabs .nav-link {
+    border: none;
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    margin: 0 0.25rem;
+    transition: all 0.3s ease;
+    background: transparent;
+    color: #64748b;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.modern-tabs .nav-link:hover {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    transform: translateY(-2px);
+}
+
+.modern-tabs .nav-link.active {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.tab-icon {
+    font-size: 1.2rem;
+}
+
+.tab-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.tab-title {
+    font-weight: 600;
+    margin: 0;
+}
+
+.tab-subtitle {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    margin: 0;
+}
+
+.modern-tab-content {
+    background: white;
+    border-radius: 0 0 15px 15px;
+    box-shadow: var(--shadow-light);
+    min-height: 400px;
+}
+
+.tab-content-wrapper {
+    padding: 2rem;
+}
+
+/* Paper Cards */
+.modern-paper-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(0,0,0,0.05);
+    position: relative;
+    box-shadow: var(--shadow-light);
+}
+
+.modern-paper-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--success-gradient);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.modern-paper-card:hover::before {
+    transform: scaleX(1);
+}
+
+.modern-paper-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-medium);
+}
+
+.paper-card-header {
+    padding: 1rem 1.25rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.paper-type-badge {
+    width: 8px;
+    height: 8px;
+    background: var(--success-gradient);
+    border-radius: 50%;
+    animation: pulse 3s ease-in-out infinite;
+}
+
+.task-badge {
+    background: var(--info-gradient);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3);
+}
+
+.paper-card-body {
+    padding: 0.5rem 1.25rem 1.25rem;
+}
+
+.paper-title {
+    margin-bottom: 0.75rem;
+}
+
+.paper-link {
+    color: #1e293b;
+    text-decoration: none;
+    font-weight: 600;
+    line-height: 1.4;
+    transition: color 0.3s ease;
+}
+
+.paper-link:hover {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.paper-abstract {
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
+.paper-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+.paper-date {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.view-indicator {
+    color: #cbd5e1;
+    transition: color 0.3s ease;
+}
+
+.modern-paper-card:hover .view-indicator {
+    color: #667eea;
+}
+
+/* Modern Table */
+.modern-table {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow-light);
+    border: none;
+}
+
+.modern-table thead th {
+    background: var(--primary-gradient);
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.8rem;
+    padding: 1rem;
+    border: none;
+}
+
+.modern-table-row {
+    transition: all 0.3s ease;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.modern-table-row:hover {
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, transparent 100%);
+    transform: translateX(5px);
+}
+
+.modern-table-row td {
+    padding: 1rem;
+    border: none;
+    vertical-align: middle;
+}
+
+.task-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.task-name {
+    color: #1e293b;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.task-query {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.status-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-completed {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    color: white;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.status-failed {
+    background: linear-gradient(135deg, #ef4444, #f87171);
+    color: white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.status-running {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: white;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.result-success {
+    color: #10b981;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+.result-failed {
+    color: #ef4444;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+.result-running {
+    color: #f59e0b;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.running-indicator {
+    width: 12px;
+    height: 12px;
+    background: var(--warning-gradient);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+    background: var(--info-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.empty-state-title {
+    color: #64748b;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.empty-state-text {
+    color: #94a3b8;
+    margin-bottom: 2rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .action-buttons {
+        justify-content: center;
+        margin-top: 1.5rem;
+    }
+    
+    .stats-card-inner {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stats-icon-wrapper {
+        margin-right: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .modern-tabs .nav-link {
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .hero-section {
+        margin-left: -15px;
+        margin-right: -15px;
+    }
+    
+    .hero-title {
+        font-size: 2rem;
+    }
+    
+    .title-subtitle {
+        display: block;
+        margin-left: 0;
+        margin-top: 0.5rem;
+        font-size: 1rem;
+    }
+}
+</style>
+
 <script>
 // 刷新仪表板数据
 function refreshDashboard() {
     const refreshBtn = document.getElementById('refreshBtn');
-    const originalText = refreshBtn.innerHTML;
+    const btnIcon = refreshBtn.querySelector('.btn-icon');
+    const btnTitle = refreshBtn.querySelector('.btn-title');
     
-    refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise fa-spin me-1"></i>刷新中...';
+    // 保存原始内容
+    const originalTitle = btnTitle.textContent;
+    
+    // 更新按钮状态
+    btnTitle.textContent = '刷新中...';
+    btnIcon.classList.add('fa-spin');
     refreshBtn.disabled = true;
+    refreshBtn.style.opacity = '0.7';
     
-    // 模拟刷新延迟
+    // 模拟刷新延迟并重新加载页面
     setTimeout(() => {
         location.reload();
     }, 1000);
 }
 
-// 初始化图表
+// 初始化AOS动画和图表
 document.addEventListener('DOMContentLoaded', function() {
-    const chartData = JSON.parse(document.getElementById('chartData').textContent);
+    // 初始化AOS动画
+    AOS.init({
+        duration: 800,
+        easing: 'ease-in-out-cubic',
+        once: true,
+        offset: 100,
+        delay: 100
+    });
+    
+    // 初始化表格交互功能
+    initTaskTableInteractions();
+    
+    // 初始化图表
+    initCharts();
+});
+
+// 任务表格交互功能
+function initTaskTableInteractions() {
+    // 行点击展开功能
+    document.querySelectorAll('.expandable-row').forEach(row => {
+        row.addEventListener('click', function(e) {
+            // 避免点击按钮时触发行点击
+            if (e.target.closest('button') || e.target.closest('a')) {
+                return;
+            }
+            
+            const taskId = this.dataset.taskId;
+            if (taskId) {
+                toggleTaskDetails(taskId);
+            }
+        });
+    });
+    
+    // 添加悬停提示效果
+    document.querySelectorAll('.expandable-row').forEach(row => {
+        row.setAttribute('title', '点击查看详细信息');
+    });
+}
+
+// 切换任务详情显示
+function toggleTaskDetails(taskId) {
+    const detailRow = document.getElementById(`detail-${taskId}`);
+    const expandBtn = document.querySelector(`[data-task-id="${taskId}"] .config-expand-btn i`);
+    
+    if (!detailRow) {
+        console.warn(`找不到任务详情行: detail-${taskId}`);
+        return;
+    }
+    
+    if (detailRow.style.display === 'none' || detailRow.style.display === '') {
+        // 展开详情
+        detailRow.style.display = 'table-row';
+        detailRow.classList.add('detail-expanding');
+        
+        // 动画效果
+        setTimeout(() => {
+            detailRow.classList.remove('detail-expanding');
+            detailRow.classList.add('detail-expanded');
+        }, 50);
+        
+        // 更新按钮图标
+        if (expandBtn) {
+            expandBtn.classList.remove('bi-chevron-down');
+            expandBtn.classList.add('bi-chevron-up');
+            expandBtn.closest('.config-expand-btn').style.transform = 'rotate(180deg)';
+        }
+        
+        // 滚动到详情区域
+        setTimeout(() => {
+            detailRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+        
+    } else {
+        // 收起详情
+        detailRow.classList.remove('detail-expanded');
+        detailRow.classList.add('detail-collapsing');
+        
+        // 更新按钮图标
+        if (expandBtn) {
+            expandBtn.classList.remove('bi-chevron-up');
+            expandBtn.classList.add('bi-chevron-down');
+            expandBtn.closest('.config-expand-btn').style.transform = 'rotate(0deg)';
+        }
+        
+        // 动画完成后隐藏
+        setTimeout(() => {
+            detailRow.style.display = 'none';
+            detailRow.classList.remove('detail-collapsing');
+        }, 300);
+    }
+}
+
+// 重试任务
+async function retryTask(taskId) {
+    if (!confirm('确定要重新执行这个任务吗？')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskId}/retry`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showAlert('任务重新执行已启动', 'success');
+                // 3秒后刷新页面
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+            } else {
+                showAlert(result.error || '重新执行任务失败', 'danger');
+            }
+        } else {
+            showAlert('服务器错误，请稍后重试', 'danger');
+        }
+    } catch (error) {
+        console.error('重试任务失败:', error);
+        showAlert('网络错误，请稍后重试', 'danger');
+    }
+}
+
+// 显示提示消息
+function showAlert(message, type = 'info') {
+    // 创建提示框
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // 插入到页面顶部
+    const container = document.querySelector('.container') || document.body;
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // 5秒后自动消失
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.classList.remove('show');
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 150);
+        }
+    }, 5000);
+}
+
+// 初始化图表
+function initCharts() {
+    // 检查是否存在图表数据
+    const chartDataElement = document.getElementById('chartData');
+    if (!chartDataElement) {
+        console.log('没有找到图表数据，跳过图表初始化');
+        return;
+    }
+    
+    const chartData = JSON.parse(chartDataElement.textContent);
     
     // 状态分布图
     if (document.getElementById('statusChart')) {
@@ -299,7 +1469,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: chartData.status.labels,
                 datasets: [{
                     data: chartData.status.values,
-                    backgroundColor: ['#007bff', '#ffc107', '#17a2b8']
+                    backgroundColor: [
+                        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 10
                 }]
             },
             options: {
@@ -324,9 +1500,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: '新增论文',
                     data: chartData.trend.values,
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    tension: 0.3,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#667eea',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
                     fill: true
                 }]
             },
@@ -346,8 +1528,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
-});
+}
 
 // 自动刷新运行中任务状态
 setInterval(function() {

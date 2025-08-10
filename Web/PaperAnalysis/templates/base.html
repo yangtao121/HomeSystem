@@ -23,81 +23,590 @@
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     
+    <!-- Modern Navigation Styles -->
+    <style>
+    /* ==============================================
+       现代化导航栏样式
+    ============================================== */
+    
+    :root {
+        --nav-primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --nav-glass-bg: rgba(255, 255, 255, 0.1);
+        --nav-glass-border: rgba(255, 255, 255, 0.2);
+        --nav-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        --nav-hover-bg: rgba(255, 255, 255, 0.15);
+        --nav-active-bg: rgba(255, 255, 255, 0.2);
+        --nav-text-primary: rgba(255, 255, 255, 0.95);
+        --nav-text-secondary: rgba(255, 255, 255, 0.8);
+    }
+    
+    /* 主导航栏 */
+    .modern-navbar {
+        background: var(--nav-primary-gradient);
+        background-size: 400% 400%;
+        animation: navGradientShift 20s ease infinite;
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--nav-glass-border);
+        box-shadow: var(--nav-shadow);
+        transition: all 0.3s ease;
+        padding: 0.75rem 0;
+        position: relative;
+        z-index: 1050;
+    }
+    
+    .modern-navbar::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--nav-glass-bg);
+        backdrop-filter: blur(20px);
+        z-index: -1;
+    }
+    
+    @keyframes navGradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        25% { background-position: 100% 50%; }
+        50% { background-position: 0% 100%; }
+        75% { background-position: 100% 0%; }
+    }
+    
+    /* 品牌标识 */
+    .modern-brand {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        color: var(--nav-text-primary) !important;
+        font-weight: 700;
+        font-size: 1.5rem;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .modern-brand:hover {
+        color: white !important;
+        transform: translateY(-1px);
+    }
+    
+    .brand-icon-wrapper {
+        position: relative;
+        margin-right: 0.75rem;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .brand-icon {
+        font-size: 1.5rem;
+        animation: brandPulse 4s ease-in-out infinite;
+    }
+    
+    @keyframes brandPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    
+    .brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1;
+    }
+    
+    .brand-main {
+        font-size: 1.2rem;
+        font-weight: 800;
+        background: linear-gradient(45deg, #fff, #e0e8ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .brand-sub {
+        font-size: 0.8rem;
+        font-weight: 500;
+        opacity: 0.9;
+        margin-top: -2px;
+    }
+    
+    /* 现代化菜单 */
+    .modern-nav {
+        gap: 0.5rem;
+    }
+    
+    .modern-nav-link {
+        color: var(--nav-text-secondary) !important;
+        text-decoration: none;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+        border: 1px solid transparent;
+    }
+    
+    .modern-nav-link:hover {
+        color: white !important;
+        background: var(--nav-hover-bg);
+        backdrop-filter: blur(10px);
+        border-color: var(--nav-glass-border);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .modern-nav-link.active {
+        color: white !important;
+        background: var(--nav-active-bg);
+        backdrop-filter: blur(15px);
+        border-color: var(--nav-glass-border);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+    
+    .modern-nav-link.active::before {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 6px;
+        height: 6px;
+        background: white;
+        border-radius: 50%;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    }
+    
+    .nav-icon {
+        font-size: 1.1rem;
+        transition: transform 0.3s ease;
+    }
+    
+    .modern-nav-link:hover .nav-icon {
+        transform: scale(1.1);
+    }
+    
+    .nav-text {
+        font-size: 0.9rem;
+    }
+    
+    /* 搜索组件 */
+    .modern-search-form {
+        gap: 0.5rem;
+        align-items: center;
+    }
+    
+    .search-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        color: rgba(255, 255, 255, 0.6);
+        z-index: 2;
+        font-size: 1rem;
+        pointer-events: none;
+    }
+    
+    .modern-search-input {
+        background: var(--nav-glass-bg);
+        border: 1px solid var(--nav-glass-border);
+        backdrop-filter: blur(10px);
+        color: white;
+        padding: 0.75rem 1rem 0.75rem 2.5rem;
+        border-radius: 25px;
+        width: 280px;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+    
+    .modern-search-input::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .modern-search-input:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+        width: 320px;
+    }
+    
+    .modern-search-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .modern-search-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* 下拉菜单 */
+    .system-dropdown {
+        position: relative;
+    }
+    
+    .modern-dropdown-menu {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        min-width: 200px;
+    }
+    
+    .modern-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        color: #374151;
+        text-decoration: none;
+        font-weight: 500;
+        border: 1px solid transparent;
+    }
+    
+    .modern-dropdown-item:hover {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateX(5px);
+    }
+    
+    .dropdown-icon {
+        font-size: 1.1rem;
+        width: 20px;
+        text-align: center;
+    }
+    
+    .modern-dropdown-divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
+        margin: 0.5rem 0;
+    }
+    
+    /* 移动端按钮 */
+    .modern-toggler {
+        border: none;
+        padding: 0.5rem;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 3px;
+    }
+    
+    .modern-toggler:focus {
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+    }
+    
+    .toggler-line {
+        width: 20px;
+        height: 2px;
+        background: white;
+        border-radius: 1px;
+        transition: all 0.3s ease;
+    }
+    
+    .modern-toggler:hover .toggler-line {
+        background: rgba(255, 255, 255, 0.9);
+    }
+    
+    .modern-toggler[aria-expanded="true"] .toggler-line:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+    }
+    
+    .modern-toggler[aria-expanded="true"] .toggler-line:nth-child(2) {
+        opacity: 0;
+    }
+    
+    .modern-toggler[aria-expanded="true"] .toggler-line:nth-child(3) {
+        transform: rotate(-45deg) translate(7px, -6px);
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 991.98px) {
+        .modern-navbar {
+            padding: 0.5rem 0;
+        }
+        
+        .modern-search-input {
+            width: 200px;
+        }
+        
+        .modern-search-input:focus {
+            width: 240px;
+        }
+        
+        .navbar-collapse {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 15px;
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .modern-nav {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .modern-nav-link {
+            justify-content: flex-start;
+            margin-bottom: 0.25rem;
+        }
+        
+        .modern-search-form {
+            margin: 1rem 0;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .brand-text {
+            display: none;
+        }
+        
+        .brand-icon-wrapper {
+            margin-right: 0;
+        }
+        
+        .modern-search-input {
+            width: 180px;
+        }
+        
+        .modern-search-input:focus {
+            width: 200px;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .modern-search-form {
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .search-input-wrapper {
+            width: 100%;
+        }
+        
+        .modern-search-input {
+            width: 100%;
+        }
+        
+        .modern-search-input:focus {
+            width: 100%;
+        }
+    }
+    
+    /* 主内容区域 */
+    .main-content-wrapper {
+        position: relative;
+        min-height: calc(100vh - 200px);
+    }
+    
+    /* 页脚美化 */
+    .modern-footer {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-top: 1px solid rgba(102, 126, 234, 0.1);
+        margin-top: 3rem;
+        padding: 2rem 0;
+        position: relative;
+    }
+    
+    .modern-footer::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100px;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #667eea, transparent);
+    }
+    
+    .modern-footer .container {
+        padding: 0 15px;
+    }
+    
+    .modern-footer p {
+        color: #64748b;
+        margin-bottom: 0;
+        font-weight: 500;
+    }
+    
+    .modern-footer small {
+        color: #94a3b8;
+        font-size: 0.85rem;
+    }
+    
+    /* 警告容器美化 */
+    #alertContainer {
+        margin-top: 0;
+        position: relative;
+        z-index: 1040;
+    }
+    
+    .alert {
+        border: none;
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .alert-success {
+        background: rgba(16, 185, 129, 0.1);
+        color: #065f46;
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+    
+    .alert-warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: #92400e;
+        border-color: rgba(245, 158, 11, 0.2);
+    }
+    
+    .alert-danger {
+        background: rgba(239, 68, 68, 0.1);
+        color: #991b1b;
+        border-color: rgba(239, 68, 68, 0.2);
+    }
+    
+    .alert-info {
+        background: rgba(79, 172, 254, 0.1);
+        color: #1e40af;
+        border-color: rgba(79, 172, 254, 0.2);
+    }
+    </style>
+    
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark modern-navbar">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('main.index') }}">
-                <i class="bi bi-journal-text me-2"></i>PaperAnalysis
+            <a class="navbar-brand modern-brand" href="{{ url_for('main.index') }}">
+                <div class="brand-icon-wrapper">
+                    <i class="bi bi-journal-text brand-icon"></i>
+                </div>
+                <span class="brand-text">
+                    <span class="brand-main">Paper</span><span class="brand-sub">Analysis</span>
+                </span>
             </a>
             
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+            <button class="navbar-toggler modern-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="toggler-line"></span>
+                <span class="toggler-line"></span>
+                <span class="toggler-line"></span>
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav me-auto modern-nav">
                     <!-- 首页 -->
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" 
+                        <a class="nav-link modern-nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" 
                            href="{{ url_for('main.index') }}">
-                            <i class="bi bi-house me-1"></i>首页
+                            <i class="bi bi-house nav-icon"></i>
+                            <span class="nav-text">首页</span>
                         </a>
                     </li>
                     
                     <!-- 任务配置 -->
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'collect.config' %}active{% endif %}" 
+                        <a class="nav-link modern-nav-link {% if request.endpoint == 'collect.config' %}active{% endif %}" 
                            href="{{ url_for('collect.config') }}">
-                            <i class="fas fa-cog me-1"></i>任务配置
+                            <i class="bi bi-gear nav-icon"></i>
+                            <span class="nav-text">任务配置</span>
                         </a>
                     </li>
                     
                     <!-- 任务查看 -->
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'collect.tasks' %}active{% endif %}" 
+                        <a class="nav-link modern-nav-link {% if request.endpoint == 'collect.tasks' %}active{% endif %}" 
                            href="{{ url_for('collect.tasks') }}">
-                            <i class="fas fa-tasks me-1"></i>任务查看
+                            <i class="bi bi-list-task nav-icon"></i>
+                            <span class="nav-text">任务查看</span>
                         </a>
                     </li>
                     
                     <!-- 论文浏览 -->
                     <li class="nav-item">
-                        <a class="nav-link {% if request.blueprint == 'explore' %}active{% endif %}" 
+                        <a class="nav-link modern-nav-link {% if request.blueprint == 'explore' %}active{% endif %}" 
                            href="{{ url_for('explore.papers') }}">
-                            <i class="bi bi-search me-1"></i>论文浏览
+                            <i class="bi bi-search nav-icon"></i>
+                            <span class="nav-text">论文浏览</span>
                         </a>
                     </li>
                 </ul>
                 
                 <!-- 快速搜索 -->
-                <form class="d-flex me-3" method="GET" action="{{ url_for('explore.papers') }}">
-                    <input class="form-control me-2" type="search" name="q" 
-                           placeholder="快速搜索论文..." aria-label="搜索"
-                           value="{{ request.args.get('q', '') }}">
-                    <button class="btn btn-outline-light" type="submit">
-                        <i class="bi bi-search"></i>
+                <form class="d-flex me-3 modern-search-form" method="GET" action="{{ url_for('explore.papers') }}">
+                    <div class="search-input-wrapper">
+                        <i class="bi bi-search search-icon"></i>
+                        <input class="modern-search-input" type="search" name="q" 
+                               placeholder="快速搜索论文..." aria-label="搜索"
+                               value="{{ request.args.get('q', '') }}">
+                    </div>
+                    <button class="modern-search-btn" type="submit">
+                        <i class="bi bi-arrow-right"></i>
                     </button>
                 </form>
                 
                 <ul class="navbar-nav">
                     <!-- 系统状态 -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="systemDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-gear me-1"></i>系统
+                        <a class="nav-link dropdown-toggle modern-nav-link system-dropdown" href="#" id="systemDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-gear-fill nav-icon"></i>
+                            <span class="nav-text">系统</span>
                         </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('main.about') }}">
-                                <i class="bi bi-info-circle me-1"></i>关于系统
+                        <ul class="dropdown-menu modern-dropdown-menu">
+                            <li><a class="dropdown-item modern-dropdown-item" href="{{ url_for('main.about') }}">
+                                <i class="bi bi-info-circle dropdown-icon"></i>
+                                <span>关于系统</span>
                             </a></li>
-                            <li><a class="dropdown-item" href="/api/explore/stats" target="_blank">
-                                <i class="bi bi-activity me-1"></i>系统状态
+                            <li><a class="dropdown-item modern-dropdown-item" href="/api/explore/stats" target="_blank">
+                                <i class="bi bi-activity dropdown-icon"></i>
+                                <span>系统状态</span>
                             </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('main.settings') }}">
-                                <i class="bi bi-sliders me-1"></i>模型设置
+                            <li><div class="modern-dropdown-divider"></div></li>
+                            <li><a class="dropdown-item modern-dropdown-item" href="{{ url_for('main.settings') }}">
+                                <i class="bi bi-sliders dropdown-icon"></i>
+                                <span>模型设置</span>
                             </a></li>
                         </ul>
                     </li>
@@ -110,7 +619,7 @@
     <div id="alertContainer" class="container mt-3"></div>
 
     <!-- 主要内容 -->
-    <main class="container-fluid py-4">
+    <main class="main-content-wrapper">
         <!-- Flash消息 -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -126,9 +635,8 @@
         {% block content %}{% endblock %}
     </main>
 
-
     <!-- 页脚 -->
-    <footer class="bg-light mt-5 py-4">
+    <footer class="modern-footer">
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
