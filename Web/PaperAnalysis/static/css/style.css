@@ -120,15 +120,127 @@
     opacity: 0.7;
 }
 
-/* 批量操作工具栏样式 */
-.batch-operations-toolbar {
-    position: sticky;
-    top: 20px;
-    z-index: 100;
+/* ========== 任务表格和批量操作工具栏样式 ========== */
+.batch-toolbar {
+    border-radius: 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid var(--primary-color);
+    margin-left: -1px;
+    margin-right: -1px;
 }
 
-.batch-operations-toolbar .card {
-    border-left: 4px solid var(--primary-color);
+.batch-actions .btn {
+    transition: var(--transition);
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+.batch-actions .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.task-count-info .badge {
+    font-size: 0.85rem;
+    padding: 0.5em 0.8em;
+    font-weight: 500;
+}
+
+/* 任务信息样式优化 */
+.task-info h6 {
+    color: var(--dark-color);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.task-details {
+    line-height: 1.4;
+}
+
+.task-details .fa-fingerprint {
+    color: var(--info-color);
+}
+
+.task-details .fa-calendar-plus {
+    color: var(--secondary-color);
+}
+
+/* 任务类型信息样式 */
+.task-type-info .badge {
+    font-weight: 600;
+    letter-spacing: 0.25px;
+}
+
+/* 任务状态信息样式 */
+.task-status-info .badge {
+    font-weight: 600;
+    letter-spacing: 0.25px;
+}
+
+.task-status-info .progress {
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    width: 100px;
+}
+
+.task-status-info .progress-bar {
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+/* 执行信息样式 */
+.execution-info .badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.execution-info .small {
+    line-height: 1.4;
+    margin-bottom: 0.25rem;
+}
+
+.execution-info .fa-history {
+    color: var(--secondary-color);
+}
+
+.execution-info .fa-clock {
+    color: var(--info-color);
+}
+
+.execution-info .fa-check-circle {
+    color: var(--success-color);
+}
+
+.execution-info .fa-stopwatch {
+    color: var(--warning-color);
+}
+
+/* 配置信息样式 */
+.config-info .badge {
+    font-size: 0.75rem;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 操作按钮样式 */
+.action-buttons .btn {
+    transition: all 0.2s ease;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.action-buttons .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.action-buttons .btn-sm {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
 }
 
 /* 状态徽章样式 */
@@ -328,25 +440,38 @@ body {
     font-weight: 600;
 }
 
-/* 统计卡片 */
+/* ========== 任务页面统计卡片样式 ========== */
 .stats-card {
-    text-align: center;
-    padding: 1.5rem;
-    border-left: 4px solid var(--secondary-color);
+    transition: var(--transition);
+    border-radius: var(--border-radius);
+    background: white;
 }
 
-.stats-number {
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 0.5rem;
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-hover-shadow);
 }
 
-.stats-label {
-    color: #6c757d;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+.hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+}
+
+.stats-icon {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.stats-card:hover .stats-icon {
+    transform: scale(1.05);
 }
 
 /* 搜索框样式 */
@@ -658,43 +783,580 @@ body {
     border: 1px solid #dee2e6;
 }
 
-/* 响应式设计 */
+/* ========== 任务页面响应式设计 ========== */
 @media (max-width: 768px) {
     .container {
         padding: 0 1rem;
     }
     
-    .stats-number {
-        font-size: 2rem;
+    /* 统计卡片响应式 */
+    .stats-card .stats-icon {
+        width: 50px;
+        height: 50px;
     }
     
-    .paper-item {
-        padding: 1rem;
+    .stats-card h3 {
+        font-size: 1.75rem;
     }
     
-    .search-container {
-        padding: 1rem;
+    /* 批量工具栏响应式 */
+    .batch-toolbar .d-flex {
+        flex-direction: column;
+        gap: 1rem;
     }
     
-    .paper-detail {
-        padding: 1rem;
+    .batch-actions {
+        justify-content: flex-start;
+    }
+    
+    /* 表格响应式优化 */
+    .table-responsive {
+        font-size: 0.85rem;
+    }
+    
+    .task-info h6 {
+        font-size: 0.95rem;
+    }
+    
+    .task-details {
+        font-size: 0.8rem;
+    }
+    
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.3em 0.5em;
+    }
+    
+    /* 操作按钮响应式 */
+    .action-buttons {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .action-buttons .btn {
+        font-size: 0.75rem;
+        padding: 0.3rem 0.5rem;
+    }
+    
+    /* 配置信息响应式 */
+    .config-info .badge {
+        font-size: 0.7rem;
+        max-width: 100px;
+    }
+    
+    /* 执行信息响应式 */
+    .execution-info .small {
+        font-size: 0.75rem;
+    }
+    
+    /* 空状态响应式 */
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+    
+    .empty-state .empty-icon i {
+        font-size: 3rem;
+    }
+    
+    .empty-state h4 {
+        font-size: 1.1rem;
+    }
+    
+    .empty-state p {
+        font-size: 0.9rem;
+    }
+    
+    /* 筛选器响应式 */
+    .card-header .d-flex {
+        gap: 1rem;
+    }
+    
+    .card-header select {
+        min-width: 100px;
+        font-size: 0.85rem;
+    }
+    
+    /* 分页响应式 */
+    .pagination-rounded .page-link {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85rem;
     }
 }
 
-/* 加载动画 */
+/* ========== 任务配置页面专用样式 ========== */
+
+/* 页面头部样式 */
+.page-header .display-6 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+.page-header .lead {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--secondary-color);
+    line-height: 1.6;
+}
+
+.config-actions .btn-group .btn {
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    margin-left: 0.5rem;
+    border-width: 2px;
+}
+
+.config-actions .btn-group .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+/* 配置卡片样式增强 */
+.config-section {
+    position: relative;
+    overflow: hidden;
+}
+
+.config-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color), var(--success-color), var(--info-color));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.config-section:hover::before {
+    opacity: 1;
+}
+
+/* 执行模式卡片增强 */
+.execution-mode-card .card-body {
+    position: relative;
+    z-index: 1;
+}
+
+.execution-mode-card .form-check {
+    margin-top: 1rem;
+}
+
+.execution-mode-card .form-check-input {
+    transform: scale(1.3);
+    margin-right: 0.75rem;
+}
+
+.execution-mode-card .form-check-label {
+    font-weight: 600;
+    color: var(--primary-color);
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.execution-mode-card.selected .form-check-label {
+    color: var(--primary-color);
+}
+
+/* 表单控件样式增强 */
+.form-floating {
+    margin-bottom: 1.5rem;
+}
+
+.form-floating > .form-control {
+    height: calc(3.5rem + 2px);
+    line-height: 1.25;
+}
+
+.form-floating > label {
+    padding: 1rem 1rem;
+    font-weight: 500;
+    color: var(--secondary-color);
+}
+
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* 搜索模式选择器样式 */
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23007bff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* 日期范围和年份选择器样式 */
+#date_range_options,
+#after_year_options {
+    animation: slideDown 0.3s ease-out;
+    background: rgba(0,123,255,0.02);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+    border: 1px solid rgba(0,123,255,0.1);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 转换状态和结果样式增强 */
+#translation_status {
+    background: linear-gradient(135deg, rgba(40,167,69,0.1) 0%, rgba(40,167,69,0.05) 100%);
+    border: 2px solid rgba(40,167,69,0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    animation: pulse 2s infinite;
+}
+
+#translation_result {
+    animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#translation_result .alert {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(40,167,69,0.2);
+    background: linear-gradient(135deg, rgba(40,167,69,0.08) 0%, rgba(40,167,69,0.04) 100%);
+}
+
+#translation_result .alert-heading {
+    font-weight: 700;
+    color: var(--success-color);
+}
+
+/* 智能转换按钮样式 */
+#translateSearchBtn {
+    background: linear-gradient(135deg, var(--success-color) 0%, #1e7e34 100%);
+    border: none;
+    border-radius: 8px;
+    padding: 0.875rem 2rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+}
+
+#translateSearchBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(40,167,69,0.4);
+    background: linear-gradient(135deg, #1e7e34 0%, var(--success-color) 100%);
+}
+
+/* 任务信息区域样式 */
+.task-info-section {
+    background: linear-gradient(135deg, rgba(52,152,219,0.05) 0%, rgba(52,152,219,0.02) 100%);
+    border: 2px solid rgba(52,152,219,0.1);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+/* 执行控制区域样式增强 */
+.execution-info {
+    flex: 1;
+}
+
+.execution-controls {
+    flex-shrink: 0;
+}
+
+.execution-controls .btn {
+    min-width: 140px;
+    font-weight: 600;
+}
+
+/* 快速设置按钮样式 */
+.btn-outline-primary.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-primary.btn-sm:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+}
+
+/* 模态框样式增强 */
+.modal-xl {
+    max-width: 90%;
+}
+
+.modal-lg {
+    max-width: 80%;
+}
+
+.modal-header {
+    padding: 2rem;
+}
+
+.modal-body {
+    padding: 2rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 1.5rem 2rem;
+    border-top: 2px solid #e9ecef;
+}
+
+.modal-footer .btn {
+    min-width: 120px;
+    font-weight: 600;
+}
+
+/* 历史任务列表样式 */
+#historyTaskList .card {
+    transition: all 0.2s ease;
+    border: 2px solid #e9ecef;
+}
+
+#historyTaskList .card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0,123,255,0.15);
+    transform: translateY(-2px);
+}
+
+
+/* 响应式设计优化 */
+@media (max-width: 1200px) {
+    .page-header .display-6 {
+        font-size: 2rem;
+    }
+    
+    .config-actions .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .config-actions .btn-group .btn {
+        margin: 0.25rem 0;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 992px) {
+    .config-section {
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .execution-mode-card .card-body {
+        padding: 1.5rem;
+    }
+    
+    .execution-area {
+        padding: 1.5rem;
+    }
+    
+    .modal-xl,
+    .modal-lg {
+        max-width: 95%;
+        margin: 1rem;
+    }
+    
+    .capability-row .col-lg-4 {
+        margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .page-header .display-6 {
+        font-size: 1.75rem;
+        text-align: center;
+    }
+    
+    .page-header .lead {
+        font-size: 1rem;
+        text-align: center;
+    }
+    
+    .page-header .badge {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .config-section {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .config-section h4 {
+        font-size: 1.2rem;
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+    
+    .execution-mode-card .card-body {
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .chinese-assistant-card .card-body,
+    .capability-card .card-body {
+        padding: 1rem;
+    }
+    
+    .chinese-assistant-card .card-title,
+    .capability-card .card-title {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+    
+    .execution-area {
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .execution-controls .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .capability-row {
+        margin-top: 0.5rem;
+    }
+    
+    .capability-item {
+        margin-bottom: 1rem;
+    }
+    
+    /* 模态框移动端优化 */
+    .modal-xl,
+    .modal-lg {
+        max-width: 100%;
+        margin: 0;
+        height: 100vh;
+    }
+    
+    .modal-content {
+        height: 100vh;
+        border-radius: 0;
+    }
+    
+    .modal-header {
+        padding: 1rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+        max-height: calc(100vh - 200px);
+    }
+    
+    .modal-footer {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    /* 表单元素移动端优化 */
+    .form-control,
+    .form-select {
+        padding: 1rem;
+        font-size: 1rem;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.95rem;
+    }
+    
+    .btn-lg {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .container-fluid {
+        padding: 0.5rem;
+    }
+    
+    .page-header .badge {
+        display: block;
+        margin: 0.25rem auto;
+        width: fit-content;
+    }
+    
+    .config-section h4 i {
+        font-size: 1.5rem;
+    }
+    
+    .chinese-assistant-card .card-title i,
+    .capability-card .card-title i {
+        font-size: 1.5rem;
+    }
+    
+    .capability-item i {
+        font-size: 1.5rem !important;
+    }
+    
+    .execution-area h5 i {
+        font-size: 1.2rem;
+    }
+}
+
+/* 加载动画增强 */
 .loading {
     display: inline-block;
     width: 20px;
     height: 20px;
     border: 3px solid rgba(52, 152, 219, 0.3);
     border-radius: 50%;
-    border-top-color: var(--secondary-color);
+    border-top-color: var(--primary-color);
     animation: spin 1s ease-in-out infinite;
 }
 
 @keyframes spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
     }
 }
 
@@ -715,17 +1377,83 @@ body {
     font-size: 1.1rem;
 }
 
-/* 空状态样式 */
+/* ========== 空状态和分页优化样式 ========== */
 .empty-state {
     text-align: center;
-    padding: 3rem 1rem;
+    padding: 4rem 1rem;
     color: #6c757d;
 }
 
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+.empty-state .empty-icon {
+    margin-bottom: 2rem;
+    animation: float 3s ease-in-out infinite;
+}
+
+.empty-state .empty-icon i {
+    font-size: 4rem;
     color: #dee2e6;
+}
+
+.empty-state h4 {
+    color: #6c757d;
+    font-weight: 500;
+    margin-bottom: 1rem;
+}
+
+.empty-state p {
+    color: #868e96;
+    font-size: 1rem;
+    max-width: 400px;
+    margin: 0 auto 2rem;
+    line-height: 1.6;
+}
+
+.empty-state .btn-primary {
+    font-weight: 600;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+    transition: all 0.3s ease;
+}
+
+.empty-state .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,123,255,0.4);
+}
+
+/* 分页样式优化 */
+.pagination-rounded .page-link {
+    border-radius: 8px;
+    margin: 0 2px;
+    border: 2px solid transparent;
+    color: var(--primary-color);
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.pagination-rounded .page-link:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+}
+
+.pagination-rounded .page-item.active .page-link {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+}
+
+/* 浮动动画 */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
 }
 
 /* 工具提示样式 */

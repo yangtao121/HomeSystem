@@ -20,65 +20,73 @@
 </div>
 
 <!-- 任务统计概览 -->
-<div class="row mb-4">
-    <div class="col-xl-3 col-md-6 mb-3">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-xs font-weight-bold text-uppercase mb-1">定时任务</div>
-                        <div class="h5 mb-0 font-weight-bold" id="scheduledTasksCount">{{ scheduled_count | default(0) }}</div>
+<div class="row mb-4 g-3">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card border-0 shadow-sm hover-lift">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="flex-grow-1">
+                        <p class="text-muted text-uppercase fw-semibold mb-2 small">定时任务</p>
+                        <h3 class="mb-0 fw-bold text-primary" id="scheduledTasksCount">{{ scheduled_count | default(0) }}</h3>
                     </div>
-                    <div class="col-auto">
-                        <i class="fas fa-clock fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-xl-3 col-md-6 mb-3">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-xs font-weight-bold text-uppercase mb-1">一次性任务</div>
-                        <div class="h5 mb-0 font-weight-bold" id="immediateTasksCount">{{ immediate_count | default(0) }}</div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="fas fa-play fa-2x"></i>
+                    <div class="flex-shrink-0">
+                        <div class="stats-icon bg-primary bg-opacity-10 text-primary rounded-3 p-3">
+                            <i class="fas fa-clock fa-lg"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-xl-3 col-md-6 mb-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-xs font-weight-bold text-uppercase mb-1">运行中任务</div>
-                        <div class="h5 mb-0 font-weight-bold" id="runningTasksCount">{{ running_count | default(0) }}</div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card border-0 shadow-sm hover-lift">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="flex-grow-1">
+                        <p class="text-muted text-uppercase fw-semibold mb-2 small">一次性任务</p>
+                        <h3 class="mb-0 fw-bold text-info" id="immediateTasksCount">{{ immediate_count | default(0) }}</h3>
                     </div>
-                    <div class="col-auto">
-                        <i class="fas fa-cog fa-spin fa-2x"></i>
+                    <div class="flex-shrink-0">
+                        <div class="stats-icon bg-info bg-opacity-10 text-info rounded-3 p-3">
+                            <i class="fas fa-play fa-lg"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-xl-3 col-md-6 mb-3">
-        <div class="card bg-warning text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <div class="text-xs font-weight-bold text-uppercase mb-1">总任务数</div>
-                        <div class="h5 mb-0 font-weight-bold" id="totalTasksCount">{{ total_count | default(0) }}</div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card border-0 shadow-sm hover-lift">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="flex-grow-1">
+                        <p class="text-muted text-uppercase fw-semibold mb-2 small">运行中任务</p>
+                        <h3 class="mb-0 fw-bold text-success" id="runningTasksCount">{{ running_count | default(0) }}</h3>
                     </div>
-                    <div class="col-auto">
-                        <i class="fas fa-list fa-2x"></i>
+                    <div class="flex-shrink-0">
+                        <div class="stats-icon bg-success bg-opacity-10 text-success rounded-3 p-3">
+                            <i class="fas fa-cog fa-spin fa-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card border-0 shadow-sm hover-lift">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="flex-grow-1">
+                        <p class="text-muted text-uppercase fw-semibold mb-2 small">总任务数</p>
+                        <h3 class="mb-0 fw-bold text-warning" id="totalTasksCount">{{ total_count | default(0) }}</h3>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <div class="stats-icon bg-warning bg-opacity-10 text-warning rounded-3 p-3">
+                            <i class="fas fa-list fa-lg"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -88,233 +96,259 @@
 
 <div class="row">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-list me-2"></i>任务列表
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+                    <h5 class="mb-0 text-dark fw-bold">
+                        <i class="fas fa-list me-2 text-primary"></i>任务列表
                     </h5>
                     <!-- 筛选器 -->
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-sm" id="taskTypeFilter" style="width: auto;">
-                            <option value="all">全部类型</option>
-                            <option value="scheduled">定时任务</option>
-                            <option value="immediate">一次性任务</option>
-                        </select>
-                        <select class="form-select form-select-sm" id="taskStatusFilter" style="width: auto;">
-                            <option value="all">全部状态</option>
-                            <option value="running">运行中</option>
-                            <option value="completed">已完成</option>
-                            <option value="failed">失败</option>
-                            <option value="stopped">已停止</option>
-                            <option value="paused">已暂停</option>
-                        </select>
+                    <div class="d-flex flex-wrap gap-3 align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-label mb-0 text-muted small fw-semibold">类型:</label>
+                            <select class="form-select form-select-sm border-2" id="taskTypeFilter" style="min-width: 120px;">
+                                <option value="all">全部类型</option>
+                                <option value="scheduled">定时任务</option>
+                                <option value="immediate">一次性任务</option>
+                            </select>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-label mb-0 text-muted small fw-semibold">状态:</label>
+                            <select class="form-select form-select-sm border-2" id="taskStatusFilter" style="min-width: 120px;">
+                                <option value="all">全部状态</option>
+                                <option value="running">运行中</option>
+                                <option value="completed">已完成</option>
+                                <option value="failed">失败</option>
+                                <option value="stopped">已停止</option>
+                                <option value="paused">已暂停</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="card-body">
                 {% if tasks %}
                 <!-- 批量操作工具栏 -->
-                <div class="row mb-3">
-                    <div class="col-12">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="d-flex align-items-center">
-                                <div class="form-check me-3">
-                                    <input class="form-check-input" type="checkbox" id="selectAll">
-                                    <label class="form-check-label" for="selectAll">
-                                        全选
-                                    </label>
-                                </div>
-                                <button class="btn btn-outline-danger btn-sm" id="batchDeleteBtn" style="display: none;">
+                <div class="batch-toolbar bg-light border-bottom mb-0 p-3">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAll">
+                                <label class="form-check-label fw-semibold" for="selectAll">
+                                    全选任务
+                                </label>
+                            </div>
+                            <div class="batch-actions d-flex gap-2">
+                                <button class="btn btn-outline-danger btn-sm d-none" id="batchDeleteBtn">
                                     <i class="fas fa-trash me-1"></i>批量删除 (<span id="selectedCount">0</span>)
                                 </button>
-                                <button class="btn btn-outline-warning btn-sm ms-2" id="batchStopBtn" style="display: none;">
+                                <button class="btn btn-outline-warning btn-sm d-none" id="batchStopBtn">
                                     <i class="fas fa-stop me-1"></i>批量停止 (<span id="selectedStopCount">0</span>)
                                 </button>
                             </div>
-                            <small class="text-muted">
-                                共 <span id="totalTasksDisplay">{{ tasks|length }}</span> 个任务
-                                <span id="filteredTasksDisplay" style="display: none;">（已筛选）</span>
-                            </small>
+                        </div>
+                        <div class="task-count-info">
+                            <span class="badge bg-light text-dark border">
+                                <i class="fas fa-tasks me-1"></i>
+                                共 <span id="totalTasksDisplay" class="fw-bold">{{ tasks|length }}</span> 个任务
+                                <span id="filteredTasksDisplay" class="d-none">（已筛选）</span>
+                            </span>
                         </div>
                     </div>
                 </div>
                 
                 <div class="table-responsive">
-                    <table class="table table-hover" id="tasksTable">
-                        <thead>
+                    <table class="table table-hover align-middle mb-0" id="tasksTable">
+                        <thead class="table-light">
                             <tr>
-                                <th width="50px">
-                                    <input class="form-check-input" type="checkbox" id="selectAllHeader" style="margin: 0;">
+                                <th width="50px" class="text-center">
+                                    <input class="form-check-input" type="checkbox" id="selectAllHeader">
                                 </th>
-                                <th>任务信息</th>
-                                <th>类型</th>
-                                <th>状态</th>
-                                <th>执行信息</th>
-                                <th>配置</th>
-                                <th>操作</th>
+                                <th class="fw-semibold text-dark">任务信息</th>
+                                <th class="fw-semibold text-dark" width="120px">类型</th>
+                                <th class="fw-semibold text-dark" width="120px">状态</th>
+                                <th class="fw-semibold text-dark" width="200px">执行信息</th>
+                                <th class="fw-semibold text-dark" width="180px">配置</th>
+                                <th class="fw-semibold text-dark" width="200px">操作</th>
                             </tr>
                         </thead>
                         <tbody id="tasksTableBody">
                             {% for task in tasks %}
-                            <tr class="task-row" 
+                            <tr class="task-row border-bottom" 
                                 data-task-id="{{ task.task_id }}" 
                                 data-task-type="{{ task.task_type }}"
                                 data-task-status="{{ task.status }}">
-                                <td>
+                                <td class="text-center">
                                     <input class="form-check-input row-checkbox" type="checkbox" 
-                                           value="{{ task.task_id }}" style="margin: 0;">
+                                           value="{{ task.task_id }}">
                                 </td>
-                                <td>
-                                    <div>
-                                        <strong>{{ task.task_name or task.task_id[:8] + '...' }}</strong>
-                                        <br>
-                                        <small class="text-muted">
-                                            ID: <code>{{ task.task_id[:8] }}...</code>
-                                        </small>
-                                        <br>
-                                        <small class="text-muted">
-                                            创建: {{ task.start_time | format_date }}
-                                        </small>
+                                <td class="py-3">
+                                    <div class="task-info">
+                                        <h6 class="mb-1 fw-semibold text-dark">{{ task.task_name or task.task_id[:8] + '...' }}</h6>
+                                        <div class="task-details">
+                                            <small class="text-muted d-block mb-1">
+                                                <i class="fas fa-fingerprint me-1"></i>ID: <code class="small">{{ task.task_id[:8] }}...</code>
+                                            </small>
+                                            <small class="text-muted d-block">
+                                                <i class="fas fa-calendar-plus me-1"></i>创建: {{ task.start_time | format_date }}
+                                            </small>
+                                        </div>
                                     </div>
                                 </td>
-                                <td>
-                                    {% if task.task_type == 'scheduled' %}
-                                        <span class="badge bg-success">
-                                            <i class="fas fa-clock me-1"></i>定时任务
-                                        </span>
-                                        {% if task.interval_seconds %}
-                                        <br>
-                                        <small class="text-muted">
-                                            间隔: {{ task.interval_seconds | format_duration }}
-                                        </small>
+                                <td class="py-3">
+                                    <div class="task-type-info">
+                                        {% if task.task_type == 'scheduled' %}
+                                            <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">
+                                                <i class="fas fa-clock me-1"></i>定时任务
+                                            </span>
+                                            {% if task.interval_seconds %}
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-clock me-1"></i>间隔: {{ task.interval_seconds | format_duration }}
+                                                </small>
+                                            </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">
+                                                <i class="fas fa-play me-1"></i>一次性任务
+                                            </span>
                                         {% endif %}
-                                    {% else %}
-                                        <span class="badge bg-primary">
-                                            <i class="fas fa-play me-1"></i>一次性任务
-                                        </span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-{{ task.status | status_badge }}">
-                                        {{ task.status | upper }}
-                                    </span>
-                                    {% if task.task_type == 'scheduled' and task.is_running %}
-                                    <br>
-                                    <small class="text-success">
-                                        <i class="fas fa-circle"></i> 活跃
-                                    </small>
-                                    {% endif %}
-                                    {% if task.progress is defined and task.progress > 0 %}
-                                    <br>
-                                    <div class="progress mt-1" style="width: 80px; height: 12px;">
-                                        <div class="progress-bar" role="progressbar" 
-                                             style="width: {{ (task.progress * 100) | round(1) }}%"></div>
                                     </div>
-                                    {% endif %}
                                 </td>
-                                <td>
-                                    {% if task.task_type == 'scheduled' %}
-                                        <div class="mb-1">
-                                            <span class="badge bg-secondary">
-                                                执行 {{ task.execution_count or 0 }} 次
+                                <td class="py-3">
+                                    <div class="task-status-info">
+                                        <span class="badge bg-{{ task.status | status_badge }}-subtle text-{{ task.status | status_badge }} px-3 py-2 rounded-pill">
+                                            <i class="fas fa-circle me-1" style="font-size: 0.6rem;"></i>
+                                            {{ task.status | upper }}
+                                        </span>
+                                        {% if task.task_type == 'scheduled' and task.is_running %}
+                                        <div class="mt-2">
+                                            <small class="text-success fw-semibold">
+                                                <i class="fas fa-circle-dot me-1 text-success"></i> 活跃中
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                        {% if task.progress is defined and task.progress > 0 %}
+                                        <div class="mt-2">
+                                            <div class="progress" style="height: 6px;">
+                                                <div class="progress-bar bg-primary" role="progressbar" 
+                                                     style="width: {{ (task.progress * 100) | round(1) }}%"></div>
+                                            </div>
+                                            <small class="text-muted">{{ (task.progress * 100) | round(1) }}%</small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="py-3">
+                                    <div class="execution-info">
+                                        {% if task.task_type == 'scheduled' %}
+                                            <div class="mb-2">
+                                                <span class="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill">
+                                                    <i class="fas fa-redo me-1"></i>执行 {{ task.execution_count or 0 }} 次
+                                                </span>
+                                            </div>
+                                            {% if task.last_executed_at %}
+                                            <div class="small text-muted mb-1">
+                                                <i class="fas fa-history me-1"></i>上次: {{ task.last_executed_at | format_date }}
+                                            </div>
+                                            {% endif %}
+                                            {% if task.next_execution_at %}
+                                            <div class="small text-info">
+                                                <i class="fas fa-clock me-1"></i>下次: {{ task.next_execution_at | format_date }}
+                                            </div>
+                                            {% endif %}
+                                        {% else %}
+                                            {% if task.end_time %}
+                                            <div class="small text-muted mb-1">
+                                                <i class="fas fa-check-circle me-1"></i>完成: {{ task.end_time | format_date }}
+                                            </div>
+                                            {% endif %}
+                                            {% if task.duration %}
+                                            <div class="small text-muted">
+                                                <i class="fas fa-stopwatch me-1"></i>耗时: {{ task.duration | format_duration }}
+                                            </div>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if task.papers_found is defined and task.papers_found is not none %}
+                                        <div class="mt-2">
+                                            <span class="badge bg-info-subtle text-info px-2 py-1 rounded-pill">
+                                                <i class="fas fa-file-alt me-1"></i>{{ task.papers_found }} 篇论文
                                             </span>
                                         </div>
-                                        {% if task.last_executed_at %}
-                                        <small class="text-muted">
-                                            上次: {{ task.last_executed_at | format_date }}
-                                        </small>
-                                        <br>
-                                        {% endif %}
-                                        {% if task.next_execution_at %}
-                                        <small class="text-info">
-                                            下次: {{ task.next_execution_at | format_date }}
-                                        </small>
-                                        {% endif %}
-                                    {% else %}
-                                        {% if task.end_time %}
-                                        <small class="text-muted">
-                                            完成: {{ task.end_time | format_date }}
-                                        </small>
-                                        <br>
-                                        {% endif %}
-                                        {% if task.duration %}
-                                        <small class="text-muted">
-                                            耗时: {{ task.duration | format_duration }}
-                                        </small>
-                                        {% endif %}
-                                    {% endif %}
-                                    {% if task.papers_found is defined and task.papers_found is not none %}
-                                    <br>
-                                    <span class="badge bg-info">
-                                        {{ task.papers_found }} 篇论文
-                                    </span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="text-truncate" style="max-width: 150px;">
-                                        {% if task.search_query %}
-                                        <small class="text-muted" title="{{ task.search_query }}">
-                                            <i class="fas fa-search me-1"></i>{{ task.search_query }}
-                                        </small>
-                                        <br>
-                                        {% endif %}
-                                        {% if task.llm_model_name %}
-                                        <small class="text-muted" title="{{ task.llm_model_name }}">
-                                            <i class="fas fa-robot me-1"></i>{{ task.llm_model_name }}
-                                        </small>
                                         {% endif %}
                                     </div>
                                 </td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
+                                <td class="py-3">
+                                    <div class="config-info">
+                                        {% if task.search_query %}
+                                        <div class="mb-2">
+                                            <span class="badge bg-light text-dark border px-2 py-1 rounded-pill" 
+                                                  title="{{ task.search_query }}" data-bs-toggle="tooltip">
+                                                <i class="fas fa-search me-1 text-primary"></i>
+                                                <span class="text-truncate d-inline-block" style="max-width: 80px;">{{ task.search_query }}</span>
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                        {% if task.llm_model_name %}
+                                        <div>
+                                            <span class="badge bg-light text-dark border px-2 py-1 rounded-pill" 
+                                                  title="{{ task.llm_model_name }}" data-bs-toggle="tooltip">
+                                                <i class="fas fa-robot me-1 text-info"></i>
+                                                <span class="text-truncate d-inline-block" style="max-width: 80px;">{{ task.llm_model_name }}</span>
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="py-3">
+                                    <div class="action-buttons d-flex flex-wrap gap-1">
                                         <!-- 查看详情 -->
-                                        <button class="btn btn-outline-info" 
+                                        <button class="btn btn-outline-info btn-sm px-2" 
                                                 onclick="showTaskDetails('{{ task.task_id }}')" 
-                                                title="查看详情">
+                                                title="查看详情" data-bs-toggle="tooltip">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        
                                         
                                         <!-- 定时任务特殊操作 -->
                                         {% if task.task_type == 'scheduled' %}
                                             {% if task.status == 'running' and task.is_running %}
-                                            <button class="btn btn-outline-success" 
+                                            <button class="btn btn-outline-success btn-sm px-2" 
                                                     onclick="triggerScheduledTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
-                                                    title="立即执行">
+                                                    title="立即执行" data-bs-toggle="tooltip">
                                                 <i class="fas fa-play"></i>
                                             </button>
-                                            <button class="btn btn-outline-warning" 
+                                            <button class="btn btn-outline-warning btn-sm px-2" 
                                                     onclick="pauseScheduledTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
-                                                    title="暂停任务">
+                                                    title="暂停任务" data-bs-toggle="tooltip">
                                                 <i class="fas fa-pause"></i>
                                             </button>
                                             {% elif task.status == 'paused' %}
-                                            <button class="btn btn-outline-primary" 
+                                            <button class="btn btn-outline-primary btn-sm px-2" 
                                                     onclick="resumeScheduledTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
-                                                    title="恢复任务">
+                                                    title="恢复任务" data-bs-toggle="tooltip">
                                                 <i class="fas fa-play"></i>
                                             </button>
                                             {% endif %}
-                                            <button class="btn btn-outline-primary" 
+                                            <button class="btn btn-outline-primary btn-sm px-2" 
                                                     onclick="editTaskConfig('{{ task.task_id }}')" 
-                                                    title="编辑配置">
+                                                    title="编辑配置" data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </button>
                                         {% endif %}
                                         
                                         <!-- 取消运行中任务 -->
                                         {% if task.status in ['pending', 'running'] %}
-                                        <button class="btn btn-outline-warning" 
-                                                onclick="cancelTask('{{ task.task_id }}')" title="取消任务">
+                                        <button class="btn btn-outline-warning btn-sm px-2" 
+                                                onclick="cancelTask('{{ task.task_id }}')" 
+                                                title="取消任务" data-bs-toggle="tooltip">
                                             <i class="fas fa-stop"></i>
                                         </button>
                                         {% endif %}
                                         
                                         <!-- 删除任务 -->
-                                        <button class="btn btn-outline-danger" 
+                                        <button class="btn btn-outline-danger btn-sm px-2" 
                                                 onclick="deleteTask('{{ task.task_id }}', '{{ task.task_name or task.task_id[:8] }}')" 
-                                                title="删除任务">
+                                                title="删除任务" data-bs-toggle="tooltip">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -326,8 +360,9 @@
                 </div>
                 
                 {% if pagination and pagination.total_pages > 1 %}
-                <nav class="mt-4">
-                    <ul class="pagination justify-content-center">
+                <div class="d-flex justify-content-center mt-4">
+                    <nav>
+                        <ul class="pagination pagination-rounded">
                         {% if pagination.has_prev %}
                         <li class="page-item">
                             <a class="page-link" href="?page={{ pagination.prev_num }}">上一页</a>
@@ -359,17 +394,20 @@
                             <a class="page-link" href="?page={{ pagination.next_num }}">下一页</a>
                         </li>
                         {% endif %}
-                    </ul>
-                </nav>
+                        </ul>
+                    </nav>
+                </div>
                 {% endif %}
                 
                 {% else %}
-                <div class="text-center py-5">
-                    <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted">暂无任务</h5>
-                    <p class="text-muted">还没有创建任何任务</p>
-                    <a href="{{ url_for('collect.config') }}" class="btn btn-primary">
-                        <i class="fas fa-plus me-1"></i>立即创建任务
+                <div class="empty-state text-center py-5">
+                    <div class="empty-icon mb-4">
+                        <i class="fas fa-tasks fa-4x text-muted opacity-50"></i>
+                    </div>
+                    <h4 class="text-muted mb-3">暂无任务</h4>
+                    <p class="text-muted mb-4">还没有创建任何任务，开始创建您的第一个任务吧</p>
+                    <a href="{{ url_for('collect.config') }}" class="btn btn-primary btn-lg px-4">
+                        <i class="fas fa-plus me-2"></i>立即创建任务
                     </a>
                 </div>
                 {% endif %}
@@ -429,6 +467,9 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
+    // 初始化工具提示
+    $('[data-bs-toggle="tooltip"]').tooltip();
+    
     // 初始化筛选器事件
     $('#taskTypeFilter, #taskStatusFilter').change(function() {
         filterTasks();
@@ -506,19 +547,19 @@ function filterTasks() {
         }
         
         if (showTask) {
-            $(this).show();
+            $(this).removeClass('d-none');
             visibleCount++;
         } else {
-            $(this).hide();
+            $(this).addClass('d-none');
         }
     });
     
     // 更新显示统计
     $('#totalTasksDisplay').text(visibleCount);
     if (typeFilter !== 'all' || statusFilter !== 'all') {
-        $('#filteredTasksDisplay').show();
+        $('#filteredTasksDisplay').removeClass('d-none');
     } else {
-        $('#filteredTasksDisplay').hide();
+        $('#filteredTasksDisplay').addClass('d-none');
     }
     
     // 重置选择状态
@@ -539,14 +580,14 @@ function updateBatchButtons() {
     $('#selectedCount, #selectedStopCount').text(checkedCount);
     
     if (checkedCount > 0) {
-        $('#batchDeleteBtn').show();
+        $('#batchDeleteBtn').removeClass('d-none');
         if (runnableTasksCount > 0) {
-            $('#batchStopBtn').show();
+            $('#batchStopBtn').removeClass('d-none');
         } else {
-            $('#batchStopBtn').hide();
+            $('#batchStopBtn').addClass('d-none');
         }
     } else {
-        $('#batchDeleteBtn, #batchStopBtn').hide();
+        $('#batchDeleteBtn, #batchStopBtn').addClass('d-none');
     }
 }
 

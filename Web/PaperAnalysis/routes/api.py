@@ -522,6 +522,30 @@ def api_update_task_name():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/delete_paper', methods=['POST'])
+def api_delete_paper_post():
+    """删除单个论文 (POST请求，从JSON body获取arxiv_id)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '请求数据不能为空'}), 400
+        
+        arxiv_id = data.get('arxiv_id')
+        if not arxiv_id:
+            return jsonify({'success': False, 'error': '缺少论文ID'}), 400
+        
+        success = paper_explore_service.delete_paper(arxiv_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': '论文删除成功'})
+        else:
+            return jsonify({'success': False, 'error': '删除失败，论文不存在'}), 404
+    
+    except Exception as e:
+        logger.error(f"删除论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/explore/delete_paper/<arxiv_id>', methods=['DELETE'])
 def api_delete_paper(arxiv_id):
     """删除单个论文"""

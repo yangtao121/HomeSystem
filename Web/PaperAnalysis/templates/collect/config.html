@@ -4,66 +4,346 @@
 
 {% block head %}
 <style>
+/* 配置页面专用样式 */
 .config-section {
-    border-left: 4px solid #007bff;
-    padding-left: 15px;
-    margin-bottom: 30px;
+    background: white;
+    border-radius: 12px;
+    border-left: 4px solid var(--primary-color);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
+
+.config-section:hover {
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    transform: translateY(-2px);
+}
+
+.config-section h4 {
+    color: var(--primary-color);
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.config-section h4 i {
+    font-size: 1.2rem;
+    opacity: 0.8;
 }
 
 .form-help {
     font-size: 0.875rem;
     color: #6c757d;
+    margin-top: 0.375rem;
+    line-height: 1.4;
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.form-control,
+.form-select {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.15);
 }
 
 .execution-mode-card {
     cursor: pointer;
-    transition: all 0.2s;
-    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    border: 3px solid #e9ecef;
+    border-radius: 12px;
+    background: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.execution-mode-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
 }
 
 .execution-mode-card:hover {
-    border-color: #007bff;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 8px 24px rgba(0,123,255,0.15);
+    transform: translateY(-2px);
+}
+
+.execution-mode-card:hover::before {
+    transform: translateX(0);
 }
 
 .execution-mode-card.selected {
-    border-color: #007bff;
-    background-color: #f8f9fa;
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(0,123,255,0.05) 0%, rgba(0,123,255,0.02) 100%);
+    box-shadow: 0 8px 24px rgba(0,123,255,0.2);
 }
 
-.slider-container {
-    padding: 10px 0;
+.execution-mode-card.selected::before {
+    transform: translateX(0);
 }
 
-.range-input {
-    width: 100%;
+.execution-mode-card .card-body {
+    padding: 2rem 1.5rem;
 }
 
-.range-value {
-    font-weight: bold;
-    color: #007bff;
+.execution-mode-card i {
+    transition: all 0.3s ease;
+}
+
+.execution-mode-card:hover i {
+    transform: scale(1.1);
+}
+
+.execution-mode-card h5 {
+    font-weight: 700;
+    color: var(--dark-color);
+    margin: 1rem 0 0.75rem;
+}
+
+.execution-mode-card p {
+    color: var(--secondary-color);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+/* 中文搜索助手样式优化 */
+.chinese-assistant-card {
+    background: linear-gradient(135deg, rgba(40,167,69,0.05) 0%, rgba(40,167,69,0.02) 100%);
+    border: 2px solid rgba(40,167,69,0.2);
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+}
+
+.chinese-assistant-card:hover {
+    border-color: var(--success-color);
+    box-shadow: 0 6px 20px rgba(40,167,69,0.15);
+}
+
+.chinese-assistant-card .card-title {
+    color: var(--success-color);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.chinese-assistant-card .card-text {
+    color: #495057;
+    line-height: 1.6;
+}
+
+/* 搜索能力说明卡片优化 */
+.capability-card {
+    background: linear-gradient(135deg, rgba(23,162,184,0.05) 0%, rgba(23,162,184,0.02) 100%);
+    border: 2px solid rgba(23,162,184,0.2);
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+}
+
+.capability-card:hover {
+    border-color: var(--info-color);
+    box-shadow: 0 6px 20px rgba(23,162,184,0.15);
+}
+
+.capability-card .card-title {
+    color: var(--info-color);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.capability-row {
+    margin-top: 1rem;
+}
+
+.capability-item {
+    padding: 0.75rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.capability-item:hover {
+    background-color: rgba(255,255,255,0.8);
+    transform: translateY(-2px);
+}
+
+/* 按钮组优化 */
+.btn-group .btn {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 执行操作区域优化 */
+.execution-area {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
+
+.execution-area:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 6px 20px rgba(0,123,255,0.15);
+}
+
+.execution-area h5 {
+    color: var(--primary-color);
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+/* 主要操作按钮优化 */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    border: none;
+    border-radius: 8px;
+    padding: 0.875rem 2rem;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,123,255,0.4);
+    background: linear-gradient(135deg, #0056b3 0%, var(--primary-color) 100%);
+}
+
+/* 次要操作按钮优化 */
+.btn-outline-secondary,
+.btn-outline-info {
+    border-radius: 8px;
+    padding: 0.875rem 1.5rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-info:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 转换状态和结果样式优化 */
+.translation-status {
+    background: linear-gradient(135deg, rgba(40,167,69,0.1) 0%, rgba(40,167,69,0.05) 100%);
+    border: 1px solid rgba(40,167,69,0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.translation-result .alert {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(40,167,69,0.15);
+}
+
+/* 定时间隔设置卡片优化 */
+.interval-settings-card {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.interval-settings-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0,123,255,0.1);
+}
+
+/* 模态框样式优化 */
+.modal-content {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    padding: 1.5rem;
+}
+
+.modal-title {
+    font-weight: 700;
+}
+
+.modal-body {
+    padding: 2rem;
+}
+
+.modal-footer {
+    border-top: 1px solid #e9ecef;
+    padding: 1.5rem 2rem;
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12 mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1><i class="fas fa-cog me-2"></i>任务配置</h1>
-                <p class="text-muted">配置论文收集任务的参数，支持即时执行和定时执行两种模式</p>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+            <div class="page-header">
+                <h1 class="display-6 fw-bold text-primary mb-2">
+                    <i class="fas fa-cog me-3"></i>任务配置中心
+                </h1>
+                <p class="lead text-muted mb-0">智能配置论文收集任务，支持即时执行和定时执行模式</p>
+                <div class="mt-2">
+                    <span class="badge bg-primary-subtle text-primary me-2">
+                        <i class="fas fa-robot me-1"></i>AI 智能转换
+                    </span>
+                    <span class="badge bg-success-subtle text-success me-2">
+                        <i class="fas fa-clock me-1"></i>定时任务
+                    </span>
+                    <span class="badge bg-info-subtle text-info">
+                        <i class="fas fa-expand-arrows-alt me-1"></i>大规模搜索
+                    </span>
+                </div>
             </div>
-            <div class="btn-group">
-                <button type="button" class="btn btn-outline-primary" id="loadHistoryTaskBtn">
-                    <i class="fas fa-history me-1"></i>从历史任务加载
-                </button>
-                <button type="button" class="btn btn-outline-secondary" id="loadPresetBtn">
-                    <i class="fas fa-bookmark me-1"></i>加载预设
-                </button>
-                <button type="button" class="btn btn-outline-success" id="savePresetBtn">
-                    <i class="fas fa-save me-1"></i>保存预设
-                </button>
+            <div class="config-actions">
+                <div class="btn-group flex-wrap" role="group">
+                    <button type="button" class="btn btn-outline-primary btn-lg" id="loadHistoryTaskBtn">
+                        <i class="fas fa-history me-2"></i>历史任务
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -110,58 +390,6 @@
     </div>
 </div>
 
-<!-- 配置预设模态框 -->
-<div class="modal fade" id="presetModal" tabindex="-1" aria-labelledby="presetModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="presetModalLabel">
-                    <i class="fas fa-bookmark me-2"></i>配置预设
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="presetList">
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">加载中...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 保存预设模态框 -->
-<div class="modal fade" id="savePresetModal" tabindex="-1" aria-labelledby="savePresetModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="savePresetModalLabel">
-                    <i class="fas fa-save me-2"></i>保存配置预设
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="savePresetForm">
-                    <div class="mb-3">
-                        <label for="presetName" class="form-label">预设名称 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="presetName" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="presetDescription" class="form-label">描述（可选）</label>
-                        <textarea class="form-control" id="presetDescription" rows="3"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="confirmSavePresetBtn">保存</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <form id="taskConfigForm">
     <!-- 执行模式选择 -->
@@ -209,24 +437,46 @@
         </div>
 
         <!-- 定时间隔设置 -->
-        <div id="scheduled_options" class="mt-3" style="display: none;">
-            <div class="card">
+        <div id="scheduled_options" class="mt-4" style="display: none;">
+            <div class="card interval-settings-card">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0 fw-bold">
+                        <i class="fas fa-stopwatch me-2"></i>定时执行间隔配置
+                    </h6>
+                </div>
                 <div class="card-body">
-                    <h6><i class="fas fa-stopwatch me-2"></i>定时间隔设置</h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label for="interval_seconds" class="form-label">执行间隔（秒）</label>
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <label for="interval_seconds" class="form-label">
+                                <i class="fas fa-clock me-2 text-primary"></i>执行间隔（秒）
+                            </label>
                             <input type="number" class="form-control" id="interval_seconds" 
-                                   name="interval_seconds" value="3600" min="300" max="86400">
-                            <div class="form-help">建议间隔不少于5分钟（300秒）</div>
+                                   name="interval_seconds" value="3600" min="300" max="86400"
+                                   placeholder="输入间隔秒数">
+                            <div class="form-help">
+                                <i class="fas fa-info-circle me-1"></i>建议设置不少于 5 分钟（300秒）的执行间隔
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">常用间隔</label>
-                            <div class="btn-group d-block" role="group">
-                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="setInterval(1800)">30分钟</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="setInterval(3600)">1小时</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="setInterval(21600)">6小时</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setInterval(86400)">24小时</button>
+                        <div class="col-lg-6">
+                            <label class="form-label">
+                                <i class="fas fa-magic me-2 text-success"></i>快速设置
+                            </label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setInterval(1800)">
+                                    <i class="fas fa-clock me-1"></i>30分钟
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setInterval(3600)">
+                                    <i class="fas fa-clock me-1"></i>1小时
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setInterval(21600)">
+                                    <i class="fas fa-clock me-1"></i>6小时
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setInterval(86400)">
+                                    <i class="fas fa-clock me-1"></i>24小时
+                                </button>
+                            </div>
+                            <div class="form-help mt-2">
+                                <i class="fas fa-lightbulb me-1"></i>点击按钮快速设置常用时间间隔
                             </div>
                         </div>
                     </div>
@@ -240,14 +490,20 @@
         <h4><i class="fas fa-search me-2"></i>搜索配置</h4>
         
         <!-- 中文搜索助手 -->
-        <div class="card mb-4" style="border-left: 4px solid #28a745;">
+        <div class="card chinese-assistant-card mb-4">
             <div class="card-body">
-                <h6 class="card-title">
-                    <i class="fas fa-language me-2 text-success"></i>中文搜索助手
-                    <small class="text-muted">- 一键生成英文搜索参数</small>
+                <h6 class="card-title d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <i class="fas fa-language fa-lg text-success"></i>
+                    </div>
+                    <div>
+                        <span class="fw-bold">AI 智能搜索助手</span>
+                        <div class="small text-muted mt-1">中文需求 → 专业英文搜索参数</div>
+                    </div>
                 </h6>
-                <p class="card-text small text-muted mb-3">
-                    输入中文描述，AI自动生成专业的英文搜索关键词和需求描述，让您的论文搜索更精准
+                <p class="card-text text-muted mb-4 lh-base">
+                    <i class="fas fa-magic me-2 text-success"></i>
+                    输入中文描述，AI 自动生成专业的英文搜索关键词和需求描述，让您的论文搜索更加精准高效
                 </p>
                 
                 <div class="row">
@@ -379,41 +635,59 @@
         </div>
         
         <!-- 大规模搜索能力说明 -->
-        <div class="card mb-4" style="border-left: 4px solid #17a2b8;">
+        <div class="card capability-card mb-4">
             <div class="card-body">
-                <h6 class="card-title">
-                    <i class="fas fa-rocket me-2 text-info"></i>增强的搜索能力
-                    <small class="text-muted">- 支持大规模论文收集</small>
+                <h6 class="card-title d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <i class="fas fa-rocket fa-lg text-info"></i>
+                    </div>
+                    <div>
+                        <span class="fw-bold">增强搜索引擎</span>
+                        <div class="small text-muted mt-1">支持最高 30,000 篇论文的大规模收集</div>
+                    </div>
                 </h6>
-                <p class="card-text small mb-2">
-                    系统现已支持最高 <strong>30,000篇</strong> 论文的单次搜索，适用于全面的研究领域调研和大规模文献收集任务。
+                <p class="card-text text-muted mb-4 lh-base">
+                    <i class="fas fa-database me-2 text-info"></i>
+                    系统现已支持大规模论文收集，适用于全面的研究领域调研和深度文献分析任务
                 </p>
                 
-                <div class="row small">
-                    <div class="col-md-4">
-                        <div class="text-success">
-                            <i class="fas fa-bolt me-1"></i><strong>小规模 (1-100篇)</strong><br>
-                            <span class="text-muted">快速搜索，适合精准主题</span>
+                <div class="row capability-row g-3">
+                    <div class="col-lg-4">
+                        <div class="capability-item text-center">
+                            <div class="mb-2">
+                                <i class="fas fa-bolt fa-2x text-success"></i>
+                            </div>
+                            <h6 class="fw-bold text-success mb-2">精准搜索</h6>
+                            <div class="small text-muted mb-2">1-100篇论文</div>
+                            <div class="small text-secondary">快速响应，专注目标</div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="text-warning">
-                            <i class="fas fa-balance-scale me-1"></i><strong>中规模 (100-1000篇)</strong><br>
-                            <span class="text-muted">平衡覆盖度和处理时间</span>
+                    <div class="col-lg-4">
+                        <div class="capability-item text-center">
+                            <div class="mb-2">
+                                <i class="fas fa-balance-scale fa-2x text-warning"></i>
+                            </div>
+                            <h6 class="fw-bold text-warning mb-2">平衡搜索</h6>
+                            <div class="small text-muted mb-2">100-1000篇论文</div>
+                            <div class="small text-secondary">覆盖度与效率并重</div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="text-info">
-                            <i class="fas fa-expand-arrows-alt me-1"></i><strong>大规模 (1000-30000篇)</strong><br>
-                            <span class="text-muted">自动分页，进度跟踪，全面覆盖</span>
+                    <div class="col-lg-4">
+                        <div class="capability-item text-center">
+                            <div class="mb-2">
+                                <i class="fas fa-expand-arrows-alt fa-2x text-info"></i>
+                            </div>
+                            <h6 class="fw-bold text-info mb-2">全面覆盖</h6>
+                            <div class="small text-muted mb-2">1000-30000篇论文</div>
+                            <div class="small text-secondary">智能分页，完整追踪</div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="mt-2">
+                <div class="mt-4 p-3 bg-light rounded">
                     <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>
-                        大规模搜索会自动启用分页处理和进度跟踪，确保系统稳定性和搜索完整性
+                        <i class="fas fa-info-circle me-2 text-info"></i>
+                        大规模搜索采用智能分页处理和实时进度跟踪技术，确保系统稳定性和搜索结果的完整性
                     </small>
                 </div>
             </div>
@@ -446,22 +720,39 @@
     <!-- 操作按钮 -->
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="mb-1">准备执行任务</h5>
-                            <p class="mb-0 text-muted">请检查配置参数，然后选择执行方式</p>
+            <div class="execution-area">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-4">
+                    <div class="execution-info">
+                        <h5 class="mb-2 d-flex align-items-center">
+                            <i class="fas fa-rocket me-3 text-primary"></i>
+                            准备启动任务
+                        </h5>
+                        <p class="mb-0 text-muted lh-base">
+                            <i class="fas fa-check-circle me-2 text-success"></i>
+                            请仔细检查所有配置参数，确认无误后点击执行按钮启动任务
+                        </p>
+                        <div class="mt-3">
+                            <span class="badge bg-info-subtle text-info me-2">
+                                <i class="fas fa-shield-alt me-1"></i>配置验证
+                            </span>
+                            <span class="badge bg-warning-subtle text-warning me-2">
+                                <i class="fas fa-history me-1"></i>一键重置
+                            </span>
+                            <span class="badge bg-success-subtle text-success">
+                                <i class="fas fa-play me-1"></i>立即执行
+                            </span>
                         </div>
-                        <div>
-                            <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
-                                <i class="fas fa-undo me-1"></i>重置
+                    </div>
+                    <div class="execution-controls">
+                        <div class="d-flex flex-column flex-sm-row gap-2">
+                            <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                                <i class="fas fa-undo me-2"></i>重置配置
                             </button>
-                            <button type="button" class="btn btn-outline-info me-2" onclick="validateConfig()">
-                                <i class="fas fa-check me-1"></i>验证配置
+                            <button type="button" class="btn btn-outline-info" onclick="validateConfig()">
+                                <i class="fas fa-check-circle me-2"></i>验证配置
                             </button>
-                            <button type="submit" class="btn btn-primary" id="executeBtn">
-                                <i class="fas fa-play me-1"></i>执行任务
+                            <button type="submit" class="btn btn-primary btn-lg" id="executeBtn">
+                                <i class="fas fa-play me-2"></i>启动任务
                             </button>
                         </div>
                     </div>
