@@ -3,139 +3,211 @@
 {% block title %}关于 - PaperAnalysis{% endblock %}
 
 {% block content %}
-<div class="container">
+<!-- 顶部渐变背景区域 -->
+<div class="hero-section">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="text-center hero-content">
+                    <h1 class="hero-title animated-title">
+                        <i class="bi bi-journal-text me-3 hero-icon"></i>
+                        <span class="title-gradient">PaperAnalysis</span>
+                        <span class="title-subtitle">关于系统</span>
+                    </h1>
+                    <p class="hero-subtitle animated-subtitle">📚 论文收集与分析系统 - 高效的学术研究助手 🚀</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid main-content">
+    <!-- 核心功能卡片 - 调整为更紧凑的布局 -->
+    <div class="row stats-section mb-5 justify-content-center">
+        <div class="col-lg-10">
+            <div class="row">
+                <div class="col-lg-4 col-md-6 col-sm-12 mb-4">
+                    <div class="stats-card stats-card-primary" data-aos="fade-up" data-aos-delay="100">
+                        <div class="stats-card-inner feature-card-layout">
+                            <div class="stats-icon-wrapper">
+                                <div class="stats-icon-bg"></div>
+                                <i class="fas fa-download stats-icon"></i>
+                            </div>
+                            <div class="stats-content">
+                                <div class="stats-label">论文收集</div>
+                                <p class="feature-description">自动化的ArXiv论文收集，支持多种搜索模式和定时任务</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6 col-sm-12 mb-4">
+                    <div class="stats-card stats-card-info" data-aos="fade-up" data-aos-delay="200">
+                        <div class="stats-card-inner feature-card-layout">
+                            <div class="stats-icon-wrapper">
+                                <div class="stats-icon-bg"></div>
+                                <i class="bi bi-search stats-icon"></i>
+                            </div>
+                            <div class="stats-content">
+                                <div class="stats-label">论文浏览</div>
+                                <p class="feature-description">强大的搜索和过滤功能，直观的论文数据可视化</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6 col-sm-12 mb-4">
+                    <div class="stats-card stats-card-warning" data-aos="fade-up" data-aos-delay="300">
+                        <div class="stats-card-inner feature-card-layout">
+                            <div class="stats-icon-wrapper">
+                                <div class="stats-icon-bg"></div>
+                                <i class="bi bi-cpu stats-icon"></i>
+                            </div>
+                            <div class="stats-content">
+                                <div class="stats-label">深度分析</div>
+                                <p class="feature-description">LLM驱动的论文深度分析，包括公式纠错和内容理解</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容区域 -->
     <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-5">
-                    <div class="text-center mb-5">
-                        <i class="bi bi-journal-text text-primary" style="font-size: 4rem;"></i>
-                        <h1 class="mt-3 mb-2">PaperAnalysis</h1>
-                        <p class="lead text-muted">论文收集与分析系统</p>
-                    </div>
+        <div class="col-lg-10 mx-auto">
+            <div class="modern-content-card" data-aos="fade-up" data-aos-delay="400">
 
+                <div class="content-section">
+                    <h3 class="section-title mb-4">
+                        <i class="bi bi-star me-2 section-icon"></i>系统特性
+                    </h3>
                     <div class="row mb-5">
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="bg-primary bg-opacity-10 rounded-3 p-3 mb-3">
-                                <i class="fas fa-download text-primary fs-2"></i>
-                            </div>
-                            <h5>论文收集</h5>
-                            <p class="text-muted small">自动化的ArXiv论文收集，支持多种搜索模式和定时任务</p>
-                        </div>
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="bg-success bg-opacity-10 rounded-3 p-3 mb-3">
-                                <i class="bi bi-search text-success fs-2"></i>
-                            </div>
-                            <h5>论文浏览</h5>
-                            <p class="text-muted small">强大的搜索和过滤功能，直观的论文数据可视化</p>
-                        </div>
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="bg-warning bg-opacity-10 rounded-3 p-3 mb-3">
-                                <i class="bi bi-cpu text-warning fs-2"></i>
-                            </div>
-                            <h5>深度分析</h5>
-                            <p class="text-muted small">LLM驱动的论文深度分析，包括公式纠错和内容理解</p>
-                        </div>
-                    </div>
-
-                    <h3 class="mb-3">系统特性</h3>
-                    <div class="row mb-4">
                         <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    智能论文收集与去重
+                            <ul class="modern-feature-list">
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>智能论文收集与去重</span>
+                                    </div>
                                 </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    多种搜索模式支持
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>多种搜索模式支持</span>
+                                    </div>
                                 </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    定时任务自动化执行
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>定时任务自动化执行</span>
+                                    </div>
                                 </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    实时任务状态监控
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>实时任务状态监控</span>
+                                    </div>
                                 </li>
                             </ul>
                         </div>
                         <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    高级搜索与过滤
+                            <ul class="modern-feature-list">
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>高级搜索与过滤</span>
+                                    </div>
                                 </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    论文统计与可视化
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>论文统计与可视化</span>
+                                    </div>
                                 </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    AI驱动的深度分析
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>AI驱动的深度分析</span>
+                                    </div>
                                 </li>
-                                <li class="mb-2">
-                                    <i class="bi bi-check-circle text-success me-2"></i>
-                                    Dify知识库集成
+                                <li class="mb-3">
+                                    <div class="feature-item">
+                                        <i class="bi bi-check-circle feature-check"></i>
+                                        <span>Dify知识库集成</span>
+                                    </div>
                                 </li>
                             </ul>
                         </div>
                     </div>
 
-                    <h3 class="mb-3">技术架构</h3>
-                    <div class="table-responsive mb-4">
-                        <table class="table table-sm">
+                    <h3 class="section-title mb-4">
+                        <i class="bi bi-diagram-3 me-2 section-icon"></i>技术架构
+                    </h3>
+                    <div class="modern-table-wrapper mb-5">
+                        <table class="modern-table">
                             <tbody>
-                                <tr>
-                                    <td><strong>后端框架</strong></td>
-                                    <td>Flask 3.0+</td>
+                                <tr class="modern-table-row">
+                                    <td class="tech-label"><strong>后端框架</strong></td>
+                                    <td class="tech-value">Flask 3.0+</td>
                                 </tr>
-                                <tr>
-                                    <td><strong>数据库</strong></td>
-                                    <td>PostgreSQL + Redis</td>
+                                <tr class="modern-table-row">
+                                    <td class="tech-label"><strong>数据库</strong></td>
+                                    <td class="tech-value">PostgreSQL + Redis</td>
                                 </tr>
-                                <tr>
-                                    <td><strong>前端</strong></td>
-                                    <td>Bootstrap 5.3 + Chart.js</td>
+                                <tr class="modern-table-row">
+                                    <td class="tech-label"><strong>前端</strong></td>
+                                    <td class="tech-value">Bootstrap 5.3 + Chart.js</td>
                                 </tr>
-                                <tr>
-                                    <td><strong>AI引擎</strong></td>
-                                    <td>多种LLM模型支持</td>
+                                <tr class="modern-table-row">
+                                    <td class="tech-label"><strong>AI引擎</strong></td>
+                                    <td class="tech-value">多种LLM模型支持</td>
                                 </tr>
-                                <tr>
-                                    <td><strong>部署方式</strong></td>
-                                    <td>Docker Compose</td>
+                                <tr class="modern-table-row">
+                                    <td class="tech-label"><strong>部署方式</strong></td>
+                                    <td class="tech-value">Docker Compose</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <h3 class="mb-3">版本信息</h3>
-                    <div class="bg-light rounded p-3 mb-4">
+                    <h3 class="section-title mb-4">
+                        <i class="bi bi-info-circle me-2 section-icon"></i>版本信息
+                    </h3>
+                    <div class="version-info-card mb-5">
                         <div class="row">
                             <div class="col-md-6">
-                                <strong>当前版本:</strong> v2.0.0<br>
-                                <strong>发布日期:</strong> {{ now.strftime('%Y-%m-%d') }}<br>
+                                <div class="version-item">
+                                    <strong>当前版本:</strong> <span class="version-tag">v2.0.0</span>
+                                </div>
+                                <div class="version-item">
+                                    <strong>发布日期:</strong> {{ now.strftime('%Y-%m-%d') }}
+                                </div>
                             </div>
                             <div class="col-md-6">
-                                <strong>系统状态:</strong> <span class="badge bg-success">正常运行</span><br>
-                                <strong>数据库:</strong> <span class="badge bg-info">已连接</span>
+                                <div class="version-item">
+                                    <strong>系统状态:</strong> <span class="status-badge status-running">正常运行</span>
+                                </div>
+                                <div class="version-item">
+                                    <strong>数据库:</strong> <span class="status-badge status-info">已连接</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="text-center">
-                        <h4 class="mb-3">HomeSystem 集成系统</h4>
-                        <p class="text-muted">
+                    <div class="text-center system-info">
+                        <h4 class="system-title mb-3">
+                            <i class="bi bi-house-gear me-2"></i>HomeSystem 集成系统
+                        </h4>
+                        <p class="system-description">
                             PaperAnalysis 是 HomeSystem 智能家庭自动化系统的一部分，<br>
                             专注于提供高效的学术论文管理和分析服务。
                         </p>
-                        <div class="mt-4">
-                            <a href="{{ url_for('main.index') }}" class="btn btn-primary me-2">
-                                <i class="bi bi-house me-1"></i>返回首页
+                        <div class="action-buttons mt-4">
+                            <a href="{{ url_for('main.index') }}" class="btn btn-gradient-primary btn-lg me-3">
+                                <i class="bi bi-house me-2"></i>返回首页
                             </a>
-                            <a href="{{ url_for('explore.papers') }}" class="btn btn-outline-primary">
-                                <i class="bi bi-search me-1"></i>开始使用
+                            <a href="{{ url_for('explore.papers') }}" class="btn btn-gradient-success btn-lg">
+                                <i class="bi bi-search me-2"></i>开始使用
                             </a>
                         </div>
                     </div>
@@ -144,4 +216,556 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- AOS Animation Library -->
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<style>
+/* ==============================================
+   关于页面现代化样式 - 与首页保持一致
+============================================== */
+
+/* 根变量定义 - 优化颜色搭配 */
+:root {
+    --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    --info-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    --glass-bg: rgba(255, 255, 255, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --shadow-light: 0 4px 20px rgba(0, 0, 0, 0.08);
+    --shadow-medium: 0 8px 25px rgba(0, 0, 0, 0.12);
+    --shadow-strong: 0 12px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* 页面整体背景 */
+body {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    min-height: 100vh;
+}
+
+/* Hero Section - 顶部渐变区域 */
+.hero-section {
+    background: var(--primary-gradient);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+    padding: 2rem 0 3rem;
+    margin: -1.5rem -15px 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 20%, transparent 70%);
+    animation: floatBubble 20s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes floatBubble {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-20px) rotate(2deg); }
+    66% { transform: translateY(10px) rotate(-1deg); }
+}
+
+/* Hero Title Styling */
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: white;
+    text-shadow: 2px 4px 20px rgba(0,0,0,0.3);
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 2;
+}
+
+.hero-icon {
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem;
+    border-radius: 50%;
+    backdrop-filter: blur(10px);
+    animation: iconPulse 3s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+    50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(255,255,255,0.5); }
+}
+
+.title-gradient {
+    background: linear-gradient(45deg, #fff, #e0e8ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.title-subtitle {
+    font-size: 0.7em;
+    opacity: 0.9;
+    margin-left: 1rem;
+}
+
+.hero-subtitle {
+    font-size: 1.25rem;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 1px 2px 10px rgba(0,0,0,0.2);
+    position: relative;
+    z-index: 2;
+}
+
+/* Main Content */
+.main-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* Stats Cards */
+.stats-section {
+    margin-top: -2rem;
+    position: relative;
+    z-index: 2;
+}
+
+.stats-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem 1.25rem;
+    box-shadow: var(--shadow-light);
+    border: 1px solid rgba(229, 231, 235, 0.8);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+    min-height: 140px;
+}
+
+/* 功能卡片特殊布局 */
+.feature-card-layout {
+    flex-direction: column;
+    text-align: center;
+    justify-content: center;
+    padding: 0.5rem 0;
+    gap: 1rem;
+}
+
+.feature-card-layout .stats-icon-wrapper {
+    margin-right: 0;
+    margin-bottom: 0;
+    align-self: center;
+}
+
+.feature-card-layout .stats-content {
+    text-align: center;
+}
+
+.stats-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 16px 16px 0 0;
+}
+
+.stats-card-primary::before {
+    background: var(--success-gradient);
+}
+
+.stats-card-warning::before {
+    background: var(--warning-gradient);
+}
+
+.stats-card-info::before {
+    background: var(--info-gradient);
+}
+
+.stats-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium);
+}
+
+.stats-card-inner {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stats-icon-wrapper {
+    position: relative;
+    margin-right: 1.5rem;
+    flex-shrink: 0;
+}
+
+.stats-icon-bg {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    opacity: 0.1;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.stats-card-primary .stats-icon-bg {
+    background: var(--success-gradient);
+}
+
+.stats-card-warning .stats-icon-bg {
+    background: var(--warning-gradient);
+}
+
+.stats-card-info .stats-icon-bg {
+    background: var(--info-gradient);
+}
+
+.stats-icon {
+    font-size: 1.8rem;
+    position: relative;
+    z-index: 1;
+    color: #059669;
+    transition: all 0.3s ease;
+}
+
+.stats-card-warning .stats-icon {
+    color: #d97706;
+}
+
+.stats-card-info .stats-icon {
+    color: #1d4ed8;
+}
+
+.stats-content {
+    flex: 1;
+}
+
+.stats-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.stats-card-primary .stats-label {
+    color: #059669;
+}
+
+.stats-card-warning .stats-label {
+    color: #d97706;
+}
+
+.stats-card-info .stats-label {
+    color: #1d4ed8;
+}
+
+.feature-description {
+    color: #6b7280;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Modern Content Card */
+.modern-content-card {
+    background: white;
+    border-radius: 20px;
+    padding: 3rem;
+    box-shadow: var(--shadow-light);
+    border: 1px solid rgba(255,255,255,0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.modern-content-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-gradient);
+    border-radius: 20px 20px 0 0;
+}
+
+/* Section Titles */
+.section-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.section-icon {
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 1.5rem;
+}
+
+/* Modern Feature List */
+.modern-feature-list {
+    list-style: none;
+    padding: 0;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.feature-item:hover {
+    background: rgba(102, 126, 234, 0.05);
+    transform: translateX(5px);
+}
+
+.feature-check {
+    color: #10b981;
+    font-size: 1.2rem;
+    margin-right: 1rem;
+    background: linear-gradient(135deg, #10b981, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Modern Table */
+.modern-table-wrapper {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: var(--shadow-light);
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.modern-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+}
+
+.modern-table-row {
+    transition: all 0.3s ease;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.modern-table-row:hover {
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, transparent 100%);
+}
+
+.modern-table-row:last-child {
+    border-bottom: none;
+}
+
+.modern-table-row td {
+    padding: 1.25rem 1.5rem;
+    border: none;
+    vertical-align: middle;
+}
+
+.tech-label {
+    font-weight: 600;
+    color: #1e293b;
+    width: 30%;
+}
+
+.tech-value {
+    color: #64748b;
+}
+
+/* Version Info Card */
+.version-info-card {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(79, 172, 254, 0.05) 100%);
+    border-radius: 15px;
+    padding: 2rem;
+    border: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.version-item {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.version-tag {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.status-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-running {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    color: white;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.status-info {
+    background: linear-gradient(135deg, #3b82f6, #60a5fa);
+    color: white;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* System Info */
+.system-info {
+    padding: 2rem 0;
+}
+
+.system-title {
+    color: #1e293b;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.system-title i {
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.system-description {
+    color: #64748b;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+/* Action Buttons */
+.btn-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-gradient-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+    color: white;
+}
+
+.btn-gradient-success {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+}
+
+.btn-gradient-success:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(79, 172, 254, 0.6);
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .stats-card-inner {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stats-icon-wrapper {
+        margin-right: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .modern-content-card {
+        padding: 2rem;
+    }
+    
+    /* 在中等屏幕上调整功能卡片为2列布局 */
+    .stats-section .col-lg-4.col-md-6:nth-child(3) {
+        margin: 0 auto;
+    }
+}
+
+@media (max-width: 991px) {
+    /* 在大平板上调整功能卡片间距 */
+    .stats-section .col-lg-10 {
+        padding: 0 2rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .hero-section {
+        margin-left: -15px;
+        margin-right: -15px;
+    }
+    
+    .hero-title {
+        font-size: 2rem;
+    }
+    
+    .title-subtitle {
+        display: block;
+        margin-left: 0;
+        margin-top: 0.5rem;
+        font-size: 1rem;
+    }
+    
+    .modern-content-card {
+        padding: 1.5rem;
+    }
+}
+</style>
+
+<script>
+// 初始化AOS动画
+document.addEventListener('DOMContentLoaded', function() {
+    AOS.init({
+        duration: 800,
+        easing: 'ease-in-out-cubic',
+        once: true,
+        offset: 100,
+        delay: 100
+    });
+});
+</script>
 {% endblock %}
