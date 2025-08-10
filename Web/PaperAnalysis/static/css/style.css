@@ -297,6 +297,238 @@
     color: var(--dark-color);
 }
 
+/* ========== 关于页面专属样式 ========== */
+
+/* 特性列表样式 */
+.feature-list {
+    padding: 0;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.feature-item:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    border-color: rgba(102, 126, 234, 0.1);
+    transform: translateX(5px);
+}
+
+.feature-icon-wrapper {
+    margin-right: 1rem;
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+}
+
+.feature-content .feature-text {
+    font-weight: 500;
+    color: var(--dark-color);
+}
+
+/* 技术架构表格样式增强 */
+.tech-category {
+    font-weight: 600;
+    color: var(--dark-color);
+    padding: 1.2rem 1.5rem;
+    width: 40%;
+}
+
+.tech-value {
+    padding: 1.2rem 1.5rem;
+}
+
+.tech-badge {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    display: inline-block;
+    margin: 0.2rem;
+    border: none;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    transition: all 0.3s ease;
+}
+
+.tech-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+/* 版本信息和状态样式 */
+.version-info, .status-info {
+    padding: 1rem;
+}
+
+.info-item {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.info-item:hover {
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.5) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* 版本徽章 */
+.version-badge {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+}
+
+.date-badge {
+    background: linear-gradient(135deg, var(--secondary-color) 0%, #495057 100%);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.2);
+}
+
+/* 状态徽章 */
+.status-badge {
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status-badge.status-online {
+    background: linear-gradient(135deg, var(--success-color) 0%, #1e7e34 100%);
+    color: white;
+}
+
+.status-badge.status-connected {
+    background: linear-gradient(135deg, var(--info-color) 0%, #117a8b 100%);
+    color: white;
+}
+
+.status-badge.status-error {
+    background: linear-gradient(135deg, var(--danger-color) 0%, #c82333 100%);
+    color: white;
+}
+
+.count-badge {
+    background: linear-gradient(135deg, var(--warning-color) 0%, #e0a800 100%);
+    color: var(--dark-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+    transition: all 0.3s ease;
+}
+
+/* 脉冲指示器 */
+.pulse-indicator {
+    width: 8px;
+    height: 8px;
+    background: currentColor;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    opacity: 0.8;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+    }
+}
+
+/* 加载动画 */
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 集成信息区域 */
+.integration-info {
+    padding: 2rem;
+}
+
+.integration-info h4 {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.integration-info p {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+/* 关于页面响应式设计 */
+@media (max-width: 768px) {
+    .feature-item {
+        margin-bottom: 0.5rem;
+    }
+    
+    .tech-category, .tech-value {
+        padding: 1rem;
+    }
+    
+    .tech-category {
+        width: 100%;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .hero-action-buttons {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .hero-action-buttons .btn {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    .version-info, .status-info {
+        padding: 0.5rem;
+    }
+    
+    .integration-info {
+        padding: 1rem;
+    }
+}
+
 /* 按钮悬停效果 */
 .paper-item .btn:hover {
     transform: translateY(-1px);
