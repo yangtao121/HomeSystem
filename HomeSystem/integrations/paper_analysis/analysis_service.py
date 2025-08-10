@@ -38,8 +38,29 @@ class PaperAnalysisService:
         self.default_config = default_config or {
             'analysis_model': 'deepseek.DeepSeek_V3',
             'vision_model': 'ollama.Qwen2_5_VL_7B',
+            'enable_video_analysis': False,
+            'video_analysis_model': 'ollama.Qwen3_30B',
             'timeout': 600
         }
+        
+        # 初始化时验证配置
+        self._validate_configuration()
+    
+    def _validate_configuration(self) -> None:
+        """验证服务配置"""
+        try:
+            if self.default_config.get('enable_video_analysis', False):
+                logger.info("🔧 检测到视频分析功能配置，进行初始验证...")
+                video_model = self.default_config.get('video_analysis_model')
+                if not video_model:
+                    logger.warning("⚠️ 视频分析已启用但未指定视频分析模型，将使用默认模型 ollama.Qwen3_30B")
+                    self.default_config['video_analysis_model'] = 'ollama.Qwen3_30B'
+                else:
+                    logger.info(f"✅ 视频分析模型配置: {video_model}")
+            else:
+                logger.info("ℹ️ 视频分析功能未启用，使用标准分析模式")
+        except Exception as e:
+            logger.warning(f"⚠️ 配置验证过程中出现异常: {e}")
     
     def perform_deep_analysis(
         self,
@@ -70,12 +91,27 @@ class PaperAnalysisService:
             # 合并配置
             analysis_config = {**self.default_config, **(config or {})}
             
+            # 配置验证和状态日志
+            video_analysis_enabled = analysis_config.get('enable_video_analysis', False)
+            if video_analysis_enabled:
+                logger.info(f"🎥 视频分析功能已启用")
+                logger.info(f"   - 视频分析模型: {analysis_config.get('video_analysis_model', 'ollama.Qwen3_30B')}")
+                logger.info(f"   - 分析模型: {analysis_config.get('analysis_model')}")
+                logger.info(f"   - 视觉模型: {analysis_config.get('vision_model')}")
+            else:
+                logger.info(f"📝 使用标准分析模式 (视频分析未启用)")
+                logger.info(f"   - 分析模型: {analysis_config.get('analysis_model')}")
+                logger.info(f"   - 视觉模型: {analysis_config.get('vision_model')}")
+            
             # 第一步：准备论文文件夹
-            folder_result = self._prepare_paper_folder(paper_folder_path)
+            folder_result = self._prepare_paper_folder(paper_folder_path, analysis_config)
             if not folder_result['success']:
                 return folder_result
             
-            logger.info(f"✅ 论文文件夹准备完成: {paper_folder_path}")
+            if folder_result.get('video_analysis_enabled'):
+                logger.info(f"✅ 论文文件夹准备完成: {paper_folder_path} (包含视频目录)")
+            else:
+                logger.info(f"✅ 论文文件夹准备完成: {paper_folder_path}")
             
             # 第二步：下载论文PDF（如果尚未存在）
             pdf_result = self._ensure_paper_pdf(
@@ -116,12 +152,13 @@ class PaperAnalysisService:
                 'error': f'深度分析流程异常: {str(e)}'
             }
     
-    def _prepare_paper_folder(self, paper_folder_path: str) -> Dict[str, Any]:
+    def _prepare_paper_folder(self, paper_folder_path: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         准备论文分析文件夹
         
         Args:
             paper_folder_path: 论文文件夹路径
+            config: 分析配置
             
         Returns:
             Dict: 操作结果
@@ -131,10 +168,25 @@ class PaperAnalysisService:
             folder_path.mkdir(parents=True, exist_ok=True)
             
             logger.info(f"📁 论文文件夹已准备: {folder_path}")
-            return {
-                'success': True,
-                'folder_path': str(folder_path)
-            }
+            
+            # 如果启用视频分析，创建videos子目录
+            if config.get('enable_video_analysis', False):
+                videos_folder = folder_path / 'videos'
+                videos_folder.mkdir(exist_ok=True)
+                logger.info(f"🎥 视频文件夹已准备: {videos_folder}")
+                
+                return {
+                    'success': True,
+                    'folder_path': str(folder_path),
+                    'videos_folder': str(videos_folder),
+                    'video_analysis_enabled': True
+                }
+            else:
+                return {
+                    'success': True,
+                    'folder_path': str(folder_path),
+                    'video_analysis_enabled': False
+                }
             
         except Exception as e:
             logger.error(f"❌ 准备论文文件夹失败: {e}")
@@ -317,23 +369,40 @@ class PaperAnalysisService:
             logger.info(f"🤖 开始深度分析: {arxiv_id}")
             
             # 动态导入深度分析智能体
+            video_analysis_enabled = config.get('enable_video_analysis', False)
             try:
-                from HomeSystem.graph.deep_paper_analysis_agent import create_deep_paper_analysis_agent
-                logger.info("✅ 成功导入深度论文分析智能体")
+                if video_analysis_enabled:
+                    from HomeSystem.graph.deep_paper_analysis_agent import create_video_enhanced_analysis_agent
+                    logger.info("✅ 成功导入视频增强论文分析智能体")
+                    agent_creator = create_video_enhanced_analysis_agent
+                    agent_type = "视频增强分析智能体"
+                else:
+                    from HomeSystem.graph.deep_paper_analysis_agent import create_deep_paper_analysis_agent
+                    logger.info("✅ 成功导入深度论文分析智能体")
+                    agent_creator = create_deep_paper_analysis_agent
+                    agent_type = "深度分析智能体"
             except Exception as import_error:
-                logger.error(f"❌ 导入深度论文分析智能体失败: {import_error}")
+                logger.error(f"❌ 导入论文分析智能体失败: {import_error}")
                 return {
                     'success': False,
-                    'error': f'导入深度论文分析智能体失败: {str(import_error)}'
+                    'error': f'导入论文分析智能体失败: {str(import_error)}'
                 }
             
             # 创建深度分析智能体
-            logger.info("🤖 创建深度分析智能体...")
-            agent = create_deep_paper_analysis_agent(
-                analysis_model=config['analysis_model'],
-                vision_model=config['vision_model']
-            )
-            logger.info("✅ 深度分析智能体创建成功")
+            logger.info(f"🤖 创建{agent_type}...")
+            if video_analysis_enabled:
+                agent = agent_creator(
+                    analysis_model=config['analysis_model'],
+                    vision_model=config['vision_model'],
+                    video_analysis_model=config.get('video_analysis_model', 'ollama.Qwen3_30B')
+                )
+                logger.info(f"✅ {agent_type}创建成功 (视频分析模型: {config.get('video_analysis_model', 'ollama.Qwen3_30B')})")
+            else:
+                agent = agent_creator(
+                    analysis_model=config['analysis_model'],
+                    vision_model=config['vision_model']
+                )
+                logger.info(f"✅ {agent_type}创建成功")
             
             # 执行分析
             analysis_result, report_content = agent.analyze_and_generate_report(
@@ -481,4 +550,33 @@ def create_paper_analysis_service(config: Optional[Dict[str, Any]] = None) -> Pa
     Returns:
         PaperAnalysisService: 分析服务实例
     """
+    return PaperAnalysisService(default_config=config)
+
+
+def create_video_enhanced_paper_analysis_service(
+    analysis_model: str = "deepseek.DeepSeek_V3",
+    vision_model: str = "ollama.Qwen2_5_VL_7B", 
+    video_analysis_model: str = "ollama.Qwen3_30B",
+    **kwargs
+) -> PaperAnalysisService:
+    """
+    创建带视频分析功能的论文分析服务
+    
+    Args:
+        analysis_model: 主分析模型
+        vision_model: 视觉分析模型
+        video_analysis_model: 视频分析模型
+        **kwargs: 其他配置参数
+        
+    Returns:
+        PaperAnalysisService: 支持视频分析的服务实例
+    """
+    config = {
+        'analysis_model': analysis_model,
+        'vision_model': vision_model,
+        'enable_video_analysis': True,
+        'video_analysis_model': video_analysis_model,
+        'timeout': 600,
+        **kwargs
+    }
     return PaperAnalysisService(default_config=config)
