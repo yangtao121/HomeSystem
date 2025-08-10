@@ -677,10 +677,12 @@ class DifyService:
                         "success": True,
                         "verified": True,
                         "status": "exists",
-                        "document": {
-                            "id": document.dify_document_id,
-                            "name": document.name,
-                            "character_count": document.character_count
+                        "document_info": {
+                            "dify_name": document.name,
+                            "character_count": document.character_count or 0,
+                            "status": "正常",
+                            "indexing_status": "已索引",
+                            "document_id": document.dify_document_id
                         }
                     }
                 else:
