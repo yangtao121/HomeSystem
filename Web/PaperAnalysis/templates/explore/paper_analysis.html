@@ -139,6 +139,29 @@ window.MathJax = {
     box-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
+/* 视频样式增强 */
+.analysis-content video {
+    max-width: 100%;
+    height: auto;
+    border: none;
+    border-radius: 12px;
+    margin: 1.5rem 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    background: #000;
+}
+
+.analysis-content video:hover {
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.analysis-content video:focus {
+    outline: 3px solid rgba(102, 126, 234, 0.5);
+    outline-offset: 2px;
+}
+
 /* 表格样式增强 */
 .analysis-content table {
     width: 100%;
@@ -911,6 +934,11 @@ window.MathJax = {
         left: 0.25rem;
     }
     
+    .analysis-content video {
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+    
     .primary-actions {
         flex-direction: column;
         gap: 0.5rem;
@@ -1586,8 +1614,9 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 处理图片加载错误
+// 处理图片和视频加载错误
 document.addEventListener('DOMContentLoaded', function() {
+    // 处理图片加载错误
     const images = document.querySelectorAll('.analysis-content img');
     images.forEach(img => {
         img.addEventListener('error', function() {
@@ -1598,7 +1627,143 @@ document.addEventListener('DOMContentLoaded', function() {
             this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="%23f8f9fa" stroke="%23dc3545" stroke-width="2" stroke-dasharray="5,5"/><text x="100" y="50" text-anchor="middle" fill="%23dc3545" font-family="Arial" font-size="12">图片加载失败</text></svg>';
         });
     });
+    
+    // 处理视频加载错误和增强功能
+    const videos = document.querySelectorAll('.analysis-content video');
+    videos.forEach((video, index) => {
+        // 设置视频属性
+        video.setAttribute('controls', 'true');
+        video.setAttribute('preload', 'metadata');
+        
+        // 处理视频加载错误
+        video.addEventListener('error', function(e) {
+            console.error('视频加载失败:', e);
+            
+            // 创建错误提示元素
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                background: #f8f9fa;
+                border: 2px dashed #dc3545;
+                border-radius: 12px;
+                padding: 2rem;
+                text-align: center;
+                color: #dc3545;
+                margin: 1.5rem 0;
+                font-size: 14px;
+            `;
+            
+            const videoSrc = this.querySelector('source')?.src || this.src || '未知';
+            const fileName = videoSrc.split('/').pop();
+            
+            errorDiv.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem; display: block; margin-bottom: 1rem;"></i>
+                <strong>视频加载失败</strong><br>
+                <small style="color: #6c757d;">文件: ${fileName}</small><br>
+                <small style="color: #6c757d; margin-top: 0.5rem; display: block;">
+                    请检查视频文件是否存在或刷新页面重试
+                </small>
+            `;
+            
+            // 替换视频元素
+            this.parentNode.replaceChild(errorDiv, this);
+        });
+        
+        // 添加视频加载成功日志
+        video.addEventListener('loadedmetadata', function() {
+            console.log(`视频 ${index + 1} 加载成功:`, this.src || this.querySelector('source')?.src);
+        });
+        
+        // 添加右键菜单功能（下载视频）
+        video.addEventListener('contextmenu', function(e) {
+            // 不阻止默认右键菜单，让用户可以使用浏览器的下载功能
+            console.log('视频右键菜单可用于下载');
+        });
+    });
+    
+    // 为所有视频添加下载按钮（可选）
+    initVideoDownloadButtons();
 });
+
+// 初始化视频下载按钮
+function initVideoDownloadButtons() {
+    const videos = document.querySelectorAll('.analysis-content video');
+    
+    videos.forEach((video, index) => {
+        // 创建包装容器
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position: relative; display: inline-block; width: 100%;';
+        
+        // 将视频移到包装容器中
+        video.parentNode.insertBefore(wrapper, video);
+        wrapper.appendChild(video);
+        
+        // 创建下载按钮
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'btn btn-sm btn-outline-primary';
+        downloadBtn.style.cssText = `
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        `;
+        downloadBtn.innerHTML = '<i class="bi bi-download"></i> 下载';
+        
+        // 鼠标悬停效果
+        downloadBtn.addEventListener('mouseenter', function() {
+            this.style.opacity = '1';
+        });
+        
+        downloadBtn.addEventListener('mouseleave', function() {
+            this.style.opacity = '0.8';
+        });
+        
+        // 下载功能
+        downloadBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const videoSrc = video.querySelector('source')?.src || video.src;
+            if (videoSrc) {
+                // 创建下载链接
+                const link = document.createElement('a');
+                link.href = videoSrc;
+                link.download = videoSrc.split('/').pop();
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 显示下载提示
+                showToast('视频下载已开始', 'info', 'bi-download');
+            }
+        });
+        
+        // 添加下载按钮到包装容器
+        wrapper.appendChild(downloadBtn);
+        
+        // 视频悬停时显示下载按钮
+        wrapper.addEventListener('mouseenter', function() {
+            downloadBtn.style.display = 'block';
+        });
+        
+        wrapper.addEventListener('mouseleave', function() {
+            // 如果视频正在播放，保持按钮显示
+            if (video.paused) {
+                setTimeout(() => {
+                    if (video.paused) {
+                        downloadBtn.style.display = 'none';
+                    }
+                }, 1000);
+            }
+        });
+        
+        // 初始隐藏下载按钮
+        downloadBtn.style.display = 'none';
+    });
+}
 
 // 复制图片到剪贴板
 async function copyImageToClipboard(imgElement) {

@@ -283,6 +283,19 @@ def paper_analysis_view(arxiv_id):
         return render_template('error.html', error="加载分析结果失败"), 500
 
 
+@explore_bp.route('/paper/<arxiv_id>/videos/<filename>')
+def serve_analysis_video_explore(arxiv_id, filename):
+    """为探索页面提供视频服务路由"""
+    try:
+        # 重用 images_bp 中的视频服务逻辑
+        from routes.analysis import serve_analysis_video
+        return serve_analysis_video(arxiv_id, filename)
+        
+    except Exception as e:
+        logger.error(f"Explore视频服务失败 {arxiv_id}/{filename}: {e}")
+        return "Server error", 500
+
+
 @explore_bp.route('/batch_operations', methods=['GET', 'POST'])
 def batch_operations():
     """批量操作页面"""

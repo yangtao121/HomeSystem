@@ -161,6 +161,21 @@
                                 <div class="form-help">用于图像和图表识别分析</div>
                             </div>
                         </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="video_analysis_model" class="form-label">视频分析模型</label>
+                                <select class="form-select" id="video_analysis_model" name="video_analysis_model">
+                                    <option value="">使用默认模型 (ollama.Qwen3_30B)</option>
+                                    {% if available_models %}
+                                        {% for model in available_models %}
+                                        <option value="{{ model }}">{{ model }}</option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </select>
+                                <div class="form-help">用于视频资源分析和内容理解</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -229,6 +244,19 @@
                     <input type="number" class="form-control" id="analysis_timeout" name="analysis_timeout" 
                            min="300" max="1800" value="600" required>
                     <div class="form-help">单个论文深度分析的最大等待时间</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_video_analysis" 
+                               name="enable_video_analysis">
+                        <label class="form-check-label" for="enable_video_analysis">
+                            <strong>启用视频分析功能</strong>
+                        </label>
+                    </div>
+                    <div class="form-help">对论文相关网页中的视频内容进行自动下载和分析</div>
                 </div>
             </div>
         </div>
@@ -944,7 +972,7 @@ $(document).ready(function() {
         } else {
             $('#advanced_models_section').hide();
             // 清空高级配置选择
-            $('#abstract_analysis_model, #full_paper_analysis_model, #deep_analysis_model, #vision_model').val('');
+            $('#abstract_analysis_model, #full_paper_analysis_model, #deep_analysis_model, #vision_model, #video_analysis_model').val('');
         }
     });
 
@@ -983,7 +1011,8 @@ function loadAvailableModels() {
                     '#abstract_analysis_model', 
                     '#full_paper_analysis_model',
                     '#deep_analysis_model',
-                    '#vision_model'
+                    '#vision_model',
+                    '#video_analysis_model'
                 ];
                 
                 modelSelects.forEach(function(selectId) {
@@ -1064,10 +1093,11 @@ function getSettingsData() {
     
     // 处理复选框
     formData['enable_deep_analysis'] = $('#enable_deep_analysis').is(':checked');
+    formData['enable_video_analysis'] = $('#enable_video_analysis').is(':checked');
     
     // 处理高级模型配置 - 空值转换为null
     const advancedModelFields = ['abstract_analysis_model', 'full_paper_analysis_model', 
-                                'deep_analysis_model', 'vision_model'];
+                                'deep_analysis_model', 'vision_model', 'video_analysis_model'];
     for (const field of advancedModelFields) {
         if (!formData[field] || formData[field] === '') {
             formData[field] = null;
@@ -1118,7 +1148,7 @@ function loadSettings() {
                 
                 // 填充高级模型配置
                 if (config.abstract_analysis_model || config.full_paper_analysis_model || 
-                    config.deep_analysis_model || config.vision_model) {
+                    config.deep_analysis_model || config.vision_model || config.video_analysis_model) {
                     $('#enable_advanced_models').prop('checked', true);
                     $('#advanced_models_section').show();
                     
@@ -1133,6 +1163,9 @@ function loadSettings() {
                     }
                     if (config.vision_model) {
                         $('#vision_model').val(config.vision_model);
+                    }
+                    if (config.video_analysis_model) {
+                        $('#video_analysis_model').val(config.video_analysis_model);
                     }
                 }
                 
@@ -1154,6 +1187,9 @@ function loadSettings() {
                 }
                 if (config.analysis_timeout !== undefined) {
                     $('#analysis_timeout').val(config.analysis_timeout);
+                }
+                if (config.enable_video_analysis !== undefined) {
+                    $('#enable_video_analysis').prop('checked', config.enable_video_analysis);
                 }
                 
                 console.log('设置加载成功:', config);

@@ -120,9 +120,9 @@ def example_advanced_configuration():
     
     # 料理网站示例
     cooking_urls = [
-        "https://momakitchen.github.io/",
-        "https://momakitchen.github.io/recipes/",
-        "https://momakitchen.github.io/tutorials/"
+        "https://snap-research.github.io/wonderland/",
+        "https://snap-research.github.io/wonderland/recipes/",
+        "https://snap-research.github.io/wonderland/tutorials/"
     ]
     
     print("🍳 处理料理类视频...")
@@ -163,7 +163,7 @@ def example_custom_analysis():
     print("   - 专业学术总结")
     
     # 料理教程网站
-    cooking_url = "https://momakitchen.github.io/"
+    cooking_url = "https://snap-research.github.io/wonderland/"
     
     try:
         result_json = processor._run(
@@ -198,9 +198,9 @@ def example_batch_processing():
     
     # 多个页面批量处理
     batch_urls = [
-        "https://momakitchen.github.io/",
-        "https://momakitchen.github.io/recipes/",
-        "https://momakitchen.github.io/about/"
+        "https://snap-research.github.io/wonderland/",
+        "https://snap-research.github.io/wonderland/recipes/",
+        "https://snap-research.github.io/wonderland/about/"
     ]
     
     all_results = []
@@ -307,7 +307,7 @@ async def main():
     """主函数"""
     print("🎬 视频资源处理器使用示例")
     print("演示批量视频提取、下载、分析和智能重命名功能")
-    print("测试网站: https://momakitchen.github.io/")
+    print("测试网站: https://snap-research.github.io/wonderland/")
     
     # 检查依赖
     try:

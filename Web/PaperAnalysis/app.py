@@ -286,13 +286,17 @@ def relevance_justification_preview(paper, length=100):
 
 @app.template_filter('markdown')
 def markdown_filter(text):
-    """Markdown转HTML过滤器"""
+    """Markdown转HTML过滤器，支持HTML标签（包括视频）"""
     if not text:
         return ""
     
     try:
         import mistune
-        markdown = mistune.create_markdown()
+        # 创建支持HTML的markdown渲染器
+        markdown = mistune.create_markdown(
+            escape=False,  # 不转义HTML标签
+            plugins=['strikethrough', 'footnotes', 'table']
+        )
         return markdown(str(text))
     except ImportError:
         # 如果没有mistune，返回原始文本并转换换行符
@@ -350,6 +354,34 @@ def initialize():
                 logger.warning("⚠️  未发现可用的LLM模型")
         except Exception as e:
             logger.warning(f"⚠️  LLM模型检查失败: {e}")
+        
+        # 恢复被中断的深度分析任务
+        try:
+            logger.info("🔄 检查并恢复被中断的深度分析任务...")
+            from services.paper_explore_service import PaperService
+            paper_service = PaperService()
+            
+            # 恢复被中断的分析
+            recovery_result = paper_service.recover_interrupted_analysis()
+            if recovery_result['success']:
+                if recovery_result['recovered_count'] > 0:
+                    logger.info(f"✅ 成功恢复 {recovery_result['recovered_count']} 个被中断的深度分析任务")
+                    for paper in recovery_result['interrupted_papers']:
+                        logger.info(f"   - {paper['arxiv_id']}: {paper['title'][:50]}...")
+                else:
+                    logger.info("✅ 没有发现被中断的深度分析任务")
+            else:
+                logger.warning(f"⚠️ 恢复中断任务失败: {recovery_result.get('error', '未知错误')}")
+            
+            # 重置超时的分析任务（超过2小时仍在processing状态）
+            stuck_result = paper_service.reset_stuck_analysis(max_hours=2)
+            if stuck_result['success'] and stuck_result['reset_count'] > 0:
+                logger.warning(f"⚠️ 发现并重置了 {stuck_result['reset_count']} 个超时的深度分析任务")
+                for paper in stuck_result['stuck_papers']:
+                    logger.warning(f"   - {paper['arxiv_id']}: 卡住 {paper['hours_stuck']:.1f} 小时")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ 深度分析状态恢复失败: {e}")
         
         logger.info("✅ 应用初始化完成")
         

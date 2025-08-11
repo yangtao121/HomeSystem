@@ -65,8 +65,13 @@ class AnalysisServiceAdapter:
         self.default_config = {
             'analysis_model': 'deepseek.DeepSeek_V3',
             'vision_model': 'ollama.Qwen2_5_VL_7B', 
-            'timeout': 600
+            'timeout': 1800  # 增加默认超时为30分钟
         }
+        
+        # Redis键前缀
+        self.REDIS_PREFIX = "deep_analysis"
+        self.STATUS_KEY_PREFIX = f"{self.REDIS_PREFIX}:status"
+        self.PROCESS_KEY_PREFIX = f"{self.REDIS_PREFIX}:process"
     
     def load_config(self) -> Dict[str, Any]:
         """从Redis加载配置，优先使用新的系统设置，如果不存在则使用旧配置和默认配置"""
@@ -93,12 +98,17 @@ class AnalysisServiceAdapter:
                     if system_data.get('vision_model'):
                         analysis_config['vision_model'] = system_data['vision_model']
                     
+                    if system_data.get('video_analysis_model'):
+                        analysis_config['video_analysis_model'] = system_data['video_analysis_model']
+                    
                     if system_data.get('analysis_timeout'):
                         analysis_config['timeout'] = system_data['analysis_timeout']
                     
                     # 深度分析相关配置
                     if 'enable_deep_analysis' in system_data:
                         analysis_config['enable_deep_analysis'] = system_data['enable_deep_analysis']
+                    if 'enable_video_analysis' in system_data:
+                        analysis_config['enable_video_analysis'] = system_data['enable_video_analysis']
                     if 'deep_analysis_threshold' in system_data:
                         analysis_config['deep_analysis_threshold'] = system_data['deep_analysis_threshold']
                     if 'ocr_char_limit_for_analysis' in system_data:
@@ -141,17 +151,13 @@ class AnalysisServiceAdapter:
                     'error': f'论文 {arxiv_id} 不存在'
                 }
             
-            # 检查是否已在分析中
-            if arxiv_id in self.analysis_threads:
-                thread = self.analysis_threads[arxiv_id]
-                if thread.is_alive():
-                    logger.warning(f"⚠️ 论文已在分析中: {arxiv_id}")
-                    return {
-                        'success': False,
-                        'error': '该论文正在分析中，请稍后'
-                    }
-                else:
-                    del self.analysis_threads[arxiv_id]
+            # 检查是否已在分析中（包括Redis中的活跃进程记录）
+            if self._is_analysis_running(arxiv_id):
+                logger.warning(f"⚠️ 论文已在分析中: {arxiv_id}")
+                return {
+                    'success': False,
+                    'error': '该论文正在分析中，请稍后'
+                }
             
             # 更新分析状态为处理中
             self.paper_service.update_analysis_status(arxiv_id, 'processing')
@@ -159,6 +165,9 @@ class AnalysisServiceAdapter:
             # 加载当前配置
             current_config = self.load_config()
             analysis_config = {**current_config, **(config or {})}
+            
+            # 在Redis中记录分析进程信息
+            self._record_analysis_start(arxiv_id, analysis_config)
             
             # 创建并启动分析线程
             thread = threading.Thread(
@@ -181,6 +190,7 @@ class AnalysisServiceAdapter:
             logger.error(f"Failed to start analysis for {arxiv_id}: {e}")
             try:
                 self.paper_service.update_analysis_status(arxiv_id, 'failed')
+                self._cleanup_analysis_record(arxiv_id)
             except:
                 pass
             
@@ -248,8 +258,8 @@ class AnalysisServiceAdapter:
             except:
                 pass
         finally:
-            if arxiv_id in self.analysis_threads:
-                del self.analysis_threads[arxiv_id]
+            # 清理分析记录（包括Redis记录和内存线程引用）
+            self._cleanup_analysis_record(arxiv_id)
     
     def _process_image_paths(self, content: str, arxiv_id: str) -> str:
         """处理Markdown内容中的图片路径，将相对路径转换为可访问的URL路径"""
@@ -339,6 +349,138 @@ class AnalysisServiceAdapter:
             return {
                 'success': False,
                 'error': str(e)
+            }
+    
+    def _is_analysis_running(self, arxiv_id: str) -> bool:
+        """检查分析是否正在运行（同时检查内存线程和Redis记录）"""
+        # 检查内存中的线程
+        if arxiv_id in self.analysis_threads:
+            thread = self.analysis_threads[arxiv_id]
+            if thread.is_alive():
+                return True
+            else:
+                del self.analysis_threads[arxiv_id]
+        
+        # 检查Redis中的进程记录
+        if self.redis_client:
+            try:
+                process_key = f"{self.PROCESS_KEY_PREFIX}:{arxiv_id}"
+                process_info = self.redis_client.get(process_key)
+                if process_info:
+                    import json
+                    import time
+                    process_data = json.loads(process_info)
+                    start_time = process_data.get('start_time', 0)
+                    timeout = process_data.get('timeout', self.default_config['timeout'])
+                    
+                    # 检查是否超时
+                    if time.time() - start_time > timeout:
+                        logger.warning(f"分析进程超时: {arxiv_id}, 清理超时记录")
+                        self._cleanup_analysis_record(arxiv_id)
+                        self.paper_service.update_analysis_status(arxiv_id, 'failed')
+                        return False
+                    
+                    return True
+            except Exception as e:
+                logger.warning(f"检查Redis进程记录失败: {e}")
+        
+        return False
+    
+    def _record_analysis_start(self, arxiv_id: str, config: Dict[str, Any]):
+        """在Redis中记录分析开始信息"""
+        if self.redis_client:
+            try:
+                import json
+                import time
+                import os
+                
+                process_key = f"{self.PROCESS_KEY_PREFIX}:{arxiv_id}"
+                process_data = {
+                    'start_time': time.time(),
+                    'timeout': config.get('timeout', self.default_config['timeout']),
+                    'config': config,
+                    'pid': os.getpid(),
+                    'status': 'processing'
+                }
+                
+                # 设置过期时间为超时时间的2倍，确保记录不会永久存在
+                expire_time = config.get('timeout', self.default_config['timeout']) * 2
+                self.redis_client.setex(
+                    process_key, 
+                    expire_time, 
+                    json.dumps(process_data)
+                )
+                
+                logger.info(f"已在Redis中记录分析进程信息: {arxiv_id}")
+            except Exception as e:
+                logger.warning(f"记录分析开始信息失败: {e}")
+    
+    def _cleanup_analysis_record(self, arxiv_id: str):
+        """清理Redis中的分析记录"""
+        if self.redis_client:
+            try:
+                process_key = f"{self.PROCESS_KEY_PREFIX}:{arxiv_id}"
+                self.redis_client.delete(process_key)
+                logger.info(f"已清理分析进程记录: {arxiv_id}")
+            except Exception as e:
+                logger.warning(f"清理分析记录失败: {e}")
+        
+        # 同时清理内存中的线程引用
+        if arxiv_id in self.analysis_threads:
+            del self.analysis_threads[arxiv_id]
+    
+    def cancel_analysis(self, arxiv_id: str) -> Dict[str, Any]:
+        """取消正在进行的分析"""
+        try:
+            # 检查是否有正在运行的分析
+            if not self._is_analysis_running(arxiv_id):
+                return {
+                    'success': False,
+                    'error': '没有正在进行的分析任务'
+                }
+            
+            # 更新状态为已取消
+            self.paper_service.update_analysis_status(arxiv_id, 'cancelled')
+            
+            # 清理Redis记录
+            self._cleanup_analysis_record(arxiv_id)
+            
+            # 注意：我们不能强制终止线程，但可以通过状态标记让线程自行退出
+            logger.info(f"已取消分析任务: {arxiv_id}")
+            
+            return {
+                'success': True,
+                'message': '分析任务已取消'
+            }
+            
+        except Exception as e:
+            logger.error(f"取消分析任务失败: {e}")
+            return {
+                'success': False,
+                'error': f'取消失败: {str(e)}'
+            }
+    
+    def reset_analysis_status(self, arxiv_id: str) -> Dict[str, Any]:
+        """重置分析状态（管理功能）"""
+        try:
+            # 清理所有相关记录
+            self._cleanup_analysis_record(arxiv_id)
+            
+            # 重置数据库状态
+            self.paper_service.update_analysis_status(arxiv_id, 'pending')
+            
+            logger.info(f"已重置分析状态: {arxiv_id}")
+            
+            return {
+                'success': True,
+                'message': '分析状态已重置'
+            }
+            
+        except Exception as e:
+            logger.error(f"重置分析状态失败: {e}")
+            return {
+                'success': False,
+                'error': f'重置失败: {str(e)}'
             }
 
 # 创建适配器实例
@@ -737,6 +879,140 @@ def save_analysis_config():
         }), 500
 
 
+# === 深度分析管理API ===
+
+@api_bp.route('/analysis/paper/<arxiv_id>/cancel', methods=['POST'])
+def api_cancel_analysis(arxiv_id):
+    """取消正在进行的深度分析"""
+    try:
+        result = analysis_service.cancel_analysis(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"取消分析失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"取消分析失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/analysis/paper/<arxiv_id>/reset', methods=['POST'])
+def api_reset_analysis_status(arxiv_id):
+    """重置深度分析状态"""
+    try:
+        result = analysis_service.reset_analysis_status(arxiv_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"重置分析状态失败 {arxiv_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"重置状态失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/analysis/recover', methods=['POST'])
+def api_recover_interrupted_analysis():
+    """恢复被中断的深度分析任务"""
+    try:
+        result = paper_explore_service.recover_interrupted_analysis()
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"恢复中断分析失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"恢复失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/analysis/reset_stuck', methods=['POST'])
+def api_reset_stuck_analysis():
+    """重置卡住的深度分析任务"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        max_hours = data.get('max_hours', 2)
+        
+        # 验证参数
+        if max_hours <= 0 or max_hours > 24:
+            return jsonify({
+                'success': False,
+                'error': '最大小时数必须在1-24之间'
+            }), 400
+        
+        result = paper_explore_service.reset_stuck_analysis(max_hours)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"重置卡住分析失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"重置失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/analysis/batch_reset', methods=['POST'])
+def api_batch_reset_analysis_status():
+    """批量重置深度分析状态"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请求数据不能为空'
+            }), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        status = data.get('status', 'pending')
+        
+        if not arxiv_ids:
+            return jsonify({
+                'success': False,
+                'error': '论文ID列表不能为空'
+            }), 400
+        
+        result = paper_explore_service.batch_reset_analysis_status(arxiv_ids, status)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"批量重置分析状态失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"批量重置失败: {str(e)}"
+        }), 500
+
+
+@api_bp.route('/analysis/statistics')
+def api_analysis_statistics():
+    """获取深度分析统计信息"""
+    try:
+        result = paper_explore_service.get_analysis_statistics()
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"获取分析统计失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"获取统计失败: {str(e)}"
+        }), 500
+
+
 @api_bp.route('/settings/save', methods=['POST'])
 def save_settings():
     """保存系统设置（模型设置和深度分析设置）"""
@@ -765,9 +1041,11 @@ def save_settings():
             'full_paper_analysis_model': data.get('full_paper_analysis_model'),
             'deep_analysis_model': data.get('deep_analysis_model'),
             'vision_model': data.get('vision_model'),
+            'video_analysis_model': data.get('video_analysis_model'),
             
             # 深度分析配置
             'enable_deep_analysis': data.get('enable_deep_analysis', True),
+            'enable_video_analysis': data.get('enable_video_analysis', False),
             'deep_analysis_threshold': data.get('deep_analysis_threshold', 0.8),
             'ocr_char_limit_for_analysis': data.get('ocr_char_limit_for_analysis', 10000),
             'analysis_timeout': data.get('analysis_timeout', 600)

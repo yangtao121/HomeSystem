@@ -163,20 +163,76 @@
                         <div id="deep-analysis-section">
                             {% if paper.get('deep_analysis_status') %}
                                 {% if paper.deep_analysis_status == 'completed' %}
-                                <a href="{{ url_for('explore.paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success w-100 mb-2" target="_blank">
-                                    <i class="bi bi-lightbulb-fill"></i> 查看深度分析
-                                </a>
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('explore.paper_analysis_view', arxiv_id=paper.arxiv_id) }}" class="btn btn-success w-100" target="_blank">
+                                        <i class="bi bi-lightbulb-fill"></i> 查看深度分析
+                                        <span class="badge bg-light text-success ms-2">✓ 已完成</span>
+                                    </a>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="resetAnalysisStatus('{{ paper.arxiv_id }}')"> 
+                                        <i class="bi bi-arrow-counterclockwise"></i> 重置状态
+                                    </button>
+                                </div>
+                                
                                 {% elif paper.deep_analysis_status == 'processing' %}
-                                <button class="btn btn-info w-100 mb-2" disabled>
-                                    <div class="spinner-border spinner-border-sm me-2" role="status">
-                                        <span class="visually-hidden">分析中...</span>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-info w-100" disabled id="processing-btn-{{ paper.arxiv_id }}">
+                                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                                            <span class="visually-hidden">分析中...</span>
+                                        </div>
+                                        深度分析进行中...
+                                        <div class="progress-indicator mt-1">
+                                            <small class="text-light">预计耗时: 15-30分钟</small>
+                                        </div>
+                                    </button>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-outline-warning btn-sm" onclick="cancelAnalysis('{{ paper.arxiv_id }}')">
+                                            <i class="bi bi-x-circle"></i> 取消分析
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" onclick="resetAnalysisStatus('{{ paper.arxiv_id }}')">
+                                            <i class="bi bi-arrow-counterclockwise"></i> 强制重置
+                                        </button>
                                     </div>
-                                    深度分析进行中...
-                                </button>
+                                </div>
+                                
                                 {% elif paper.deep_analysis_status == 'failed' %}
-                                <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
-                                    <i class="bi bi-arrow-repeat"></i> 重试深度分析
-                                </button>
+                                <div class="d-grid gap-2">
+                                    <div class="alert alert-danger mb-2" role="alert">
+                                        <i class="bi bi-exclamation-triangle"></i> 分析失败
+                                    </div>
+                                    <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                        <i class="bi bi-arrow-repeat"></i> 重试深度分析
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="resetAnalysisStatus('{{ paper.arxiv_id }}')">
+                                        <i class="bi bi-arrow-counterclockwise"></i> 重置状态
+                                    </button>
+                                </div>
+                                
+                                {% elif paper.deep_analysis_status == 'cancelled' %}
+                                <div class="d-grid gap-2">
+                                    <div class="alert alert-warning mb-2" role="alert">
+                                        <i class="bi bi-info-circle"></i> 分析已取消
+                                    </div>
+                                    <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                        <i class="bi bi-lightbulb"></i> 重新开始分析
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="resetAnalysisStatus('{{ paper.arxiv_id }}')">
+                                        <i class="bi bi-arrow-counterclockwise"></i> 重置状态
+                                    </button>
+                                </div>
+                                
+                                {% elif paper.deep_analysis_status == 'pending' %}
+                                <div class="d-grid gap-2">
+                                    <div class="alert alert-info mb-2" role="alert">
+                                        <i class="bi bi-clock"></i> 待处理状态
+                                    </div>
+                                    <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-primary w-100 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
+                                        <i class="bi bi-lightbulb"></i> 开始深度分析
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="resetAnalysisStatus('{{ paper.arxiv_id }}')">
+                                        <i class="bi bi-arrow-counterclockwise"></i> 重置状态
+                                    </button>
+                                </div>
+                                
                                 {% else %}
                                 <button id="deep-analysis-btn-{{ paper.arxiv_id }}" class="btn btn-outline-primary w-100 mb-2 start-deep-analysis" data-arxiv-id="{{ paper.arxiv_id }}">
                                     <i class="bi bi-lightbulb"></i> 开始深度分析
@@ -758,10 +814,10 @@
     });
     
     // Global function: Cancel Deep Analysis  
-    function cancelDeepAnalysis(arxivId) {
-        console.log('🔥 cancelDeepAnalysis被调用! arxivId:', arxivId);
+    function cancelAnalysis(arxivId) {
+        console.log('🔥 cancelAnalysis被调用! arxivId:', arxivId);
         
-        if (!confirm('确定要取消深度分析吗？')) {
+        if (!confirm('确定要取消深度分析吗？\n\n正在进行的分析任务将被终止。')) {
             return;
         }
         
@@ -770,29 +826,32 @@
         
         // 显示取消中状态
         analysisSection.innerHTML = `
-            <button class="btn btn-warning" disabled>
-                <div class="spinner-border spinner-border-sm me-2" role="status">
-                    <span class="visually-hidden">取消中...</span>
-                </div>
-                正在取消分析...
-            </button>
+            <div class="d-grid gap-2">
+                <button class="btn btn-warning w-100" disabled>
+                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                        <span class="visually-hidden">取消中...</span>
+                    </div>
+                    正在取消分析...
+                </button>
+            </div>
         `;
         
         // 发送取消请求
-        fetch('/api/paper/' + arxivId + '/cancel_analysis', {
+        fetch('/api/analysis/paper/' + arxivId + '/cancel', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({}) // 添加空的JSON请求体
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('分析已取消', 'success');
-                // 启用深度分析按钮并更新为可重新开始状态
-                enableDeepAnalysisButtons(arxivId);
-                analysisSection.innerHTML = '<button class="btn btn-outline-primary start-deep-analysis" data-arxiv-id="' + arxivId + '"><i class="bi bi-lightbulb"></i> 开始深度分析</button>';
+                showAlert('分析任务已成功取消！', 'success');
+                // 刷新页面以显示更新状态
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
             } else {
                 showAlert('取消分析失败: ' + data.error, 'error');
                 // 恢复原始状态
@@ -802,6 +861,59 @@
         .catch(error => {
             console.error('取消分析失败:', error);
             showAlert('取消分析时发生网络错误', 'error');
+            // 恢复原始状态
+            analysisSection.innerHTML = originalContent;
+        });
+    }
+    
+    // Global function: Reset Analysis Status
+    function resetAnalysisStatus(arxivId) {
+        console.log('🔄 resetAnalysisStatus被调用! arxivId:', arxivId);
+        
+        if (!confirm('确定要重置该论文的分析状态吗？\n\n这将清除所有相关的分析记录和状态。')) {
+            return;
+        }
+        
+        const analysisSection = document.getElementById('deep-analysis-section');
+        const originalContent = analysisSection.innerHTML;
+        
+        // 显示重置中状态
+        analysisSection.innerHTML = `
+            <div class="d-grid gap-2">
+                <button class="btn btn-secondary w-100" disabled>
+                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                        <span class="visually-hidden">重置中...</span>
+                    </div>
+                    正在重置状态...
+                </button>
+            </div>
+        `;
+        
+        // 发送重置请求
+        fetch('/api/analysis/paper/' + arxivId + '/reset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('分析状态已成功重置！', 'success');
+                // 刷新页面以显示更新状态
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                showAlert('重置状态失败: ' + data.error, 'error');
+                // 恢复原始状态
+                analysisSection.innerHTML = originalContent;
+            }
+        })
+        .catch(error => {
+            console.error('重置状态失败:', error);
+            showAlert('重置状态时发生网络错误', 'error');
             // 恢复原始状态
             analysisSection.innerHTML = originalContent;
         });
@@ -846,8 +958,10 @@
                         console.log('⚠️ 深度分析已被取消');
                         showAlert('深度分析已被取消', 'warning', 3000);
                         
-                        // 恢复深度分析按钮状态
-                        enableDeepAnalysisButtons(arxivId);
+                        // 刷新页面以显示更新状态
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
                         
                     } else if (status === 'processing') {
                         // 继续轮询
@@ -879,7 +993,8 @@
     
     // Make functions globally accessible
     window.startDeepAnalysis = startDeepAnalysis;
-    window.cancelDeepAnalysis = cancelDeepAnalysis;
+    window.cancelAnalysis = cancelAnalysis;
+    window.resetAnalysisStatus = resetAnalysisStatus;
     window.startDeepAnalysisPolling = startDeepAnalysisPolling;
     window.getArxivIdFromPage = getArxivIdFromPage;
     

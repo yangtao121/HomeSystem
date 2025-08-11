@@ -2,7 +2,7 @@
 深度分析路由 - 论文深度分析功能
 包括深度分析、公式纠错等高级功能
 """
-from flask import Blueprint, render_template, request, jsonify, send_file
+from flask import Blueprint, render_template, request, jsonify, send_file, Response
 from services.paper_explore_service import PaperService
 from HomeSystem.integrations.paper_analysis.analysis_service import PaperAnalysisService
 import logging
@@ -251,6 +251,108 @@ def serve_analysis_image_fallback(arxiv_id, filename):
     except Exception as e:
         logger.error(f"Fallback image redirect failed {arxiv_id}/{filename}: {e}")
         return "Redirect failed", 500
+
+
+@images_bp.route('/paper/<arxiv_id>/videos/<filename>')
+def serve_analysis_video(arxiv_id, filename):
+    """服务分析视频文件，支持Range请求以实现流式传输"""
+    try:
+        # 安全检查：防止路径遍历攻击
+        if '..' in filename or '/' in filename or '\\' in filename:
+            logger.warning(f"Suspicious video filename requested: {filename}")
+            return "Invalid filename", 400
+        
+        # 验证ArXiv ID格式
+        if not re.match(r'^\d{4}\.\d{4,5}$', arxiv_id):
+            logger.warning(f"Invalid ArXiv ID format: {arxiv_id}")
+            return "Invalid ArXiv ID", 400
+        
+        # 构建安全的文件路径
+        base_path = os.path.join(PROJECT_ROOT, "data/paper_analyze")
+        video_path = os.path.join(base_path, arxiv_id, "videos", filename)
+        
+        # 确保路径在允许的目录内
+        real_video_path = os.path.realpath(video_path)
+        real_base_path = os.path.realpath(os.path.join(base_path, arxiv_id))
+        
+        if not real_video_path.startswith(real_base_path):
+            logger.warning(f"Path traversal attempt: {video_path}")
+            return "Access denied", 403
+        
+        # 检查文件是否存在
+        if not os.path.exists(real_video_path):
+            logger.info(f"Video not found: {real_video_path}")
+            return "Video not found", 404
+        
+        # 检查是否是视频文件
+        allowed_extensions = {'.mp4', '.webm', '.ogg', '.mov', '.avi'}
+        file_ext = os.path.splitext(filename.lower())[1]
+        if file_ext not in allowed_extensions:
+            logger.warning(f"Invalid video file type requested: {filename}")
+            return "Invalid file type", 400
+        
+        # 获取文件大小
+        file_size = os.path.getsize(real_video_path)
+        
+        # 处理Range请求（用于视频流式传输）
+        range_header = request.headers.get('range')
+        if range_header:
+            try:
+                # 解析Range头
+                byte_start = 0
+                byte_end = file_size - 1
+                
+                if range_header:
+                    match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+                    if match:
+                        byte_start = int(match.group(1))
+                        if match.group(2):
+                            byte_end = int(match.group(2))
+                
+                # 准备部分内容响应
+                def generate():
+                    with open(real_video_path, 'rb') as f:
+                        f.seek(byte_start)
+                        remaining = byte_end - byte_start + 1
+                        chunk_size = 8192
+                        
+                        while remaining > 0:
+                            to_read = min(chunk_size, remaining)
+                            chunk = f.read(to_read)
+                            if not chunk:
+                                break
+                            remaining -= len(chunk)
+                            yield chunk
+                
+                # 构建响应
+                response = Response(
+                    generate(),
+                    status=206,  # Partial Content
+                    mimetype=f'video/{file_ext[1:]}' if file_ext != '.avi' else 'video/x-msvideo',
+                    headers={
+                        'Content-Range': f'bytes {byte_start}-{byte_end}/{file_size}',
+                        'Accept-Ranges': 'bytes',
+                        'Content-Length': str(byte_end - byte_start + 1),
+                        'Cache-Control': 'public, max-age=3600',
+                    }
+                )
+                return response
+                
+            except Exception as e:
+                logger.error(f"Error processing range request: {e}")
+                # 如果Range处理失败，返回完整文件
+        
+        # 没有Range请求或处理失败，返回完整文件
+        return send_file(
+            real_video_path,
+            mimetype=f'video/{file_ext[1:]}' if file_ext != '.avi' else 'video/x-msvideo',
+            as_attachment=False,
+            conditional=True
+        )
+        
+    except Exception as e:
+        logger.error(f"Serve video failed {arxiv_id}/{filename}: {e}")
+        return "Server error", 500
 
 
 @analysis_bp.route('/paper/<arxiv_id>/download')

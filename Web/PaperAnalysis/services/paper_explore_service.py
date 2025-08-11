@@ -1669,6 +1669,281 @@ class PaperService:
                 'dify_uploaded': 0
             }
 
+    def recover_interrupted_analysis(self) -> Dict[str, Any]:
+        """
+        恢复被中断的深度分析任务
+        在应用启动时调用，将所有处于'processing'状态的论文重置为'pending'或'failed'
+        
+        Returns:
+            Dict: 恢复操作的结果统计
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 查找所有处于processing状态的论文
+                cursor.execute("""
+                    SELECT arxiv_id, title, deep_analysis_created_at, deep_analysis_updated_at
+                    FROM arxiv_papers 
+                    WHERE deep_analysis_status = 'processing'
+                """)
+                
+                interrupted_papers = cursor.fetchall()
+                
+                if not interrupted_papers:
+                    logger.info("没有发现被中断的深度分析任务")
+                    return {
+                        'success': True,
+                        'recovered_count': 0,
+                        'interrupted_papers': []
+                    }
+                
+                logger.info(f"发现 {len(interrupted_papers)} 个被中断的深度分析任务")
+                
+                # 将所有中断的任务重置为pending状态
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET deep_analysis_status = 'pending',
+                        deep_analysis_updated_at = CURRENT_TIMESTAMP
+                    WHERE deep_analysis_status = 'processing'
+                """)
+                
+                updated_count = cursor.rowcount
+                conn.commit()
+                
+                # 清理Redis中可能残留的进程记录
+                redis_client = self.db_manager.get_redis_client()
+                if redis_client:
+                    try:
+                        # 查找所有deep_analysis相关的键
+                        pattern = "deep_analysis:process:*"
+                        keys = redis_client.keys(pattern)
+                        if keys:
+                            redis_client.delete(*keys)
+                            logger.info(f"清理了 {len(keys)} 个Redis进程记录")
+                    except Exception as e:
+                        logger.warning(f"清理Redis记录失败: {e}")
+                
+                logger.info(f"成功恢复 {updated_count} 个被中断的深度分析任务")
+                
+                return {
+                    'success': True,
+                    'recovered_count': updated_count,
+                    'interrupted_papers': [
+                        {
+                            'arxiv_id': row['arxiv_id'],
+                            'title': row['title'],
+                            'created_at': row['deep_analysis_created_at'],
+                            'updated_at': row['deep_analysis_updated_at']
+                        }
+                        for row in interrupted_papers
+                    ]
+                }
+                
+        except Exception as e:
+            logger.error(f"恢复中断的深度分析任务失败: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'recovered_count': 0,
+                'interrupted_papers': []
+            }
+    
+    def reset_stuck_analysis(self, max_hours: int = 2) -> Dict[str, Any]:
+        """
+        重置卡住的深度分析任务
+        将超过指定时间仍在processing状态的任务标记为失败
+        
+        Args:
+            max_hours: 最大允许运行时间（小时）
+            
+        Returns:
+            Dict: 重置操作的结果统计
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 查找超时的处理中任务
+                cursor.execute("""
+                    SELECT arxiv_id, title, deep_analysis_created_at, deep_analysis_updated_at,
+                           EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - deep_analysis_updated_at))/3600 as hours_stuck
+                    FROM arxiv_papers 
+                    WHERE deep_analysis_status = 'processing' 
+                    AND deep_analysis_updated_at < CURRENT_TIMESTAMP - INTERVAL '%s hours'
+                """, (max_hours,))
+                
+                stuck_papers = cursor.fetchall()
+                
+                if not stuck_papers:
+                    logger.info(f"没有发现超过 {max_hours} 小时的卡住任务")
+                    return {
+                        'success': True,
+                        'reset_count': 0,
+                        'stuck_papers': []
+                    }
+                
+                logger.warning(f"发现 {len(stuck_papers)} 个超过 {max_hours} 小时的卡住任务")
+                
+                # 将卡住的任务标记为失败
+                cursor.execute("""
+                    UPDATE arxiv_papers 
+                    SET deep_analysis_status = 'failed',
+                        deep_analysis_updated_at = CURRENT_TIMESTAMP
+                    WHERE deep_analysis_status = 'processing' 
+                    AND deep_analysis_updated_at < CURRENT_TIMESTAMP - INTERVAL '%s hours'
+                """, (max_hours,))
+                
+                reset_count = cursor.rowcount
+                conn.commit()
+                
+                logger.info(f"成功重置 {reset_count} 个卡住的深度分析任务")
+                
+                return {
+                    'success': True,
+                    'reset_count': reset_count,
+                    'stuck_papers': [
+                        {
+                            'arxiv_id': row['arxiv_id'],
+                            'title': row['title'],
+                            'created_at': row['deep_analysis_created_at'],
+                            'updated_at': row['deep_analysis_updated_at'],
+                            'hours_stuck': float(row['hours_stuck'])
+                        }
+                        for row in stuck_papers
+                    ]
+                }
+                
+        except Exception as e:
+            logger.error(f"重置卡住的深度分析任务失败: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'reset_count': 0,
+                'stuck_papers': []
+            }
+    
+    def batch_reset_analysis_status(self, arxiv_ids: List[str], status: str = 'pending') -> Dict[str, Any]:
+        """
+        批量重置深度分析状态
+        
+        Args:
+            arxiv_ids: 要重置的论文ID列表
+            status: 目标状态 ('pending', 'failed', 'cancelled')
+            
+        Returns:
+            Dict: 批量重置操作的结果
+        """
+        if not arxiv_ids:
+            return {
+                'success': False,
+                'error': '论文ID列表为空'
+            }
+        
+        valid_statuses = ['pending', 'failed', 'cancelled']
+        if status not in valid_statuses:
+            return {
+                'success': False,
+                'error': f'无效状态: {status}，允许的状态: {valid_statuses}'
+            }
+        
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 批量更新状态
+                placeholders = ','.join(['%s'] * len(arxiv_ids))
+                cursor.execute(f"""
+                    UPDATE arxiv_papers 
+                    SET deep_analysis_status = %s,
+                        deep_analysis_updated_at = CURRENT_TIMESTAMP
+                    WHERE arxiv_id IN ({placeholders})
+                """, [status] + arxiv_ids)
+                
+                updated_count = cursor.rowcount
+                conn.commit()
+                
+                # 清理相关的Redis记录
+                redis_client = self.db_manager.get_redis_client()
+                if redis_client:
+                    try:
+                        for arxiv_id in arxiv_ids:
+                            process_key = f"deep_analysis:process:{arxiv_id}"
+                            redis_client.delete(process_key)
+                    except Exception as e:
+                        logger.warning(f"清理Redis记录失败: {e}")
+                
+                logger.info(f"批量重置 {updated_count} 个论文的分析状态为: {status}")
+                
+                return {
+                    'success': True,
+                    'updated_count': updated_count,
+                    'status': status,
+                    'arxiv_ids': arxiv_ids
+                }
+                
+        except Exception as e:
+            logger.error(f"批量重置分析状态失败: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_analysis_statistics(self) -> Dict[str, Any]:
+        """
+        获取深度分析统计信息
+        
+        Returns:
+            Dict: 包含各种状态的论文数量统计
+        """
+        try:
+            with self.db_manager.get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # 获取深度分析状态统计
+                cursor.execute("""
+                    SELECT 
+                        deep_analysis_status,
+                        COUNT(*) as count
+                    FROM arxiv_papers 
+                    WHERE deep_analysis_status IS NOT NULL
+                    GROUP BY deep_analysis_status
+                """)
+                
+                status_counts = {row['deep_analysis_status']: row['count'] for row in cursor.fetchall()}
+                
+                # 获取总体统计
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total_papers,
+                        COUNT(CASE WHEN deep_analysis_status IS NOT NULL THEN 1 END) as papers_with_status,
+                        COUNT(CASE WHEN deep_analysis_result IS NOT NULL THEN 1 END) as papers_with_result
+                    FROM arxiv_papers
+                """)
+                
+                total_stats = dict(cursor.fetchone())
+                
+                return {
+                    'success': True,
+                    'total_papers': total_stats['total_papers'],
+                    'papers_with_status': total_stats['papers_with_status'],
+                    'papers_with_result': total_stats['papers_with_result'],
+                    'status_breakdown': {
+                        'completed': status_counts.get('completed', 0),
+                        'processing': status_counts.get('processing', 0),
+                        'failed': status_counts.get('failed', 0),
+                        'pending': status_counts.get('pending', 0),
+                        'cancelled': status_counts.get('cancelled', 0)
+                    }
+                }
+                
+        except Exception as e:
+            logger.error(f"获取深度分析统计失败: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
 
 class DifyService:
     """Dify 知识库服务"""
