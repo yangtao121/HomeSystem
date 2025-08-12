@@ -29,6 +29,9 @@ class PaperGatherTaskConfig:
                  deep_analysis_model: str = "deepseek.DeepSeek_V3",
                  vision_model: str = "ollama.Qwen2_5_VL_7B",
                  ocr_char_limit_for_analysis: int = 10000,
+                 # 用户提示词参数
+                 enable_user_prompt: bool = False,
+                 user_prompt: Optional[str] = None,
                  # 搜索模式相关参数
                  search_mode: ArxivSearchMode = ArxivSearchMode.LATEST,
                  start_year: Optional[int] = None,
@@ -62,6 +65,9 @@ class PaperGatherTaskConfig:
         self.deep_analysis_model = deep_analysis_model
         self.vision_model = vision_model
         self.ocr_char_limit_for_analysis = ocr_char_limit_for_analysis
+        # 用户提示词配置
+        self.enable_user_prompt = enable_user_prompt
+        self.user_prompt = user_prompt
         # 新增搜索模式相关属性
         self.search_mode = search_mode
         self.start_year = start_year
@@ -469,8 +475,16 @@ class PaperGatherTask(Task):
             analysis_config = {
                 'analysis_model': self.config.deep_analysis_model,
                 'vision_model': self.config.vision_model,
+                'enable_user_prompt': self.config.enable_user_prompt,
+                'user_prompt': self.config.user_prompt,
                 'timeout': 600
             }
+            
+            # 记录用户提示词使用情况
+            if self.config.enable_user_prompt and self.config.user_prompt:
+                logger.info(f"📝 使用用户提示词进行深度分析")
+                logger.debug(f"用户提示词: {self.config.user_prompt[:100]}...")
+            
             analysis_service = PaperAnalysisService(default_config=analysis_config)
             
             # 准备论文数据（用于PDF下载，如果需要的话）

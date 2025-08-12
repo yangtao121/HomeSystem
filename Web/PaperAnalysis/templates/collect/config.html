@@ -593,6 +593,29 @@
             <div class="form-help">详细描述您的研究需求，LLM将根据此描述评估论文相关性</div>
         </div>
         
+        <!-- 用户分析提示词（可选） -->
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="enable_user_prompt" name="enable_user_prompt"
+                       {% if default_config.enable_user_prompt %}checked{% endif %}>
+                <label class="form-check-label" for="enable_user_prompt">
+                    <i class="fas fa-lightbulb me-1 text-warning"></i>启用自定义分析提示词
+                </label>
+            </div>
+            <div class="form-help">启用后可以指定论文分析时需要特别关注的方面，引导AI更精准地分析您关心的内容</div>
+        </div>
+
+        <div id="user_prompt_section" class="mb-3" style="display: none;">
+            <label for="user_prompt" class="form-label">
+                <i class="fas fa-pencil-alt me-1"></i>分析提示词
+            </label>
+            <textarea class="form-control" id="user_prompt" name="user_prompt" rows="4" 
+                      placeholder="例如：请特别关注以下方面：&#10;1. 数据集的构建方法和质量评估&#10;2. 模型架构的创新点和技术细节&#10;3. 实验设计的合理性和完整性&#10;4. 与现有方法的对比分析和性能提升&#10;5. 论文的局限性和未来工作方向">{{ default_config.user_prompt if default_config.user_prompt else '' }}</textarea>
+            <div class="form-help">
+                <i class="fas fa-info-circle me-1"></i>输入您希望AI在分析论文时特别关注的方面，这些提示将被明确标记为"用户特别关注的方面"
+            </div>
+        </div>
+        
         <!-- 搜索模式配置 -->
         <div class="mb-3">
             <label for="search_mode" class="form-label">搜索模式</label>
@@ -993,6 +1016,21 @@ $(document).ready(function() {
 
     // 初始化选中状态
     $('input[name="execution_mode"]:checked').closest('.execution-mode-card').addClass('selected');
+    
+    // 用户提示词开关控制
+    $('#enable_user_prompt').change(function() {
+        if ($(this).is(':checked')) {
+            $('#user_prompt_section').slideDown();
+        } else {
+            $('#user_prompt_section').slideUp();
+            $('#user_prompt').val(''); // 清空文本
+        }
+    });
+
+    // 页面加载时检查用户提示词初始状态
+    if ($('#enable_user_prompt').is(':checked')) {
+        $('#user_prompt_section').show();
+    }
 
 
     // 搜索模式选择变化
@@ -1222,7 +1260,7 @@ function getFormData() {
     const formDataObj = new FormData(form);
     
     for (let [key, value] of formDataObj.entries()) {
-        if (key === 'enable_paper_summarization' || key === 'enable_translation') {
+        if (key === 'enable_paper_summarization' || key === 'enable_translation' || key === 'enable_user_prompt') {
             formData[key] = true;
         } else if (key.includes('max_') || key.includes('interval_') || key.includes('_year')) {
             formData[key] = parseInt(value);

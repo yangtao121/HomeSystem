@@ -850,6 +850,8 @@ class PaperGatherService:
                 'full_paper_analysis_model', 'deep_analysis_model', 'vision_model',
                 'relevance_threshold', 'deep_analysis_threshold', 'ocr_char_limit_for_analysis',
                 'enable_deep_analysis', 'custom_settings',
+                # 用户提示词参数
+                'enable_user_prompt', 'user_prompt',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数
@@ -1043,6 +1045,8 @@ class PaperGatherService:
                 'full_paper_analysis_model', 'deep_analysis_model', 'vision_model',
                 'relevance_threshold', 'deep_analysis_threshold', 'ocr_char_limit_for_analysis',
                 'enable_deep_analysis', 'custom_settings',
+                # 用户提示词参数
+                'enable_user_prompt', 'user_prompt',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数

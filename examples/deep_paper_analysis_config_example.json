@@ -1,0 +1,25 @@
+{
+  "analysis_model": "deepseek.DeepSeek_V3",
+  "vision_model": "ollama.Qwen2_5_VL_7B",
+  "memory_enabled": true,
+  "enable_video_analysis": false,
+  "video_analysis_model": "ollama.Qwen3_30B",
+  "enable_user_prompt": true,
+  "user_prompt": "请特别关注论文中的以下方面：\n1. 数据集的构建方法和质量评估\n2. 模型架构的创新点和技术细节\n3. 实验设计的合理性和完整性\n4. 与现有方法的对比分析和性能提升\n5. 论文的局限性和未来工作方向\n6. 代码实现的可复现性和开源情况",
+  "user_prompt_position": "before_analysis",
+  "custom_settings": {
+    "description": "深度论文分析配置示例 - 包含用户自定义提示词",
+    "version": "1.0.0",
+    "user_prompt_examples": {
+      "机器学习论文关注点": "请特别关注：1. 模型架构创新 2. 训练技巧 3. 超参数设置 4. 消融实验",
+      "系统论文关注点": "请特别关注：1. 系统架构设计 2. 性能优化技术 3. 可扩展性 4. 实际部署考虑",
+      "理论论文关注点": "请特别关注：1. 理论贡献 2. 证明过程 3. 假设条件 4. 理论与实践的结合",
+      "应用论文关注点": "请特别关注：1. 实际应用场景 2. 用户研究 3. 部署挑战 4. 社会影响"
+    },
+    "usage_notes": {
+      "配置文件使用": "将此文件保存为 deep_paper_analysis_config.json，通过 config_path 参数加载",
+      "运行时覆盖": "可以在调用 analyze_paper_folder 时直接传入 user_prompt 参数覆盖配置",
+      "动态调整": "根据不同类型的论文调整 user_prompt 内容以获得更针对性的分析"
+    }
+  }
+}

@@ -40,6 +40,8 @@ class PaperAnalysisService:
             'vision_model': 'ollama.Qwen2_5_VL_7B',
             'enable_video_analysis': False,
             'video_analysis_model': 'ollama.Qwen3_30B',
+            'enable_user_prompt': False,  # 用户提示词功能开关（默认关闭）
+            'user_prompt': None,  # 用户自定义提示词
             'timeout': 600
         }
         
@@ -390,25 +392,46 @@ class PaperAnalysisService:
             
             # 创建深度分析智能体
             logger.info(f"🤖 创建{agent_type}...")
+            
+            # 检查是否启用用户提示词
+            enable_user_prompt = config.get('enable_user_prompt', False)
+            user_prompt = config.get('user_prompt', None)
+            
+            if enable_user_prompt and user_prompt:
+                logger.info(f"📝 启用用户提示词功能")
+                logger.info(f"   - 用户提示词预览: {user_prompt[:100]}..." if len(user_prompt) > 100 else f"   - 用户提示词: {user_prompt}")
+            
             if video_analysis_enabled:
                 agent = agent_creator(
                     analysis_model=config['analysis_model'],
                     vision_model=config['vision_model'],
-                    video_analysis_model=config.get('video_analysis_model', 'ollama.Qwen3_30B')
+                    video_analysis_model=config.get('video_analysis_model', 'ollama.Qwen3_30B'),
+                    enable_user_prompt=enable_user_prompt,
+                    user_prompt=user_prompt
                 )
                 logger.info(f"✅ {agent_type}创建成功 (视频分析模型: {config.get('video_analysis_model', 'ollama.Qwen3_30B')})")
             else:
                 agent = agent_creator(
                     analysis_model=config['analysis_model'],
-                    vision_model=config['vision_model']
+                    vision_model=config['vision_model'],
+                    enable_user_prompt=enable_user_prompt,
+                    user_prompt=user_prompt
                 )
                 logger.info(f"✅ {agent_type}创建成功")
             
             # 执行分析
-            analysis_result, report_content = agent.analyze_and_generate_report(
-                folder_path=paper_folder_path,
-                thread_id=f"unified_analysis_{arxiv_id}_{int(time.time())}"
-            )
+            # 传递用户提示词（如果存在）
+            if enable_user_prompt and user_prompt:
+                analysis_result, report_content = agent.analyze_and_generate_report(
+                    folder_path=paper_folder_path,
+                    thread_id=f"unified_analysis_{arxiv_id}_{int(time.time())}",
+                    user_prompt=user_prompt
+                )
+            else:
+                analysis_result, report_content = agent.analyze_and_generate_report(
+                    folder_path=paper_folder_path,
+                    thread_id=f"unified_analysis_{arxiv_id}_{int(time.time())}"
+                )
             
             # 检查分析是否成功
             if 'error' in analysis_result:
@@ -545,7 +568,7 @@ def create_paper_analysis_service(config: Optional[Dict[str, Any]] = None) -> Pa
     创建论文分析服务的便捷函数
     
     Args:
-        config: 配置参数
+        config: 配置参数（可包含 enable_user_prompt 和 user_prompt）
         
     Returns:
         PaperAnalysisService: 分析服务实例
@@ -557,6 +580,8 @@ def create_video_enhanced_paper_analysis_service(
     analysis_model: str = "deepseek.DeepSeek_V3",
     vision_model: str = "ollama.Qwen2_5_VL_7B", 
     video_analysis_model: str = "ollama.Qwen3_30B",
+    enable_user_prompt: bool = False,
+    user_prompt: Optional[str] = None,
     **kwargs
 ) -> PaperAnalysisService:
     """
@@ -566,6 +591,8 @@ def create_video_enhanced_paper_analysis_service(
         analysis_model: 主分析模型
         vision_model: 视觉分析模型
         video_analysis_model: 视频分析模型
+        enable_user_prompt: 是否启用用户提示词功能
+        user_prompt: 用户自定义提示词
         **kwargs: 其他配置参数
         
     Returns:
@@ -576,6 +603,8 @@ def create_video_enhanced_paper_analysis_service(
         'vision_model': vision_model,
         'enable_video_analysis': True,
         'video_analysis_model': video_analysis_model,
+        'enable_user_prompt': enable_user_prompt,
+        'user_prompt': user_prompt,
         'timeout': 600,
         **kwargs
     }

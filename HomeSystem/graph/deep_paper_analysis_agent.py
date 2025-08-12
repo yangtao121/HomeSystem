@@ -48,6 +48,9 @@ class DeepPaperAnalysisState(TypedDict):
     
     # 执行状态
     is_complete: bool                               # 是否完成分析
+    
+    # 用户提示词
+    user_prompt: Optional[str]                      # 用户自定义提示词
 
 
 class DeepPaperAnalysisConfig:
@@ -60,6 +63,10 @@ class DeepPaperAnalysisConfig:
                  # 新增视频分析相关配置
                  enable_video_analysis: bool = False,  # 默认关闭
                  video_analysis_model: str = "ollama.Qwen3_30B",  # 视频分析模型
+                 # 新增用户提示词配置
+                 enable_user_prompt: bool = False,  # 默认关闭
+                 user_prompt: Optional[str] = None,  # 用户自定义提示词
+                 user_prompt_position: str = "before_analysis",  # 提示词位置: before_analysis, after_tools, custom
                  custom_settings: Optional[Dict[str, Any]] = None):
         
         self.analysis_model = analysis_model          # 主分析LLM
@@ -68,6 +75,10 @@ class DeepPaperAnalysisConfig:
         # 视频分析配置
         self.enable_video_analysis = enable_video_analysis
         self.video_analysis_model = video_analysis_model
+        # 用户提示词配置
+        self.enable_user_prompt = enable_user_prompt
+        self.user_prompt = user_prompt
+        self.user_prompt_position = user_prompt_position
         self.custom_settings = custom_settings or {}
     
     @classmethod
@@ -370,32 +381,39 @@ class DeepPaperAnalysisAgent(BaseGraph):
             image_list += f"\n  ... and {len(available_images) - 10} more images"
         
         # 动态生成工具描述
-        tools_description = "- `analyze_image`: 用于分析论文中的任何图片/图表/表格/示意图\n"
+        tools_description = "- `analyze_image`: 用于分析论文中的任何图片/示意图\n"
         tools_description += "  - 当你需要理解文本中引用的视觉内容时调用此工具\n"
-        tools_description += "  - 始终分析关键图表、架构图、实验图表和重要表格\n"
+        tools_description += "  - 始终分析关键架构图、实验图表和重要表格\n"
         tools_description += "  - 提供具体的分析查询，如\"分析这个架构图并识别主要组件\"或\"从这个实验图表中提取性能指标\"\n"
         
         if self.video_tool:
             tools_description += "- `process_video_resources`: 用于分析论文相关的演示视频或项目视频\n"
             tools_description += "  - 当论文包含项目地址、GitHub链接或开源代码时使用\n"
-            tools_description += "  - 可以基于论文标题、关键词或项目信息搜索相关演示视频\n"
             tools_description += "  - 自动下载视频并进行内容分析，生成中文总结\n"
             tools_description += "  - 视频将保存到videos/文件夹，在Markdown中引用\n"
+        
+        # 检查是否有用户提示词
+        user_prompt_section = ""
+        user_prompt = state.get('user_prompt')
+        if self.config.enable_user_prompt and user_prompt:
+            user_prompt_section = f"""
+
+**用户特别关注的方面:**
+{user_prompt}
+
+请在分析时特别关注以上用户提到的方面，并在相应章节中进行深入分析。
+"""
         
         return f"""
 你是一位专业的学术论文分析专家。你有图片分析工具{('和视频分析工具' if self.video_tool else '')}，可以帮助你理解论文中的图表、架构图、实验结果{('以及相关的演示视频' if self.video_tool else '')}。
 
 **重要: 所有分析结果必须以标准Markdown格式输出，包含完整的结构、公式、图片引用，并尽可能提取作者信息、单位和项目地址。论文标题请直接使用原文标题，不要翻译。所有专业名词请直接保留原文，不要翻译。**
-
+{user_prompt_section}
 **可用工具:**
 {tools_description}
 
 {('**视频使用说明:**' if self.video_tool else '')}
 {('- 有项目链接必须调用视频分析工具进行分析，并根据视频内容选择合适的位置插入视频，不要固定在项目信息部分' if self.video_tool else '')}
-{('- 演示视频（系统运行）→ 放在实验结果部分' if self.video_tool else '')}
-{('- 技术视频（方法解释）→ 放在技术方法部分' if self.video_tool else '')}
-{('- 对比视频（性能展示）→ 放在关键发现部分' if self.video_tool else '')}
-{('- 概述视频（项目介绍）→ 可放在作者与项目信息部分' if self.video_tool else '')}
 {('- 视频格式：<video controls width="100%"><source src="videos/视频文件名.mp4" type="video/mp4"></video>' if self.video_tool else '')}
 
 **论文内容:**
@@ -425,8 +443,6 @@ class DeepPaperAnalysisAgent(BaseGraph):
 - 作者: xxx 等
 - 单位: xxx大学/研究所（请标注一作单位）
 - 项目地址: [GitHub/主页/源码链接](url)（如有请标注）
-{('### 相关演示视频' if self.video_tool else '')}
-{('（如找到相关视频，使用HTML video标签展示：<video controls width="100%"><source src="videos/视频文件名.mp4" type="video/mp4"></video>）' if self.video_tool else '')}
 
 ## 1. 研究背景与目标
 
@@ -435,12 +451,9 @@ class DeepPaperAnalysisAgent(BaseGraph):
 ## 3. 技术方法
 （保留重要数学公式，如：$$f(x) = \\sum_{{i=1}}^n w_i x_i$$）
 
-## 4. 实验结果
-
-## 5. 关键发现
-
-## 6. 总结与评价
 ```
+
+**总结的内容不限于以上内容，请根据论文内容灵活调整。**
 
 **执行指南:**
 1. 仔细阅读论文内容，识别关键信息
@@ -459,13 +472,15 @@ class DeepPaperAnalysisAgent(BaseGraph):
 """
     
     
-    def analyze_paper_folder(self, folder_path: str, thread_id: str = "1") -> Dict[str, Any]:
+    def analyze_paper_folder(self, folder_path: str, thread_id: str = "1", 
+                             user_prompt: Optional[str] = None) -> Dict[str, Any]:
         """
         分析论文文件夹的主入口
         
         Args:
             folder_path: 论文文件夹路径
             thread_id: 线程ID
+            user_prompt: 用户自定义提示词（可选，会覆盖配置中的默认值）
             
         Returns:
             Dict: 完整的分析结果状态
@@ -506,7 +521,20 @@ class DeepPaperAnalysisAgent(BaseGraph):
             logger.info(f"  - 可分析图片数量: {len(folder_data['available_images'])}")
             logger.info(f"  - 视觉模型: {self.config.vision_model}")
             
-            # 6. 创建初始状态
+            # 6. 确定要使用的用户提示词
+            # 优先使用运行时传入的提示词，其次使用配置中的提示词
+            effective_user_prompt = None
+            if user_prompt:
+                effective_user_prompt = user_prompt
+                logger.info("使用运行时传入的用户提示词")
+            elif self.config.enable_user_prompt and self.config.user_prompt:
+                effective_user_prompt = self.config.user_prompt
+                logger.info("使用配置文件中的用户提示词")
+            
+            if effective_user_prompt:
+                logger.info(f"用户提示词预览: {effective_user_prompt[:100]}...")
+            
+            # 7. 创建初始状态
             initial_state: DeepPaperAnalysisState = {
                 "base_folder_path": folder_path,
                 "paper_text": folder_data["paper_text"],
@@ -515,16 +543,17 @@ class DeepPaperAnalysisAgent(BaseGraph):
                 
                 "messages": [],
                 "analysis_result": None,
-                "is_complete": False
+                "is_complete": False,
+                "user_prompt": effective_user_prompt  # 添加用户提示词到状态
             }
             
-            # 7. 配置LangGraph
+            # 8. 配置LangGraph
             config = RunnableConfig(
                 configurable={"thread_id": thread_id},
                 recursion_limit=100
             )
             
-            # 8. 执行分析
+            # 9. 执行分析
             logger.info("开始执行LangGraph工作流...")
             result = self.agent.invoke(initial_state, config)
             
@@ -670,7 +699,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         return health_status
     
-    def analyze_paper_folder_with_fallback(self, folder_path: str, thread_id: str = "1") -> Dict[str, Any]:
+    def analyze_paper_folder_with_fallback(self, folder_path: str, thread_id: str = "1", 
+                                           user_prompt: Optional[str] = None) -> Dict[str, Any]:
         """
         带降级处理的论文分析方法
         
@@ -678,6 +708,11 @@ class DeepPaperAnalysisAgent(BaseGraph):
         1. 禁用内存管理
         2. 重新创建 agent 实例
         3. 简化分析流程
+        
+        Args:
+            folder_path: 论文文件夹路径
+            thread_id: 线程ID
+            user_prompt: 用户自定义提示词（可选）
         """
         # 首先检查资源健康状态
         health = self.check_resource_health()
@@ -688,7 +723,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         try:
             # 尝试标准分析
-            return self.analyze_paper_folder(folder_path, thread_id)
+            return self.analyze_paper_folder(folder_path, thread_id, user_prompt)
             
         except Exception as primary_error:
             logger.error(f"❌ 标准分析失败: {primary_error}")
@@ -696,7 +731,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
             # 尝试降级处理
             logger.info("🔄 尝试降级处理...")
             try:
-                return self._fallback_analysis(folder_path, thread_id, primary_error)
+                return self._fallback_analysis(folder_path, thread_id, primary_error, user_prompt)
             except Exception as fallback_error:
                 logger.error(f"❌ 降级处理也失败: {fallback_error}")
                 return {
@@ -705,7 +740,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
                     "health_status": health
                 }
     
-    def _fallback_analysis(self, folder_path: str, thread_id: str, original_error: Exception) -> Dict[str, Any]:
+    def _fallback_analysis(self, folder_path: str, thread_id: str, original_error: Exception,
+                          user_prompt: Optional[str] = None) -> Dict[str, Any]:
         """降级分析处理"""
         logger.info("📋 执行降级分析...")
         
@@ -737,7 +773,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
                 "image_mappings": folder_data["image_mappings"],
                 "messages": [],
                 "analysis_result": None,
-                "is_complete": False
+                "is_complete": False,
+                "user_prompt": user_prompt  # 添加用户提示词
             }
             
             # 使用简化配置执行分析
@@ -876,7 +913,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
         
         return report_content
     
-    def analyze_and_generate_report(self, folder_path: str, output_path: Optional[str] = None, thread_id: str = "1") -> tuple[Dict[str, Any], str]:
+    def analyze_and_generate_report(self, folder_path: str, output_path: Optional[str] = None, 
+                                   thread_id: str = "1", user_prompt: Optional[str] = None) -> tuple[Dict[str, Any], str]:
         """
         完整的分析和报告生成流程
         
@@ -884,14 +922,15 @@ class DeepPaperAnalysisAgent(BaseGraph):
             folder_path: 论文文件夹路径
             output_path: 报告输出路径（可选）
             thread_id: 线程ID
+            user_prompt: 用户自定义提示词（可选）
             
         Returns:
             tuple: (分析结果, markdown报告内容)
         """
         logger.info(f"开始完整的论文分析和报告生成流程: {folder_path}")
         
-        # 执行分析
-        analysis_result = self.analyze_paper_folder(folder_path, thread_id)
+        # 执行分析（传递用户提示词）
+        analysis_result = self.analyze_paper_folder(folder_path, thread_id, user_prompt)
         
         # 生成报告
         report_content = self.generate_markdown_report(analysis_result, output_path)
