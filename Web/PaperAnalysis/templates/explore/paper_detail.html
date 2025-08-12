@@ -506,51 +506,46 @@
                         <div class="step-indicator active me-3" id="step1-indicator">
                             <span class="step-number">1</span>
                         </div>
-                        <div class="flex-grow-1">
-                            <div class="step-title" id="step1-title">选择分析选项</div>
-                        </div>
+                        <div class="step-title active me-3" id="step1-title">选择分析类型</div>
+                        <div class="step-divider me-3"></div>
                         <div class="step-indicator me-3" id="step2-indicator">
                             <span class="step-number">2</span>
                         </div>
-                        <div class="flex-grow-1">
-                            <div class="step-title text-muted" id="step2-title">自定义提示词</div>
-                        </div>
+                        <div class="step-title text-muted" id="step2-title">输入自定义提示</div>
                     </div>
                 </div>
 
-                <!-- 第一步：询问是否添加自定义提示词 -->
+                <!-- 第一步：选择分析类型 -->
                 <div id="step1-content">
-                    <div class="text-center mb-4">
-                        <div class="mb-3">
-                            <i class="bi bi-question-circle text-primary" style="font-size: 3rem;"></i>
-                        </div>
-                        <h5 class="mb-3">是否需要添加自定义分析提示词？</h5>
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i>
-                            <strong>说明：</strong>自定义提示词可以让AI更关注论文的特定方面，比如特定技术方法、应用场景或研究角度。
-                        </div>
+                    <div class="mb-4">
+                        <h6><i class="bi bi-question-circle"></i> 请选择深度分析的方式</h6>
+                        <p class="text-muted">您可以使用标准分析模式，或者添加自定义提示词来指导AI分析</p>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <div class="card h-100 shadow-sm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card h-100 border-2">
                                 <div class="card-body text-center">
-                                    <i class="bi bi-lightning text-success mb-2" style="font-size: 2rem;"></i>
-                                    <h6 class="card-title">标准分析</h6>
-                                    <p class="card-text text-muted">使用默认的分析模板，快速开始深度分析</p>
-                                    <button type="button" class="btn btn-success" onclick="startAnalysisWithoutPrompt()">
+                                    <div class="mb-3">
+                                        <i class="bi bi-lightning-charge text-primary" style="font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h6 class="card-title">标准深度分析</h6>
+                                    <p class="card-text text-muted">使用默认配置快速开始深度分析</p>
+                                    <button type="button" class="btn btn-primary" onclick="startAnalysisWithoutPrompt()">
                                         <i class="bi bi-play-fill"></i> 立即开始
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <div class="card h-100 shadow-sm">
+                        <div class="col-md-6">
+                            <div class="card h-100 border-2">
                                 <div class="card-body text-center">
-                                    <i class="bi bi-gear text-primary mb-2" style="font-size: 2rem;"></i>
-                                    <h6 class="card-title">自定义分析</h6>
-                                    <p class="card-text text-muted">添加特定提示词，让AI关注您感兴趣的方面</p>
-                                    <button type="button" class="btn btn-primary" onclick="proceedToCustomPrompt()">
+                                    <div class="mb-3">
+                                        <i class="bi bi-pencil-square text-warning" style="font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h6 class="card-title">自定义深度分析</h6>
+                                    <p class="card-text text-muted">添加自定义提示词指导AI深度分析</p>
+                                    <button type="button" class="btn btn-warning" onclick="proceedToCustomPrompt()">
                                         <i class="bi bi-pencil"></i> 自定义提示
                                     </button>
                                 </div>
@@ -567,25 +562,22 @@
                     </div>
 
                     <!-- 提示词输入区域 -->
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label for="customPromptInput" class="form-label">
-                            自定义提示词 
-                            <span class="text-danger">*</span>
+                            <i class="bi bi-chat-text"></i> 自定义提示词
                         </label>
                         <textarea class="form-control" id="customPromptInput" rows="4" 
-                                  placeholder="例如：请特别关注论文中的数据集构建方法和评估指标，分析其创新性和实用性..."
-                                  maxlength="500"></textarea>
+                                  placeholder="例如：请重点关注论文的创新点和技术方法..." 
+                                  maxlength="500" oninput="updatePromptCharCount()"></textarea>
                         <div class="form-text d-flex justify-content-between">
-                            <span>清晰描述您关注的重点，有助于获得更精准的分析结果</span>
-                            <span id="promptCharCount" class="text-muted">0/500</span>
+                            <small>建议字数：20-200字，有助于获得更准确的分析结果</small>
+                            <small><span id="promptCharCount">0</span>/500</small>
                         </div>
                     </div>
 
-                    <!-- 提示词示例 -->
-                    <div class="mb-3">
-                        <h6 class="mb-2">
-                            <i class="bi bi-lightbulb-fill text-warning"></i> 示例提示词
-                        </h6>
+                    <!-- 快速模板 -->
+                    <div class="mb-4">
+                        <h6 class="mb-3"><i class="bi bi-lightning-charge"></i> 快速模板</h6>
                         <div class="row">
                             <div class="col-md-6 mb-2">
                                 <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
@@ -620,7 +612,7 @@
                             <i class="bi bi-arrow-left"></i> 返回
                         </button>
                         <button type="button" class="btn btn-primary" id="startCustomAnalysisBtn" onclick="startAnalysisWithCustomPrompt()">
-                            <i class="bi bi-play-fill"></i> 开始自定义分析
+                            <i class="bi bi-lightbulb"></i> 开始深度分析
                         </button>
                     </div>
                 </div>
@@ -773,6 +765,13 @@
     
     .step-title.active {
         color: #0d6efd;
+    }
+    
+    .step-divider {
+        width: 40px;
+        height: 2px;
+        background: #e9ecef;
+        margin: 0 10px;
     }
     
     #customPromptModal .card {

@@ -966,6 +966,62 @@ window.MathJax = {
 }
 
 /* 打印样式增强 */
+/* 重新分析自定义提示词模态框样式 */
+.step-indicator {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6c757d;
+    transition: all 0.3s ease;
+    border: 2px solid #e9ecef;
+}
+
+.step-indicator.active {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.step-divider {
+    width: 40px;
+    height: 2px;
+    background: #e9ecef;
+    margin: 0 10px;
+}
+
+.step-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #6c757d;
+    transition: all 0.3s ease;
+}
+
+.step-title.active {
+    color: #0d6efd;
+}
+
+#customPromptModalForReanalysis .card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+#customPromptModalForReanalysis .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+    border-color: var(--bs-primary);
+}
+
+#reanalysisCustomPromptInput {
+    resize: vertical;
+    min-height: 100px;
+}
+
 @media print {
     .no-print { 
         display: none !important; 
@@ -1218,6 +1274,138 @@ window.MathJax = {
     </div>
 </div>
 
+<!-- 重新分析自定义提示词模态框 -->
+<div class="modal fade" id="customPromptModalForReanalysis" tabindex="-1" aria-labelledby="customPromptModalForReanalysisLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="customPromptModalForReanalysisLabel">
+                    <i class="bi bi-arrow-clockwise"></i> 重新分析 - 自定义提示词
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 步骤指示器 -->
+                <div class="mb-4">
+                    <div class="d-flex align-items-center">
+                        <div class="step-indicator active me-3" id="reanalysis-step1-indicator">
+                            <span class="step-number">1</span>
+                        </div>
+                        <div class="step-title active me-3" id="reanalysis-step1-title">选择分析类型</div>
+                        <div class="step-divider me-3"></div>
+                        <div class="step-indicator me-3" id="reanalysis-step2-indicator">
+                            <span class="step-number">2</span>
+                        </div>
+                        <div class="step-title text-muted" id="reanalysis-step2-title">输入自定义提示</div>
+                    </div>
+                </div>
+
+                <!-- 第一步：选择分析类型 -->
+                <div id="reanalysis-step1-content">
+                    <div class="mb-4">
+                        <h6><i class="bi bi-question-circle"></i> 请选择重新分析的方式</h6>
+                        <p class="text-muted">您可以使用标准分析模式，或者添加自定义提示词来指导AI分析</p>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card h-100 border-2">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        <i class="bi bi-lightning-charge text-warning" style="font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h6 class="card-title">标准重新分析</h6>
+                                    <p class="card-text text-muted">使用默认配置快速重新分析论文</p>
+                                    <button type="button" class="btn btn-warning" onclick="startReanalysisWithoutPrompt()">
+                                        <i class="bi bi-play-fill"></i> 立即开始
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100 border-2">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        <i class="bi bi-pencil-square text-primary" style="font-size: 2.5rem;"></i>
+                                    </div>
+                                    <h6 class="card-title">自定义重新分析</h6>
+                                    <p class="card-text text-muted">添加自定义提示词指导AI重新分析</p>
+                                    <button type="button" class="btn btn-primary" onclick="proceedToCustomPromptForReanalysis()">
+                                        <i class="bi bi-pencil"></i> 自定义提示
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 第二步：输入自定义提示词 -->
+                <div id="reanalysis-step2-content" style="display: none;">
+                    <div class="mb-4">
+                        <h6><i class="bi bi-pencil-square"></i> 请输入您的自定义提示词</h6>
+                        <p class="text-muted">描述您希望AI在重新分析时特别关注的方面或角度</p>
+                    </div>
+
+                    <!-- 提示词输入区域 -->
+                    <div class="mb-4">
+                        <label for="reanalysisCustomPromptInput" class="form-label">
+                            <i class="bi bi-chat-text"></i> 自定义提示词
+                        </label>
+                        <textarea class="form-control" id="reanalysisCustomPromptInput" rows="4" 
+                                  placeholder="例如：请重点关注论文的创新点和技术方法..." 
+                                  maxlength="500" oninput="updateReanalysisPromptCharCount()"></textarea>
+                        <div class="form-text d-flex justify-content-between">
+                            <small>建议字数：20-200字，有助于获得更准确的分析结果</small>
+                            <small><span id="reanalysisPromptCharCount">0</span>/500</small>
+                        </div>
+                    </div>
+
+                    <!-- 快速模板 -->
+                    <div class="mb-4">
+                        <h6 class="mb-3"><i class="bi bi-lightning-charge"></i> 快速模板</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplateForReanalysis('method')">
+                                    <i class="bi bi-gear"></i> 关注技术方法
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplateForReanalysis('application')">
+                                    <i class="bi bi-rocket"></i> 关注应用场景
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplateForReanalysis('innovation')">
+                                    <i class="bi bi-star"></i> 关注创新点
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplateForReanalysis('evaluation')">
+                                    <i class="bi bi-graph-up"></i> 关注评估方法
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 返回和继续按钮 -->
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="backToStep1ForReanalysis()">
+                            <i class="bi bi-arrow-left"></i> 返回
+                        </button>
+                        <button type="button" class="btn btn-warning" id="startCustomReanalysisBtn" onclick="startReanalysisWithCustomPrompt()">
+                            <i class="bi bi-arrow-clockwise"></i> 开始重新分析
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast 通知容器 -->
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
     <div id="imageActionToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
@@ -1292,84 +1480,16 @@ function startReanalysis(arxivId) {
         return;
     }
     
-    // 确认对话框
-    if (!confirm('确定要重新分析这篇论文吗？\n\n⚠️ 注意：这将覆盖当前的分析结果，过程可能需要几分钟时间。')) {
-        console.log('用户取消了重新分析请求');
-        return;
-    }
+    // 设置全局变量供模态框使用
+    window.currentReanalysisArxivId = arxivId;
     
-    // 禁用重新分析按钮
-    const btn = document.getElementById('reanalysisBtn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> <span>分析中...</span>';
-    }
+    // 重置模态框状态
+    resetCustomPromptModalForReanalysis();
     
-    showFormulaCorrectionToast('正在启动重新分析...', 'info');
-    
-    // 获取系统设置并调用深度分析API
-    window.SystemSettings.getAnalysisConfig().then(config => {
-        console.log('使用系统配置进行重新分析:', config);
-        
-        return fetch(`/api/analysis/paper/${arxivId}/analyze`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                config: config
-            })
-        });
-    }).catch(error => {
-        console.error('获取系统配置失败，使用默认配置:', error);
-        
-        // 如果获取配置失败，使用默认配置
-        return fetch(`/api/analysis/paper/${arxivId}/analyze`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
-        });
-    })
-    .then(response => {
-        console.log('重新分析API响应状态码:', response.status);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return response.json();
-    })
-    .then(data => {
-        console.log('重新分析API响应:', data);
-        
-        if (data.success) {
-            showFormulaCorrectionToast('重新分析已启动！正在后台处理中...', 'success');
-            
-            // 开始轮询状态
-            startReanalysisPolling(arxivId);
-        } else {
-            console.error('重新分析启动失败:', data.error);
-            showFormulaCorrectionToast(`重新分析启动失败: ${data.error || '未知错误'}`, 'error');
-            
-            // 恢复按钮
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
-            }
-        }
-    })
-    .catch(error => {
-        console.error('重新分析API调用失败:', error);
-        showFormulaCorrectionToast(`重新分析启动失败: ${error.message}`, 'error');
-        
-        // 恢复按钮
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
-        }
-    });
+    // 显示自定义提示词模态框
+    console.log('🎯 显示重新分析自定义提示词选择模态框');
+    const modal = new bootstrap.Modal(document.getElementById('customPromptModalForReanalysis'));
+    modal.show();
 }
 
 // 全局函数：重新分析状态轮询
@@ -1433,6 +1553,242 @@ function startReanalysisPolling(arxivId) {
         
         showFormulaCorrectionToast('重新分析可能需要更长时间，请稍后手动刷新页面查看结果', 'warning');
     }, 15 * 60 * 1000);
+}
+
+// === 重新分析自定义提示词模态框相关函数 ===
+
+// 重置模态框状态
+function resetCustomPromptModalForReanalysis() {
+    // 重置步骤指示器
+    document.getElementById('reanalysis-step1-indicator').classList.add('active');
+    document.getElementById('reanalysis-step2-indicator').classList.remove('active');
+    document.getElementById('reanalysis-step1-title').classList.remove('text-muted');
+    document.getElementById('reanalysis-step2-title').classList.add('text-muted');
+    
+    // 显示第一步，隐藏第二步
+    document.getElementById('reanalysis-step1-content').style.display = 'block';
+    document.getElementById('reanalysis-step2-content').style.display = 'none';
+    
+    // 清空提示词输入框
+    document.getElementById('reanalysisCustomPromptInput').value = '';
+    updateReanalysisPromptCharCount();
+}
+
+// 进入自定义提示词步骤
+function proceedToCustomPromptForReanalysis() {
+    // 更新步骤指示器
+    document.getElementById('reanalysis-step1-indicator').classList.remove('active');
+    document.getElementById('reanalysis-step2-indicator').classList.add('active');
+    document.getElementById('reanalysis-step1-title').classList.add('text-muted');
+    document.getElementById('reanalysis-step2-title').classList.remove('text-muted');
+    document.getElementById('reanalysis-step2-title').classList.add('active');
+    
+    // 切换内容显示
+    document.getElementById('reanalysis-step1-content').style.display = 'none';
+    document.getElementById('reanalysis-step2-content').style.display = 'block';
+    
+    // 聚焦到输入框
+    setTimeout(() => {
+        document.getElementById('reanalysisCustomPromptInput').focus();
+    }, 300);
+}
+
+// 返回第一步
+function backToStep1ForReanalysis() {
+    // 更新步骤指示器
+    document.getElementById('reanalysis-step1-indicator').classList.add('active');
+    document.getElementById('reanalysis-step2-indicator').classList.remove('active');
+    document.getElementById('reanalysis-step1-title').classList.remove('text-muted');
+    document.getElementById('reanalysis-step2-title').classList.add('text-muted');
+    document.getElementById('reanalysis-step2-title').classList.remove('active');
+    
+    // 切换内容显示
+    document.getElementById('reanalysis-step1-content').style.display = 'block';
+    document.getElementById('reanalysis-step2-content').style.display = 'none';
+}
+
+// 使用提示词模板
+function usePromptTemplateForReanalysis(templateType) {
+    const templates = {
+        'method': '请特别关注论文中的技术方法和算法实现，分析其创新性、复杂度和实用性。',
+        'application': '请重点分析论文的应用场景和实际部署情况，评估其商业价值和实际应用潜力。',
+        'innovation': '请着重分析论文的创新点和突破性贡献，对比现有技术的优势和局限性。',
+        'evaluation': '请详细分析论文的实验设计、评估方法和性能指标，评估实验结果的可信度。'
+    };
+    
+    const template = templates[templateType];
+    if (template) {
+        document.getElementById('reanalysisCustomPromptInput').value = template;
+        updateReanalysisPromptCharCount();
+    }
+}
+
+// 更新字符计数
+function updateReanalysisPromptCharCount() {
+    const input = document.getElementById('reanalysisCustomPromptInput');
+    const counter = document.getElementById('reanalysisPromptCharCount');
+    if (input && counter) {
+        counter.textContent = input.value.length;
+    }
+}
+
+// 不使用自定义提示词直接开始重新分析
+function startReanalysisWithoutPrompt() {
+    console.log('🚀 用户选择标准重新分析模式');
+    
+    if (!confirm('确定要重新分析这篇论文吗？\n\n⚠️ 注意：这将覆盖当前的分析结果，过程可能需要几分钟时间。')) {
+        console.log('用户取消了重新分析请求');
+        return;
+    }
+    
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('customPromptModalForReanalysis'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // 执行标准重新分析
+    executeReanalysis(window.currentReanalysisArxivId, false, null);
+}
+
+// 使用自定义提示词开始重新分析
+function startReanalysisWithCustomPrompt() {
+    console.log('🚀 用户选择自定义重新分析模式');
+    
+    const customPrompt = document.getElementById('reanalysisCustomPromptInput').value.trim();
+    
+    if (!customPrompt) {
+        alert('请输入自定义提示词，或者选择标准重新分析模式。');
+        return;
+    }
+    
+    if (customPrompt.length < 10) {
+        alert('提示词太短，请至少输入10个字符以获得更好的分析结果。');
+        return;
+    }
+    
+    if (!confirm('确定要使用自定义提示词重新分析这篇论文吗？\n\n⚠️ 注意：这将覆盖当前的分析结果，过程可能需要几分钟时间。')) {
+        console.log('用户取消了自定义重新分析请求');
+        return;
+    }
+    
+    console.log('✅ 自定义提示词验证通过:', customPrompt);
+    
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('customPromptModalForReanalysis'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // 执行自定义重新分析
+    executeReanalysis(window.currentReanalysisArxivId, true, customPrompt);
+}
+
+// 执行重新分析的核心函数
+function executeReanalysis(arxivId, enableUserPrompt, userPrompt) {
+    console.log('🔥 执行重新分析:', { arxivId, enableUserPrompt, userPrompt });
+    
+    if (!arxivId) {
+        showFormulaCorrectionToast('无法获取论文ID', 'error');
+        return;
+    }
+    
+    // 禁用重新分析按钮
+    const btn = document.getElementById('reanalysisBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> <span>分析中...</span>';
+    }
+    
+    const analysisType = enableUserPrompt ? '自定义' : '标准';
+    showFormulaCorrectionToast(`正在启动${analysisType}重新分析...`, 'info');
+    
+    // 构建请求配置
+    const requestConfig = enableUserPrompt ? {
+        enable_user_prompt: true,
+        user_prompt: userPrompt
+    } : {};
+    
+    // 获取系统设置并调用深度分析API
+    Promise.resolve()
+        .then(() => {
+            // 尝试获取系统设置
+            if (typeof window.SystemSettings !== 'undefined' && window.SystemSettings.getAnalysisConfig) {
+                return window.SystemSettings.getAnalysisConfig();
+            } else {
+                console.log('SystemSettings不可用，使用默认配置');
+                return {};
+            }
+        })
+        .then(systemConfig => {
+            console.log('获取到系统配置:', systemConfig);
+            
+            // 合并配置：自定义提示词配置优先级更高
+            const finalConfig = { ...systemConfig, ...requestConfig };
+            console.log('最终配置:', finalConfig);
+            
+            return fetch(`/api/analysis/paper/${arxivId}/analyze`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    config: finalConfig
+                })
+            });
+        })
+        .catch(error => {
+            console.error('获取系统配置失败，使用自定义配置:', error);
+            
+            // 如果获取配置失败，直接使用自定义配置
+            return fetch(`/api/analysis/paper/${arxivId}/analyze`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    config: requestConfig
+                })
+            });
+        })
+        .then(response => {
+            console.log('重新分析API响应状态码:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('重新分析API响应:', data);
+            
+            if (data.success) {
+                showFormulaCorrectionToast(`${analysisType}重新分析已启动！正在后台处理中...`, 'success');
+                
+                // 开始轮询状态
+                startReanalysisPolling(arxivId);
+            } else {
+                console.error('重新分析启动失败:', data.error);
+                showFormulaCorrectionToast(`${analysisType}重新分析启动失败: ${data.error || '未知错误'}`, 'error');
+                
+                // 恢复按钮
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('重新分析API调用失败:', error);
+            showFormulaCorrectionToast(`${analysisType}重新分析启动失败: ${error.message}`, 'error');
+            
+            // 恢复按钮
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>重新分析</span>';
+            }
+        });
 }
 
 console.log('✅ startReanalysis和startReanalysisPolling函数定义完成');
