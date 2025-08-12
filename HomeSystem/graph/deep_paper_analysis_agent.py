@@ -390,6 +390,14 @@ class DeepPaperAnalysisAgent(BaseGraph):
 **可用工具:**
 {tools_description}
 
+{('**视频使用说明:**' if self.video_tool else '')}
+{('- 有项目链接必须调用视频分析工具进行分析，并根据视频内容选择合适的位置插入视频，不要固定在项目信息部分' if self.video_tool else '')}
+{('- 演示视频（系统运行）→ 放在实验结果部分' if self.video_tool else '')}
+{('- 技术视频（方法解释）→ 放在技术方法部分' if self.video_tool else '')}
+{('- 对比视频（性能展示）→ 放在关键发现部分' if self.video_tool else '')}
+{('- 概述视频（项目介绍）→ 可放在作者与项目信息部分' if self.video_tool else '')}
+{('- 视频格式：<video controls width="100%"><source src="videos/视频文件名.mp4" type="video/mp4"></video>' if self.video_tool else '')}
+
 **论文内容:**
 {state['paper_text']}...
 
@@ -425,16 +433,9 @@ class DeepPaperAnalysisAgent(BaseGraph):
 ## 2. 主要贡献
 
 ## 3. 技术方法
-### 3.1 核心算法
 （保留重要数学公式，如：$$f(x) = \\sum_{{i=1}}^n w_i x_i$$）
 
-### 3.2 架构设计
-（插入重要架构图：![系统架构图](imgs/architecture.jpg)）
-
 ## 4. 实验结果
-### 4.1 数据集与设置
-### 4.2 性能分析
-（插入实验结果图表）
 
 ## 5. 关键发现
 
@@ -447,7 +448,7 @@ class DeepPaperAnalysisAgent(BaseGraph):
 3. 论文标题请直接使用原文标题，不要翻译
 4. 所有专业名词请直接保留原文，不要翻译
 5. 对重要图表使用analyze_image工具进行深入分析
-{('6. 如果论文包含项目地址或开源代码，可考虑使用process_video_resources工具搜索相关演示视频' if self.video_tool else '')}
+{('6. 如果论文包含项目地址或开源代码，必须考虑使用process_video_resources工具搜索相关演示视频' if self.video_tool else '')}
 {('7. 将分析结果组织成标准Markdown格式' if self.video_tool else '6. 将分析结果组织成标准Markdown格式')}
 {('8. 确保保留原文中的重要公式和数据' if self.video_tool else '7. 确保保留原文中的重要公式和数据')}
 {('9. 在适当位置引用分析过的图片和视频' if self.video_tool else '8. 在适当位置引用分析过的图片')}
