@@ -489,6 +489,146 @@
 
 
 
+<!-- 自定义提示词模态框 -->
+<div class="modal fade" id="customPromptModal" tabindex="-1" aria-labelledby="customPromptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="customPromptModalLabel">
+                    <i class="bi bi-lightbulb"></i> 深度分析 - 自定义提示词
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 步骤指示器 -->
+                <div class="mb-4">
+                    <div class="d-flex align-items-center">
+                        <div class="step-indicator active me-3" id="step1-indicator">
+                            <span class="step-number">1</span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="step-title" id="step1-title">选择分析选项</div>
+                        </div>
+                        <div class="step-indicator me-3" id="step2-indicator">
+                            <span class="step-number">2</span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="step-title text-muted" id="step2-title">自定义提示词</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 第一步：询问是否添加自定义提示词 -->
+                <div id="step1-content">
+                    <div class="text-center mb-4">
+                        <div class="mb-3">
+                            <i class="bi bi-question-circle text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="mb-3">是否需要添加自定义分析提示词？</h5>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>说明：</strong>自定义提示词可以让AI更关注论文的特定方面，比如特定技术方法、应用场景或研究角度。
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-lightning text-success mb-2" style="font-size: 2rem;"></i>
+                                    <h6 class="card-title">标准分析</h6>
+                                    <p class="card-text text-muted">使用默认的分析模板，快速开始深度分析</p>
+                                    <button type="button" class="btn btn-success" onclick="startAnalysisWithoutPrompt()">
+                                        <i class="bi bi-play-fill"></i> 立即开始
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-gear text-primary mb-2" style="font-size: 2rem;"></i>
+                                    <h6 class="card-title">自定义分析</h6>
+                                    <p class="card-text text-muted">添加特定提示词，让AI关注您感兴趣的方面</p>
+                                    <button type="button" class="btn btn-primary" onclick="proceedToCustomPrompt()">
+                                        <i class="bi bi-pencil"></i> 自定义提示
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 第二步：输入自定义提示词 -->
+                <div id="step2-content" style="display: none;">
+                    <div class="mb-4">
+                        <h6><i class="bi bi-pencil-square"></i> 请输入您的自定义提示词</h6>
+                        <p class="text-muted">描述您希望AI在分析时特别关注的方面或角度</p>
+                    </div>
+
+                    <!-- 提示词输入区域 -->
+                    <div class="mb-3">
+                        <label for="customPromptInput" class="form-label">
+                            自定义提示词 
+                            <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="customPromptInput" rows="4" 
+                                  placeholder="例如：请特别关注论文中的数据集构建方法和评估指标，分析其创新性和实用性..."
+                                  maxlength="500"></textarea>
+                        <div class="form-text d-flex justify-content-between">
+                            <span>清晰描述您关注的重点，有助于获得更精准的分析结果</span>
+                            <span id="promptCharCount" class="text-muted">0/500</span>
+                        </div>
+                    </div>
+
+                    <!-- 提示词示例 -->
+                    <div class="mb-3">
+                        <h6 class="mb-2">
+                            <i class="bi bi-lightbulb-fill text-warning"></i> 示例提示词
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplate('method')">
+                                    <i class="bi bi-gear"></i> 关注技术方法
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplate('application')">
+                                    <i class="bi bi-rocket"></i> 关注应用场景
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplate('innovation')">
+                                    <i class="bi bi-star"></i> 关注创新点
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 text-start" 
+                                        onclick="usePromptTemplate('evaluation')">
+                                    <i class="bi bi-graph-up"></i> 关注评估方法
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 返回和继续按钮 -->
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="backToStep1()">
+                            <i class="bi bi-arrow-left"></i> 返回
+                        </button>
+                        <button type="button" class="btn btn-primary" id="startCustomAnalysisBtn" onclick="startAnalysisWithCustomPrompt()">
+                            <i class="bi bi-play-fill"></i> 开始自定义分析
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 任务迁移模态框 -->
 <div class="modal fade" id="migrationModal" tabindex="-1" aria-labelledby="migrationModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -597,6 +737,64 @@
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
+    
+    /* 自定义提示词模态框样式 */
+    .step-indicator {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+    
+    .step-indicator.active {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    
+    .step-indicator .step-number {
+        color: #6c757d;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    
+    .step-indicator.active .step-number {
+        color: white;
+    }
+    
+    .step-title {
+        font-weight: 500;
+        transition: color 0.3s ease;
+    }
+    
+    .step-title.active {
+        color: #0d6efd;
+    }
+    
+    #customPromptModal .card {
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    #customPromptModal .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+        border-color: var(--bs-primary);
+    }
+    
+    #customPromptInput {
+        resize: vertical;
+        min-height: 100px;
+    }
+    
+    #customPromptInput:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
 </style>
 
 <script>
@@ -606,7 +804,7 @@
     console.log('📍 页面加载状态:', document.readyState);
     console.log('📍 当前时间:', new Date().toLocaleTimeString());
     
-    // 全局函数：启动深度分析（完全参考startReanalysis的结构）
+    // 全局函数：启动深度分析 - 新版本支持自定义提示词
     function startDeepAnalysis(arxivId) {
         console.log('🚀 启动深度分析函数被调用, ArXiv ID:', arxivId);
         
@@ -616,14 +814,169 @@
             return;
         }
         
-        // 确认对话框（立即显示，用于测试按钮响应）
-        console.log('🎯 显示确认对话框');
-        if (!confirm('确定要开始深度分析吗？\n\n⚠️ 注意：此过程可能需要几分钟时间，期间请不要关闭页面。')) {
-            console.log('ℹ️ 用户取消了深度分析请求');
+        // 存储当前ArXiv ID供模态框使用
+        window.currentAnalysisArxivId = arxivId;
+        
+        // 重置模态框状态
+        resetCustomPromptModal();
+        
+        // 显示自定义提示词模态框
+        console.log('🎯 显示自定义提示词选择模态框');
+        const modal = new bootstrap.Modal(document.getElementById('customPromptModal'));
+        modal.show();
+        
+    }
+    
+    console.log('✅ startDeepAnalysis函数定义完成');
+    console.log('🔍 startDeepAnalysis函数类型:', typeof startDeepAnalysis);
+    
+    // === 自定义提示词模态框相关函数 ===
+    
+    // 重置模态框状态
+    function resetCustomPromptModal() {
+        // 重置步骤指示器
+        document.getElementById('step1-indicator').classList.add('active');
+        document.getElementById('step2-indicator').classList.remove('active');
+        document.getElementById('step1-title').classList.remove('text-muted');
+        document.getElementById('step2-title').classList.add('text-muted');
+        
+        // 显示第一步，隐藏第二步
+        document.getElementById('step1-content').style.display = 'block';
+        document.getElementById('step2-content').style.display = 'none';
+        
+        // 清空提示词输入框
+        document.getElementById('customPromptInput').value = '';
+        updatePromptCharCount();
+    }
+    
+    // 进入自定义提示词输入步骤
+    function proceedToCustomPrompt() {
+        // 更新步骤指示器
+        document.getElementById('step1-indicator').classList.remove('active');
+        document.getElementById('step2-indicator').classList.add('active');
+        document.getElementById('step1-title').classList.add('text-muted');
+        document.getElementById('step2-title').classList.remove('text-muted');
+        document.getElementById('step2-title').classList.add('active');
+        
+        // 切换内容显示
+        document.getElementById('step1-content').style.display = 'none';
+        document.getElementById('step2-content').style.display = 'block';
+        
+        // 聚焦到输入框
+        setTimeout(() => {
+            document.getElementById('customPromptInput').focus();
+        }, 300);
+    }
+    
+    // 返回第一步
+    function backToStep1() {
+        // 更新步骤指示器
+        document.getElementById('step1-indicator').classList.add('active');
+        document.getElementById('step2-indicator').classList.remove('active');
+        document.getElementById('step1-title').classList.remove('text-muted');
+        document.getElementById('step2-title').classList.add('text-muted');
+        document.getElementById('step2-title').classList.remove('active');
+        
+        // 切换内容显示
+        document.getElementById('step1-content').style.display = 'block';
+        document.getElementById('step2-content').style.display = 'none';
+    }
+    
+    // 使用提示词模板
+    function usePromptTemplate(templateType) {
+        const templates = {
+            'method': '请特别关注论文中的技术方法和算法实现，分析其创新性、复杂度和实用性。',
+            'application': '请重点分析论文的应用场景和实际部署情况，评估其商业价值和实际应用潜力。',
+            'innovation': '请着重分析论文的创新点和突破性贡献，对比现有技术的优势和局限性。',
+            'evaluation': '请详细分析论文的实验设计、评估方法和性能指标，评估实验结果的可信度。'
+        };
+        
+        const template = templates[templateType];
+        if (template) {
+            document.getElementById('customPromptInput').value = template;
+            updatePromptCharCount();
+        }
+    }
+    
+    // 更新字符计数
+    function updatePromptCharCount() {
+        const input = document.getElementById('customPromptInput');
+        const counter = document.getElementById('promptCharCount');
+        if (input && counter) {
+            const length = input.value.length;
+            counter.textContent = `${length}/500`;
+            
+            // 根据字符数改变颜色
+            if (length > 450) {
+                counter.classList.add('text-warning');
+                counter.classList.remove('text-muted');
+            } else if (length >= 500) {
+                counter.classList.add('text-danger');
+                counter.classList.remove('text-warning', 'text-muted');
+            } else {
+                counter.classList.remove('text-warning', 'text-danger');
+                counter.classList.add('text-muted');
+            }
+        }
+    }
+    
+    // 不使用自定义提示词直接开始分析
+    function startAnalysisWithoutPrompt() {
+        console.log('🚀 用户选择标准分析模式');
+        
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('customPromptModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // 执行标准分析
+        executeDeepAnalysis(window.currentAnalysisArxivId, false, null);
+    }
+    
+    // 使用自定义提示词开始分析
+    function startAnalysisWithCustomPrompt() {
+        console.log('🚀 用户选择自定义分析模式');
+        
+        const customPrompt = document.getElementById('customPromptInput').value.trim();
+        
+        // 验证提示词
+        if (!customPrompt) {
+            alert('请输入自定义提示词后再继续');
+            document.getElementById('customPromptInput').focus();
             return;
         }
         
-        console.log('✅ 用户确认开始深度分析');
+        if (customPrompt.length < 10) {
+            alert('提示词太短，请输入至少10个字符的详细描述');
+            document.getElementById('customPromptInput').focus();
+            return;
+        }
+        
+        console.log('✅ 自定义提示词验证通过:', customPrompt);
+        
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('customPromptModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // 执行自定义分析
+        executeDeepAnalysis(window.currentAnalysisArxivId, true, customPrompt);
+    }
+    
+    // 执行深度分析的核心函数
+    function executeDeepAnalysis(arxivId, enableUserPrompt, userPrompt) {
+        console.log('🚀 开始执行深度分析');
+        console.log('📄 ArXiv ID:', arxivId);
+        console.log('🎯 启用用户提示词:', enableUserPrompt);
+        console.log('📝 用户提示词:', userPrompt);
+        
+        if (!arxivId) {
+            console.error('❌ 无法获取论文ID');
+            alert('无法获取论文ID，请刷新页面重试');
+            return;
+        }
         
         // 禁用深度分析按钮
         const primaryBtn = document.getElementById('deep-analysis-btn-' + arxivId);
@@ -642,30 +995,40 @@
         
         console.log('📤 准备调用深度分析API');
         
-        // 获取系统配置并发送分析请求
-        const requestPromise = window.SystemSettings ? 
+        // 构建请求参数
+        const requestBody = {
+            config: {
+                enable_user_prompt: enableUserPrompt,
+                user_prompt: userPrompt || ''
+            }
+        };
+        
+        // 获取系统配置并合并
+        const configPromise = window.SystemSettings ? 
             window.SystemSettings.getAnalysisConfig().then(config => {
                 console.log('✅ 成功获取系统配置:', config);
-                return { config: config };
+                // 合并系统配置和用户提示词配置
+                requestBody.config = {...config, ...requestBody.config};
+                return requestBody;
             }).catch(error => {
-                console.warn('⚠️ 获取系统配置失败，使用空配置:', error);
-                return {};
+                console.warn('⚠️ 获取系统配置失败，使用基本配置:', error);
+                return requestBody;
             }) :
-            Promise.resolve({});
+            Promise.resolve(requestBody);
         
         const apiUrl = '/api/analysis/paper/' + arxivId + '/analyze';
         console.log('🚀 API请求URL:', apiUrl);
         
-        requestPromise
-            .then(requestBody => {
-                console.log('📤 发送请求，配置:', requestBody);
+        configPromise
+            .then(finalRequestBody => {
+                console.log('📤 最终请求配置:', finalRequestBody);
                 
                 return fetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify(finalRequestBody)
                 });
             })
             .then(response => {
@@ -682,7 +1045,10 @@
                 
                 if (data.success) {
                     console.log('✅ 深度分析启动成功');
-                    alert('深度分析已成功启动！正在后台处理中，系统将自动监控进度。');
+                    const successMsg = enableUserPrompt ? 
+                        '自定义深度分析已成功启动！AI将根据您的提示词进行专项分析，正在后台处理中...' :
+                        '标准深度分析已成功启动！正在后台处理中，系统将自动监控进度...';
+                    alert(successMsg);
                     
                     // 启动状态轮询
                     startDeepAnalysisPolling(arxivId);
@@ -691,14 +1057,7 @@
                     alert('启动分析失败: ' + (data.error || '未知错误'));
                     
                     // 恢复按钮状态
-                    if (primaryBtn) {
-                        primaryBtn.disabled = false;
-                        primaryBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 开始深度分析';
-                    }
-                    if (altBtn) {
-                        altBtn.disabled = false;
-                        altBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 立即深度分析';
-                    }
+                    restoreAnalysisButtons(arxivId);
                 }
             })
             .catch(error => {
@@ -706,19 +1065,24 @@
                 alert('启动分析时发生错误: ' + error.message);
                 
                 // 恢复按钮状态
-                if (primaryBtn) {
-                    primaryBtn.disabled = false;
-                    primaryBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 开始深度分析';
-                }
-                if (altBtn) {
-                    altBtn.disabled = false;
-                    altBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 立即深度分析';
-                }
+                restoreAnalysisButtons(arxivId);
             });
     }
     
-    console.log('✅ startDeepAnalysis函数定义完成');
-    console.log('🔍 startDeepAnalysis函数类型:', typeof startDeepAnalysis);
+    // 恢复分析按钮状态的辅助函数
+    function restoreAnalysisButtons(arxivId) {
+        const primaryBtn = document.getElementById('deep-analysis-btn-' + arxivId);
+        const altBtn = document.getElementById('deep-analysis-btn-alt-' + arxivId);
+        
+        if (primaryBtn) {
+            primaryBtn.disabled = false;
+            primaryBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 开始深度分析';
+        }
+        if (altBtn) {
+            altBtn.disabled = false;
+            altBtn.innerHTML = '<i class="bi bi-lightbulb"></i> 立即深度分析';
+        }
+    }
     
     // 智能获取ArXiv ID的函数
     function getArxivIdFromPage() {
@@ -1250,6 +1614,16 @@
                 saveRelevance();
             }
         });
+        
+        // 自定义提示词输入框事件监听
+        const customPromptInput = document.getElementById('customPromptInput');
+        if (customPromptInput) {
+            // 输入时更新字符计数
+            customPromptInput.addEventListener('input', updatePromptCharCount);
+            
+            // 初始化字符计数
+            updatePromptCharCount();
+        }
     });
 
     // Dify 知识库操作函数
