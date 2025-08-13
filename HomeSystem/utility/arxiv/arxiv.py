@@ -42,24 +42,25 @@ class ArxivSearchMode(Enum):
 
 
 class ArxivData:
-    def __init__(self, result: dict):
+    def __init__(self, result: Optional[dict] = None):
         """
         用于存储单条arxiv 的搜索结果。
-        输入的 result 必须包含的 key 如下：
+        输入的 result 可以包含的 key 如下：
         - title: 标题
         - link: 链接
         - snippet: 摘要
         - categories: 分类
-        :param result: 单条搜索结果
-        :type result: dict
+        :param result: 单条搜索结果，可以为None
+        :type result: dict or None
         """
         self.title = None
         self.link = None
         self.snippet = None
         self.categories = None
 
-        for key, value in result.items():
-            setattr(self, key, value)
+        if result is not None:
+            for key, value in result.items():
+                setattr(self, key, value)
 
         # 获取pdf链接
         self.pdf_link = self.link.replace("abs", "pdf") if self.link else ""
@@ -105,6 +106,194 @@ class ArxivData:
         # 提取ArXiv ID和发布时间
         self.arxiv_id = self._extract_arxiv_id()
         self.published_date = self._extract_published_date()
+
+    def set_pdf_path(self, pdf_path: str):
+        """
+        设置PDF文件路径，用于从现有PDF文件创建ArxivData对象
+        
+        :param pdf_path: PDF文件的路径
+        :type pdf_path: str
+        :return: 返回self以支持链式调用
+        :rtype: ArxivData
+        """
+        self.pdf_path = pdf_path
+        
+        # 尝试从文件名提取arxiv_id（如果当前没有的话）
+        if not self.arxiv_id or self.arxiv_id == "":
+            import os
+            filename = os.path.basename(pdf_path)
+            # 尝试匹配ArXiv ID格式：YYMM.NNNN
+            arxiv_match = re.search(r'(\d{4}\.\d{4,5})', filename)
+            if arxiv_match:
+                self.arxiv_id = arxiv_match.group(1)
+                # 更新发布日期
+                self.published_date = self._extract_published_date()
+                logger.info(f"从文件名提取ArXiv ID: {self.arxiv_id}")
+        
+        return self
+
+    def load_from_pdf(self):
+        """
+        从设置的PDF路径加载PDF内容到内存
+        
+        :return: 是否加载成功
+        :rtype: bool
+        """
+        if not self.pdf_path:
+            logger.error("未设置PDF路径，无法加载")
+            return False
+        
+        try:
+            with open(self.pdf_path, 'rb') as f:
+                self.pdf = f.read()
+            logger.info(f"成功从 {self.pdf_path} 加载PDF内容")
+            return True
+        except Exception as e:
+            logger.error(f"从 {self.pdf_path} 加载PDF失败: {e}")
+            return False
+
+    def fetch_metadata_from_link(self, link: str = None) -> bool:
+        """
+        从ArXiv链接获取论文元数据并填充对象属性
+        
+        :param link: ArXiv论文链接，如果为None则使用self.link
+        :type link: str
+        :return: 是否成功获取元数据
+        :rtype: bool
+        """
+        # 使用提供的链接或自身的链接
+        arxiv_link = link or self.link
+        if not arxiv_link:
+            logger.error("没有提供ArXiv链接")
+            return False
+        
+        # 从链接中提取ArXiv ID
+        arxiv_id = self._extract_arxiv_id_from_link(arxiv_link)
+        if not arxiv_id:
+            logger.error(f"无法从链接中提取ArXiv ID: {arxiv_link}")
+            return False
+        
+        logger.info(f"从ArXiv链接获取元数据: {arxiv_link} (ID: {arxiv_id})")
+        
+        try:
+            # 使用ArXiv API获取论文信息
+            base_url = "http://export.arxiv.org/api/query"
+            params = {
+                "search_query": f"id:{arxiv_id}",
+                "start": 0,
+                "max_results": 1
+            }
+            
+            response = requests.get(base_url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            # 解析RSS/Atom格式响应
+            import feedparser
+            feed = feedparser.parse(response.content)
+            
+            if not feed.entries:
+                logger.error(f"ArXiv API未找到论文: {arxiv_id}")
+                return False
+            
+            entry = feed.entries[0]
+            
+            # 提取分类
+            categories = []
+            if hasattr(entry, 'tags'):
+                categories = [tag.term for tag in entry.tags]
+            elif hasattr(entry, 'arxiv_primary_category'):
+                categories = [entry.arxiv_primary_category.get('term', '')]
+            
+            # 提取作者信息
+            authors = []
+            if hasattr(entry, 'authors'):
+                authors = [author.name for author in entry.authors]
+            elif hasattr(entry, 'author'):
+                authors = [entry.author]
+            
+            # 填充对象属性
+            self.title = entry.title.strip() if hasattr(entry, 'title') else None
+            self.link = entry.link if hasattr(entry, 'link') else arxiv_link
+            self.snippet = entry.summary.strip() if hasattr(entry, 'summary') else None
+            self.categories = ', '.join(categories) if categories else 'Unknown'
+            
+            # 设置PDF链接
+            if self.link:
+                self.pdf_link = self.link.replace("abs", "pdf")
+            
+            # 更新ArXiv ID和发布日期
+            self.arxiv_id = arxiv_id
+            self.published_date = self._extract_published_date()
+            
+            # 如果有作者信息，保存到authors属性（如果没有这个属性则添加）
+            if authors:
+                self.authors = ', '.join(authors)
+            
+            logger.info(f"成功获取论文元数据: {self.title}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"ArXiv API请求失败: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"解析ArXiv API响应失败: {str(e)}")
+            return False
+
+    def _extract_arxiv_id_from_link(self, link: str) -> str:
+        """
+        从ArXiv链接中提取论文ID
+        支持的格式:
+        - https://arxiv.org/abs/2503.21460
+        - http://arxiv.org/abs/2503.21460v1
+        - arxiv.org/abs/2503.21460
+        
+        :param link: ArXiv链接
+        :type link: str
+        :return: ArXiv ID，如果解析失败返回空字符串
+        :rtype: str
+        """
+        if not link:
+            return ""
+        
+        # 匹配ArXiv链接中的ID
+        # 支持格式: YYMM.NNNN 或 subject-class/YYMMnnn
+        patterns = [
+            r'arxiv\.org/abs/([0-9]{4}\.[0-9]{4,5})',  # 新格式: 2503.21460
+            r'arxiv\.org/abs/([a-z-]+/[0-9]{7})',      # 旧格式: math-ph/0309045
+            r'arxiv\.org/abs/([0-9]{4}\.[0-9]{4,5}v[0-9]+)',  # 带版本号: 2503.21460v1
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, link)
+            if match:
+                arxiv_id = match.group(1)
+                # 去掉版本号（如果有的话）
+                if 'v' in arxiv_id and not '/' in arxiv_id:
+                    arxiv_id = re.sub(r'v[0-9]+$', '', arxiv_id)
+                return arxiv_id
+        
+        return ""
+
+    @classmethod
+    def from_arxiv_link(cls, link: str) -> 'ArxivData':
+        """
+        从ArXiv链接创建ArxivData对象并获取元数据
+        
+        :param link: ArXiv论文链接
+        :type link: str
+        :return: 填充了元数据的ArxivData对象
+        :rtype: ArxivData
+        :raises ValueError: 当链接无效或获取元数据失败时抛出
+        """
+        # 创建空对象
+        paper = cls()
+        
+        # 获取元数据
+        success = paper.fetch_metadata_from_link(link)
+        if not success:
+            raise ValueError(f"无法从ArXiv链接获取元数据: {link}")
+        
+        return paper
 
     def setTag(self, tag: list[str]):
         """
