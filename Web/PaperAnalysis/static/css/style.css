@@ -826,11 +826,11 @@ body {
 
 /* ========== 现代化表格样式 ========== */
 .enhanced-table-container {
-    background: rgba(255, 255, 255, 0.98);
+    background: rgba(255, 255, 255, 1);
     border-radius: 20px;
     border: 1px solid rgba(102, 126, 234, 0.1);
-    box-shadow: 0 20px 40px rgba(102, 126, 234, 0.08);
-    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.05);
+    backdrop-filter: blur(2px);
     overflow: hidden;
     width: 100%;
     max-width: none;
