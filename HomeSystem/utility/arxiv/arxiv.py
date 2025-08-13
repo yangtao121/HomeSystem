@@ -57,6 +57,7 @@ class ArxivData:
         self.link = None
         self.snippet = None
         self.categories = None
+        self.authors = None
 
         if result is not None:
             for key, value in result.items():
@@ -110,6 +111,7 @@ class ArxivData:
     def set_pdf_path(self, pdf_path: str):
         """
         设置PDF文件路径，用于从现有PDF文件创建ArxivData对象
+        增加OCR和LLM功能，自动提取论文标题、作者和摘要
         
         :param pdf_path: PDF文件的路径
         :type pdf_path: str
@@ -130,7 +132,78 @@ class ArxivData:
                 self.published_date = self._extract_published_date()
                 logger.info(f"从文件名提取ArXiv ID: {self.arxiv_id}")
         
+        # 加载PDF到内存用于OCR
+        try:
+            with open(pdf_path, 'rb') as f:
+                self.pdf = f.read()
+            logger.info(f"成功加载PDF文件: {pdf_path}")
+            
+            # 执行OCR和元数据提取
+            self._extract_metadata_from_pdf()
+            
+        except Exception as e:
+            logger.error(f"加载PDF文件失败: {pdf_path}, 错误: {e}")
+        
         return self
+    
+    def _extract_metadata_from_pdf(self):
+        """
+        从PDF中提取元数据（标题、作者、摘要）
+        使用OCR + LLM的方式
+        """
+        if not self.pdf:
+            logger.warning("PDF内容为空，跳过元数据提取")
+            return
+        
+        try:
+            logger.info("开始从PDF提取元数据...")
+            
+            # 执行OCR，只处理前3页
+            ocr_result, ocr_status = self._performOCR_paddleocr(max_pages=3)
+            
+            if not ocr_result:
+                logger.warning("OCR提取失败，跳过元数据提取")
+                return
+            
+            logger.info(f"OCR提取成功，文本长度: {len(ocr_result)}")
+            
+            # 使用LLM提取元数据
+            try:
+                from .paper_metadata_extractor import PaperMetadataLLM
+                
+                extractor = PaperMetadataLLM()
+                if not extractor.is_available():
+                    logger.warning("LLM不可用，跳过元数据提取")
+                    return
+                
+                metadata = extractor.extract_metadata(ocr_result)
+                
+                # 设置提取的元数据到对象属性
+                if metadata.title:
+                    self.title = metadata.title
+                    logger.info(f"提取到标题: {metadata.title[:100]}...")
+                
+                if metadata.authors:
+                    self.authors = metadata.authors
+                    logger.info(f"提取到作者: {metadata.authors}")
+                
+                if metadata.abstract:
+                    self.snippet = metadata.abstract
+                    logger.info(f"提取到摘要: {metadata.abstract[:200]}...")
+                
+                logger.info("元数据提取完成")
+                
+            except ImportError as e:
+                logger.error(f"导入PaperMetadataLLM失败: {e}")
+            except Exception as e:
+                logger.error(f"LLM元数据提取失败: {e}")
+            
+        except Exception as e:
+            logger.error(f"元数据提取过程中出错: {e}")
+        
+        # 清理临时OCR结果，只保留PDF
+        self.paddle_ocr_result = None
+        self.paddle_ocr_images = {}
 
     def load_from_pdf(self):
         """
