@@ -2759,3 +2759,218 @@ def api_dify_validate_upload_single_paper(arxiv_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+# ========== 论文创建相关API ==========
+
+@api_bp.route('/create_paper_from_pdf', methods=['POST'])
+def api_create_paper_from_pdf():
+    """从PDF文件创建论文"""
+    try:
+        # 检查是否有上传的文件
+        if 'pdf_file' not in request.files:
+            return jsonify({'success': False, 'error': '未上传PDF文件'}), 400
+            
+        pdf_file = request.files['pdf_file']
+        if pdf_file.filename == '':
+            return jsonify({'success': False, 'error': 'PDF文件名为空'}), 400
+        
+        # 检查文件类型
+        if not pdf_file.filename.lower().endswith('.pdf'):
+            return jsonify({'success': False, 'error': '仅支持PDF文件'}), 400
+        
+        # 获取可选参数
+        task_name = request.form.get('task_name', '').strip() or None
+        task_id = request.form.get('task_id', '').strip() or None
+        
+        # 导入必要的模块
+        from HomeSystem.utility.arxiv.arxiv import ArxivData
+        from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
+        import tempfile
+        import os
+        import uuid
+        from datetime import datetime
+        
+        # 保存上传的PDF到临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+            pdf_file.save(temp_pdf.name)
+            temp_pdf_path = temp_pdf.name
+        
+        try:
+            # 创建ArxivData对象
+            arxiv_data = ArxivData()
+            
+            # 设置PDF路径，这会触发OCR和元数据提取
+            arxiv_data.set_pdf_path(temp_pdf_path)
+            
+            # 生成唯一的arxiv_id（使用简化格式加上timestamp）
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            generated_id = f"manual_{timestamp}_{str(uuid.uuid4())[:8]}"
+            
+            # 设置基本属性
+            if not arxiv_data.title:
+                arxiv_data.title = f"Manual Upload - {pdf_file.filename}"
+            
+            # 创建数据库模型
+            paper_model = ArxivPaperModel()
+            paper_model.arxiv_id = generated_id
+            paper_model.title = arxiv_data.title or f"Manual Upload - {pdf_file.filename}"
+            paper_model.authors = arxiv_data.authors or ""
+            paper_model.abstract = arxiv_data.snippet or ""
+            paper_model.categories = "manual_upload"
+            paper_model.published_date = datetime.now().strftime('%Y-%m-%d')
+            paper_model.pdf_url = ""  # 没有ArXiv URL
+            paper_model.processing_status = "completed"
+            paper_model.task_name = task_name
+            paper_model.task_id = task_id
+            
+            # 添加元数据标记这是手动上传
+            paper_model.add_metadata('source', 'manual_upload')
+            paper_model.add_metadata('original_filename', pdf_file.filename)
+            paper_model.add_metadata('upload_timestamp', datetime.now().isoformat())
+            
+            # 保存到数据库
+            from HomeSystem.integrations.database import DatabaseOperations
+            db_ops = DatabaseOperations()
+            success = db_ops.create(paper_model)
+            
+            if success:
+                # 保存PDF到标准目录
+                try:
+                    # 设置arxiv_id以便使用标准路径方法
+                    arxiv_data.arxiv_id = generated_id
+                    
+                    # 获取标准目录路径并创建目录
+                    pdf_dir = arxiv_data.get_paper_directory()
+                    pdf_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # 定义PDF文件路径
+                    pdf_file_path = pdf_dir / f"{generated_id}.pdf"
+                    
+                    # 复制临时PDF到标准目录
+                    import shutil
+                    shutil.copy2(temp_pdf_path, pdf_file_path)
+                    
+                    logger.info(f"PDF已保存到标准目录: {pdf_file_path}")
+                    
+                except Exception as e:
+                    logger.warning(f"保存PDF到标准目录失败: {e}")
+                    # 不影响主流程，只记录警告
+                
+                return jsonify({
+                    'success': True,
+                    'arxiv_id': generated_id,
+                    'title': paper_model.title,
+                    'authors': paper_model.authors,
+                    'abstract': paper_model.abstract,
+                    'message': '论文创建成功',
+                    'redirect_url': f'/explore/paper/{generated_id}'
+                })
+            else:
+                return jsonify({'success': False, 'error': '数据库保存失败'}), 500
+                
+        finally:
+            # 清理临时文件
+            if os.path.exists(temp_pdf_path):
+                os.unlink(temp_pdf_path)
+            
+    except Exception as e:
+        logger.error(f"从PDF创建论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/create_paper_from_arxiv', methods=['POST'])
+def api_create_paper_from_arxiv():
+    """从ArXiv URL创建论文"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_input = data.get('arxiv_input', '').strip()
+        if not arxiv_input:
+            return jsonify({'success': False, 'error': '请输入ArXiv链接或ID'}), 400
+        
+        task_name = data.get('task_name', '').strip() or None
+        task_id = data.get('task_id', '').strip() or None
+        
+        # 导入必要的模块
+        from HomeSystem.utility.arxiv.arxiv import ArxivData
+        from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
+        from datetime import datetime
+        
+        # 规范化ArXiv输入为完整URL
+        if not arxiv_input.startswith('http'):
+            # 如果只是ID，转换为完整URL
+            arxiv_input = f"https://arxiv.org/abs/{arxiv_input}"
+        
+        # 创建ArxivData对象
+        arxiv_data = ArxivData()
+        
+        # 从ArXiv链接获取元数据
+        success = arxiv_data.populate_from_arxiv_link(arxiv_input)
+        if not success:
+            return jsonify({'success': False, 'error': '无法从ArXiv获取论文信息，请检查链接或ID是否正确'}), 400
+        
+        # 检查论文是否已存在
+        db_ops = DatabaseOperations()
+        if arxiv_data.arxiv_id:
+            existing_paper = db_ops.get_by_field(ArxivPaperModel, 'arxiv_id', arxiv_data.arxiv_id)
+        else:
+            existing_paper = None
+        if existing_paper:
+            return jsonify({
+                'success': False, 
+                'error': f'论文已存在: {arxiv_data.arxiv_id}',
+                'existing_paper': {
+                    'arxiv_id': existing_paper.arxiv_id,
+                    'title': existing_paper.title,
+                    'redirect_url': f'/explore/paper/{existing_paper.arxiv_id}'
+                }
+            }), 409
+        
+        # 下载PDF到标准目录
+        try:
+            if arxiv_data.pdf_link:
+                arxiv_data.downloadPdf(use_standard_path=True, check_existing=True)
+                logger.info(f"PDF下载成功: {arxiv_data.arxiv_id}")
+        except Exception as e:
+            logger.warning(f"PDF下载失败: {e}")
+            # 不影响主流程，继续创建论文记录
+        
+        # 创建数据库模型
+        paper_model = ArxivPaperModel()
+        paper_model.arxiv_id = arxiv_data.arxiv_id or ""
+        paper_model.title = arxiv_data.title or "Untitled"
+        paper_model.authors = arxiv_data.authors or ""
+        paper_model.abstract = arxiv_data.snippet or ""
+        paper_model.categories = arxiv_data.categories or "Unknown"
+        paper_model.published_date = arxiv_data.published_date or ""
+        paper_model.pdf_url = arxiv_data.pdf_link or ""
+        paper_model.processing_status = "completed"
+        paper_model.task_name = task_name
+        paper_model.task_id = task_id
+        
+        # 添加元数据标记这是从ArXiv创建
+        paper_model.add_metadata('source', 'arxiv_manual_add')
+        paper_model.add_metadata('creation_timestamp', datetime.now().isoformat())
+        
+        # 保存到数据库
+        success = db_ops.create(paper_model)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'arxiv_id': paper_model.arxiv_id,
+                'title': paper_model.title,
+                'authors': paper_model.authors,
+                'abstract': paper_model.abstract,
+                'message': '论文创建成功',
+                'redirect_url': f'/explore/paper/{paper_model.arxiv_id}'
+            })
+        else:
+            return jsonify({'success': False, 'error': '数据库保存失败'}), 500
+            
+    except Exception as e:
+        logger.error(f"从ArXiv创建论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

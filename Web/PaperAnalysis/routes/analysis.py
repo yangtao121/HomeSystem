@@ -199,8 +199,10 @@ def serve_analysis_image(arxiv_id, filename):
             logger.warning(f"Suspicious filename requested: {filename}")
             return "Invalid filename", 400
         
-        # 验证ArXiv ID格式
-        if not re.match(r'^\d{4}\.\d{4,5}$', arxiv_id):
+        # 验证ArXiv ID格式（支持标准ArXiv ID和manual格式）
+        arxiv_pattern = r'^\d{4}\.\d{4,5}$'  # 标准ArXiv ID格式
+        manual_pattern = r'^manual_\d{8}_\d{6}_[a-f0-9]{8}$'  # 手动上传PDF格式
+        if not (re.match(arxiv_pattern, arxiv_id) or re.match(manual_pattern, arxiv_id)):
             logger.warning(f"Invalid ArXiv ID format: {arxiv_id}")
             return "Invalid ArXiv ID", 400
         
@@ -262,8 +264,10 @@ def serve_analysis_video(arxiv_id, filename):
             logger.warning(f"Suspicious video filename requested: {filename}")
             return "Invalid filename", 400
         
-        # 验证ArXiv ID格式
-        if not re.match(r'^\d{4}\.\d{4,5}$', arxiv_id):
+        # 验证ArXiv ID格式（支持标准ArXiv ID和manual格式）
+        arxiv_pattern = r'^\d{4}\.\d{4,5}$'  # 标准ArXiv ID格式
+        manual_pattern = r'^manual_\d{8}_\d{6}_[a-f0-9]{8}$'  # 手动上传PDF格式
+        if not (re.match(arxiv_pattern, arxiv_id) or re.match(manual_pattern, arxiv_id)):
             logger.warning(f"Invalid ArXiv ID format: {arxiv_id}")
             return "Invalid ArXiv ID", 400
         

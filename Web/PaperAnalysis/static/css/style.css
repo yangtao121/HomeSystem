@@ -129,6 +129,12 @@
     margin-right: -1px;
 }
 
+/* 修复批量操作按钮被毛玻璃遮挡的问题 */
+.modern-batch-toolbar {
+    position: relative;
+    z-index: 100;
+}
+
 .batch-actions .btn {
     transition: var(--transition);
     font-size: 0.85rem;
@@ -848,6 +854,14 @@ body {
 .enhanced-task-table {
     width: 100%;
     min-width: 1400px;
+    position: relative;
+    overflow: hidden;
+}
+
+.modern-table-container {
+    position: relative;
+    overflow: auto;
+    z-index: 1;
 }
 
 /* 全宽度内容容器 */

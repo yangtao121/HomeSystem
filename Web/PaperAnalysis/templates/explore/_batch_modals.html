@@ -299,6 +299,155 @@
     </div>
 </div>
 
+<!-- 创建论文模态框 -->
+<div class="modal fade" id="createPaperModal" tabindex="-1" aria-labelledby="createPaperModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createPaperModalLabel">
+                    <i class="bi bi-plus-circle"></i> 创建论文
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Tab导航 -->
+                <ul class="nav nav-tabs mb-3" id="createPaperTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="pdf-upload-tab" data-bs-toggle="tab" data-bs-target="#pdf-upload-pane" type="button" role="tab">
+                            <i class="bi bi-file-earmark-pdf"></i> 上传PDF
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="arxiv-url-tab" data-bs-toggle="tab" data-bs-target="#arxiv-url-pane" type="button" role="tab">
+                            <i class="bi bi-link"></i> ArXiv链接
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab内容 -->
+                <div class="tab-content" id="createPaperTabContent">
+                    <!-- PDF上传标签页 -->
+                    <div class="tab-pane fade show active" id="pdf-upload-pane" role="tabpanel">
+                        <div class="mb-3">
+                            <p class="text-muted mb-3">
+                                <i class="bi bi-info-circle"></i>
+                                上传PDF文件后，系统将自动使用OCR技术提取论文信息（标题、作者、摘要）
+                            </p>
+                            
+                            <!-- 文件拖放区域 -->
+                            <div class="border-2 border-dashed border-secondary rounded p-4 text-center" 
+                                 id="pdfDropZone" 
+                                 ondrop="handlePdfDrop(event)" 
+                                 ondragover="handlePdfDragOver(event)" 
+                                 ondragleave="handlePdfDragLeave(event)">
+                                <i class="bi bi-cloud-upload display-4 text-muted mb-3"></i>
+                                <p class="mb-2">拖拽PDF文件到此处，或点击选择文件</p>
+                                <input type="file" id="pdfFileInput" class="d-none" accept=".pdf" onchange="handlePdfFileSelect(event)">
+                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('pdfFileInput').click()">
+                                    <i class="bi bi-folder"></i> 选择文件
+                                </button>
+                            </div>
+                            
+                            <!-- 文件信息显示 -->
+                            <div id="pdfFileInfo" class="mt-3 d-none">
+                                <div class="alert alert-success">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                    <strong>已选择文件：</strong> <span id="pdfFileName"></span>
+                                    <br>
+                                    <small class="text-muted">
+                                        大小：<span id="pdfFileSize"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 可选字段 -->
+                        <div class="mb-3">
+                            <label for="pdfTaskName" class="form-label">任务名称 (可选)</label>
+                            <input type="text" class="form-control" id="pdfTaskName" 
+                                   placeholder="为此论文指定任务名称" maxlength="255">
+                            <div class="form-text">用于组织和管理论文</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="pdfTaskId" class="form-label">任务ID (可选)</label>
+                            <input type="text" class="form-control" id="pdfTaskId" 
+                                   placeholder="任务标识符" maxlength="100">
+                        </div>
+                    </div>
+                    
+                    <!-- ArXiv URL标签页 -->
+                    <div class="tab-pane fade" id="arxiv-url-pane" role="tabpanel">
+                        <div class="mb-3">
+                            <p class="text-muted mb-3">
+                                <i class="bi bi-info-circle"></i>
+                                输入ArXiv论文链接或ID，系统将自动获取论文信息并下载PDF
+                            </p>
+                            
+                            <label for="arxivUrlInput" class="form-label">ArXiv链接或ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="arxivUrlInput" 
+                                   placeholder="https://arxiv.org/abs/2412.03572 或 2412.03572" 
+                                   onkeyup="validateArxivInput()">
+                            <div class="form-text">
+                                支持格式：完整链接 (https://arxiv.org/abs/ID) 或直接输入论文ID
+                            </div>
+                            <div id="arxivInputFeedback" class="mt-2"></div>
+                        </div>
+                        
+                        <!-- 可选字段 -->
+                        <div class="mb-3">
+                            <label for="arxivTaskName" class="form-label">任务名称 (可选)</label>
+                            <input type="text" class="form-control" id="arxivTaskName" 
+                                   placeholder="为此论文指定任务名称" maxlength="255">
+                        </div>
+                        <div class="mb-3">
+                            <label for="arxivTaskId" class="form-label">任务ID (可选)</label>
+                            <input type="text" class="form-control" id="arxivTaskId" 
+                                   placeholder="任务标识符" maxlength="100">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 进度显示 -->
+                <div id="createPaperProgress" class="mt-4 d-none">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-3" role="status">
+                                    <span class="visually-hidden">处理中...</span>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold" id="progressTitle">正在处理...</div>
+                                    <small class="text-muted" id="progressMessage">请稍候</small>
+                                </div>
+                            </div>
+                            <div class="progress mt-2" style="height: 5px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%" id="createProgressBar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 结果显示 -->
+                <div id="createPaperResult" class="mt-4 d-none">
+                    <div class="card">
+                        <div class="card-body" id="resultContent"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="submitPaperCreation()" id="createPaperBtn">
+                    <i class="bi bi-plus-circle"></i> 创建论文
+                </button>
+                <button type="button" class="btn btn-primary d-none" onclick="viewCreatedPaper()" id="viewPaperBtn">
+                    <i class="bi bi-eye"></i> 查看论文
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Dify 批量验证进度模态框 -->
 <div class="modal fade" id="difyVerifyProgressModal" tabindex="-1" aria-labelledby="difyVerifyProgressModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">

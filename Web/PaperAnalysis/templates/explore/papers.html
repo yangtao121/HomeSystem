@@ -53,6 +53,11 @@
                 共 <strong>{{ pagination.total }}</strong> 篇
             </span>
             
+            <!-- 创建论文按钮 -->
+            <button type="button" class="btn btn-success btn-sm me-2" onclick="openCreatePaperModal()">
+                <i class="bi bi-plus-circle"></i> 创建论文
+            </button>
+            
             <!-- 批量选择和快速操作按钮 -->
             <div class="btn-group btn-group-sm">
                 <button type="button" class="btn btn-outline-primary" onclick="toggleBatchSelect()" id="batchSelectBtn">
@@ -645,6 +650,344 @@
                 alertDiv.parentNode.removeChild(alertDiv);
             }
         }, 5000);
+    }
+    
+    // ========== 创建论文功能 ==========
+    
+    let selectedPdfFile = null;
+    let createdPaperInfo = null;
+    
+    // 打开创建论文模态框
+    function openCreatePaperModal() {
+        // 重置表单
+        resetCreatePaperForm();
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('createPaperModal'));
+        modal.show();
+    }
+    
+    // 重置创建论文表单
+    function resetCreatePaperForm() {
+        // 重置文件选择
+        selectedPdfFile = null;
+        document.getElementById('pdfFileInput').value = '';
+        document.getElementById('pdfFileInfo').classList.add('d-none');
+        
+        // 重置PDF拖放区域样式
+        const dropZone = document.getElementById('pdfDropZone');
+        dropZone.classList.remove('border-success', 'bg-light');
+        dropZone.classList.add('border-secondary');
+        
+        // 重置输入字段
+        document.getElementById('pdfTaskName').value = '';
+        document.getElementById('pdfTaskId').value = '';
+        document.getElementById('arxivUrlInput').value = '';
+        document.getElementById('arxivTaskName').value = '';
+        document.getElementById('arxivTaskId').value = '';
+        
+        // 重置反馈
+        document.getElementById('arxivInputFeedback').innerHTML = '';
+        
+        // 隐藏进度和结果
+        document.getElementById('createPaperProgress').classList.add('d-none');
+        document.getElementById('createPaperResult').classList.add('d-none');
+        
+        // 显示创建按钮，隐藏查看按钮
+        document.getElementById('createPaperBtn').classList.remove('d-none');
+        document.getElementById('viewPaperBtn').classList.add('d-none');
+        
+        // 重置全局变量
+        createdPaperInfo = null;
+    }
+    
+    // 处理PDF文件选择
+    function handlePdfFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            handlePdfFile(file);
+        }
+    }
+    
+    // 处理PDF拖放
+    function handlePdfDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const dropZone = document.getElementById('pdfDropZone');
+        dropZone.classList.remove('border-primary', 'bg-light');
+        dropZone.classList.add('border-secondary');
+        
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                handlePdfFile(file);
+            } else {
+                showAlert('请上传PDF文件', 'error');
+            }
+        }
+    }
+    
+    function handlePdfDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const dropZone = document.getElementById('pdfDropZone');
+        dropZone.classList.remove('border-secondary');
+        dropZone.classList.add('border-primary', 'bg-light');
+    }
+    
+    function handlePdfDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const dropZone = document.getElementById('pdfDropZone');
+        dropZone.classList.remove('border-primary', 'bg-light');
+        dropZone.classList.add('border-secondary');
+    }
+    
+    // 处理PDF文件
+    function handlePdfFile(file) {
+        selectedPdfFile = file;
+        
+        // 显示文件信息
+        document.getElementById('pdfFileName').textContent = file.name;
+        document.getElementById('pdfFileSize').textContent = formatFileSize(file.size);
+        document.getElementById('pdfFileInfo').classList.remove('d-none');
+        
+        // 更新拖放区域样式
+        const dropZone = document.getElementById('pdfDropZone');
+        dropZone.classList.remove('border-secondary', 'border-primary', 'bg-light');
+        dropZone.classList.add('border-success');
+    }
+    
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // 验证ArXiv输入
+    function validateArxivInput() {
+        const input = document.getElementById('arxivUrlInput');
+        const feedback = document.getElementById('arxivInputFeedback');
+        const value = input.value.trim();
+        
+        if (!value) {
+            feedback.innerHTML = '';
+            return;
+        }
+        
+        // 简单的ArXiv ID/URL验证
+        const arxivIdPattern = /^\d{4}\.\d{4,5}(v\d+)?$/;
+        const arxivUrlPattern = /^https?:\/\/arxiv\.org\/abs\/\d{4}\.\d{4,5}(v\d+)?$/;
+        
+        if (arxivIdPattern.test(value) || arxivUrlPattern.test(value)) {
+            feedback.innerHTML = '<small class="text-success"><i class="bi bi-check-circle"></i> 格式正确</small>';
+        } else {
+            feedback.innerHTML = '<small class="text-warning"><i class="bi bi-exclamation-triangle"></i> 请输入有效的ArXiv ID或链接</small>';
+        }
+    }
+    
+    // 提交论文创建
+    function submitPaperCreation() {
+        const activeTab = document.querySelector('#createPaperTabs .nav-link.active').id;
+        
+        if (activeTab === 'pdf-upload-tab') {
+            submitPdfUpload();
+        } else if (activeTab === 'arxiv-url-tab') {
+            submitArxivUrl();
+        }
+    }
+    
+    // 提交PDF上传
+    function submitPdfUpload() {
+        if (!selectedPdfFile) {
+            showAlert('请选择要上传的PDF文件', 'error');
+            return;
+        }
+        
+        const taskName = document.getElementById('pdfTaskName').value.trim();
+        const taskId = document.getElementById('pdfTaskId').value.trim();
+        
+        // 显示进度
+        showProgress('正在上传PDF文件...', '文件上传中，请稍候');
+        
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('pdf_file', selectedPdfFile);
+        if (taskName) formData.append('task_name', taskName);
+        if (taskId) formData.append('task_id', taskId);
+        
+        // 发送请求
+        fetch('/api/create_paper_from_pdf', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideProgress();
+            
+            if (data.success) {
+                createdPaperInfo = data;
+                showResult(true, '论文创建成功！', `
+                    <div class="alert alert-success">
+                        <h6><i class="bi bi-check-circle"></i> 创建成功</h6>
+                        <strong>论文ID:</strong> ${data.arxiv_id}<br>
+                        <strong>标题:</strong> ${data.title}<br>
+                        ${data.authors ? `<strong>作者:</strong> ${data.authors}<br>` : ''}
+                        ${data.abstract ? `<strong>摘要:</strong> ${data.abstract.substring(0, 200)}${data.abstract.length > 200 ? '...' : ''}<br>` : ''}
+                    </div>
+                `);
+                showAlert(data.message, 'success');
+            } else {
+                showResult(false, '创建失败', `
+                    <div class="alert alert-danger">
+                        <h6><i class="bi bi-x-circle"></i> 创建失败</h6>
+                        <p>${data.error}</p>
+                    </div>
+                `);
+                showAlert(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            console.error('PDF上传错误:', error);
+            showResult(false, '网络错误', `
+                <div class="alert alert-danger">
+                    <h6><i class="bi bi-wifi-off"></i> 网络错误</h6>
+                    <p>请检查网络连接并重试</p>
+                </div>
+            `);
+            showAlert('网络连接失败，请重试', 'error');
+        });
+    }
+    
+    // 提交ArXiv URL
+    function submitArxivUrl() {
+        const arxivInput = document.getElementById('arxivUrlInput').value.trim();
+        if (!arxivInput) {
+            showAlert('请输入ArXiv链接或ID', 'error');
+            return;
+        }
+        
+        const taskName = document.getElementById('arxivTaskName').value.trim();
+        const taskId = document.getElementById('arxivTaskId').value.trim();
+        
+        // 显示进度
+        showProgress('正在获取ArXiv论文信息...', '从ArXiv服务器获取论文元数据');
+        
+        // 发送请求
+        fetch('/api/create_paper_from_arxiv', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                arxiv_input: arxivInput,
+                task_name: taskName || null,
+                task_id: taskId || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideProgress();
+            
+            if (data.success) {
+                createdPaperInfo = data;
+                showResult(true, '论文创建成功！', `
+                    <div class="alert alert-success">
+                        <h6><i class="bi bi-check-circle"></i> 创建成功</h6>
+                        <strong>ArXiv ID:</strong> ${data.arxiv_id}<br>
+                        <strong>标题:</strong> ${data.title}<br>
+                        ${data.authors ? `<strong>作者:</strong> ${data.authors}<br>` : ''}
+                        ${data.abstract ? `<strong>摘要:</strong> ${data.abstract.substring(0, 200)}${data.abstract.length > 200 ? '...' : ''}<br>` : ''}
+                    </div>
+                `);
+                showAlert(data.message, 'success');
+            } else {
+                if (data.existing_paper) {
+                    // 论文已存在的特殊处理
+                    showResult(false, '论文已存在', `
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle"></i> 论文已存在</h6>
+                            <p>${data.error}</p>
+                            <p><strong>已存在的论文:</strong></p>
+                            <p><strong>ID:</strong> ${data.existing_paper.arxiv_id}<br>
+                            <strong>标题:</strong> ${data.existing_paper.title}</p>
+                        </div>
+                    `);
+                    // 更新createdPaperInfo以便可以查看现有论文
+                    createdPaperInfo = data.existing_paper;
+                    document.getElementById('viewPaperBtn').classList.remove('d-none');
+                } else {
+                    showResult(false, '创建失败', `
+                        <div class="alert alert-danger">
+                            <h6><i class="bi bi-x-circle"></i> 创建失败</h6>
+                            <p>${data.error}</p>
+                        </div>
+                    `);
+                }
+                showAlert(data.error, 'warning');
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            console.error('ArXiv创建错误:', error);
+            showResult(false, '网络错误', `
+                <div class="alert alert-danger">
+                    <h6><i class="bi bi-wifi-off"></i> 网络错误</h6>
+                    <p>请检查网络连接并重试</p>
+                </div>
+            `);
+            showAlert('网络连接失败，请重试', 'error');
+        });
+    }
+    
+    // 显示进度
+    function showProgress(title, message) {
+        document.getElementById('progressTitle').textContent = title;
+        document.getElementById('progressMessage').textContent = message;
+        document.getElementById('createProgressBar').style.width = '50%';
+        document.getElementById('createPaperProgress').classList.remove('d-none');
+        document.getElementById('createPaperResult').classList.add('d-none');
+        
+        // 禁用创建按钮
+        document.getElementById('createPaperBtn').disabled = true;
+    }
+    
+    // 隐藏进度
+    function hideProgress() {
+        document.getElementById('createPaperProgress').classList.add('d-none');
+        document.getElementById('createPaperBtn').disabled = false;
+    }
+    
+    // 显示结果
+    function showResult(success, title, content) {
+        document.getElementById('resultContent').innerHTML = `
+            <h6>${title}</h6>
+            ${content}
+        `;
+        document.getElementById('createPaperResult').classList.remove('d-none');
+        
+        if (success) {
+            // 隐藏创建按钮，显示查看按钮
+            document.getElementById('createPaperBtn').classList.add('d-none');
+            document.getElementById('viewPaperBtn').classList.remove('d-none');
+        }
+    }
+    
+    // 查看创建的论文
+    function viewCreatedPaper() {
+        if (createdPaperInfo && createdPaperInfo.redirect_url) {
+            window.location.href = createdPaperInfo.redirect_url;
+        } else if (createdPaperInfo && createdPaperInfo.arxiv_id) {
+            window.location.href = `/explore/paper/${createdPaperInfo.arxiv_id}`;
+        }
     }
 </script>
 {% endblock %}

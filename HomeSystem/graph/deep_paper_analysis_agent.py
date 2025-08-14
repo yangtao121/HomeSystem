@@ -11,6 +11,7 @@
 
 import json
 import os
+import re
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated, Any, Dict, List, Optional, Union
@@ -174,6 +175,8 @@ class DeepPaperAnalysisAgent(BaseGraph):
         # 添加 tool_node - 使用动态工具列表
         self.tool_node = ToolNode(tools)
         graph.add_node("call_tools", self.tool_node)
+        # 添加图片路径修正节点
+        graph.add_node("correct_image_paths", self._correct_image_paths_node)
         
         # 构建简化流程
         graph.add_edge(START, "initialize")
@@ -186,12 +189,15 @@ class DeepPaperAnalysisAgent(BaseGraph):
             {
                 "call_tools": "call_tools",  # 调用工具
                 "continue": "analysis_with_tools",  # 继续分析
-                "end": END,  # 分析完成，直接结束
+                "end": "correct_image_paths",  # 分析完成，进行路径修正
             }
         )
         
         # 工具调用后回到分析节点
         graph.add_edge("call_tools", "analysis_with_tools")
+        
+        # 图片路径修正后结束
+        graph.add_edge("correct_image_paths", END)
         
         # 编译图 - 添加错误恢复机制
         try:
@@ -371,6 +377,68 @@ class DeepPaperAnalysisAgent(BaseGraph):
         # 默认继续分析
         logger.info(f"🔄 继续分析 → continue")
         return "continue"
+    
+    def _correct_image_paths_node(self, state: DeepPaperAnalysisState) -> Dict[str, Any]:
+        """修正markdown中的图片路径为标准格式 imgs/xxx.jpg"""
+        logger.info("📝 开始修正图片路径...")
+        
+        analysis_result = state.get("analysis_result")
+        if not analysis_result:
+            logger.warning("⚠️ 没有分析结果需要修正")
+            return {}
+        
+        # 图片路径修正的正则表达式
+        # 匹配 ![描述](路径) 格式
+        image_pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
+        
+        def correct_path(match):
+            description = match.group(1)
+            path = match.group(2)
+            
+            logger.info(f"🔍 发现图片路径: {path}")
+            
+            # 检查是否是视频文件，保持videos/路径不变
+            if '/videos/' in path or path.startswith('videos/'):
+                logger.info(f"📹 保持视频路径不变: {path}")
+                return f'![{description}]({path})'
+            
+            # 提取文件名
+            filename = os.path.basename(path)
+            
+            # 检查是否是图片文件
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'}
+            file_ext = os.path.splitext(filename)[1].lower()
+            
+            if file_ext in image_extensions:
+                # 标准化为 imgs/filename 格式
+                corrected_path = f"imgs/{filename}"
+                logger.info(f"✅ 修正路径: {path} → {corrected_path}")
+                return f'![{description}]({corrected_path})'
+            else:
+                # 非图片文件保持不变
+                logger.info(f"ℹ️ 非图片文件保持不变: {path}")
+                return f'![{description}]({path})'
+        
+        # 执行路径修正
+        original_text = analysis_result
+        corrected_text = re.sub(image_pattern, correct_path, original_text)
+        
+        # 统计修正数量
+        original_matches = re.findall(image_pattern, original_text)
+        corrected_matches = re.findall(image_pattern, corrected_text)
+        
+        corrections_made = 0
+        for (orig_desc, orig_path), (corr_desc, corr_path) in zip(original_matches, corrected_matches):
+            if orig_path != corr_path:
+                corrections_made += 1
+        
+        logger.info(f"📊 图片路径修正完成:")
+        logger.info(f"  - 发现图片引用: {len(original_matches)} 个")
+        logger.info(f"  - 执行修正: {corrections_made} 个")
+        
+        return {
+            "analysis_result": corrected_text
+        }
     
     
     def _generate_initial_analysis_prompt(self, state: DeepPaperAnalysisState) -> str:
