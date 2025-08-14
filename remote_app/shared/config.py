@@ -43,12 +43,15 @@ class Config:
 class OCRServiceConfig(Config):
     """Configuration specific to OCR service."""
     
+    # Service configuration - OCR service specific port with fallback  
+    PORT = int(os.getenv('OCR_SERVICE_PORT', os.getenv('PORT', '5001')))
+    
     # OCR specific settings
-    MAX_PAGES = get_int('OCR_MAX_PAGES', 25)
-    TEMP_DIR = get_str('OCR_TEMP_DIR', '/tmp/ocr_service')
-    RESULTS_DIR = get_str('OCR_RESULTS_DIR', '/tmp/ocr_results')
+    MAX_PAGES = int(os.getenv('OCR_MAX_PAGES', '25'))
+    TEMP_DIR = os.getenv('OCR_TEMP_DIR', '/tmp/ocr_service')
+    RESULTS_DIR = os.getenv('OCR_RESULTS_DIR', '/tmp/ocr_results')
     
     # PaddleOCR settings
-    USE_ANGLE_CLS = get_bool('PADDLEOCR_USE_ANGLE_CLS', True)
-    USE_GPU = get_bool('PADDLEOCR_USE_GPU', False)
-    LANG = get_str('PADDLEOCR_LANG', 'ch')
+    USE_ANGLE_CLS = os.getenv('PADDLEOCR_USE_ANGLE_CLS', 'True').lower() in ('true', '1', 'yes', 'on')
+    USE_GPU = os.getenv('PADDLEOCR_USE_GPU', 'False').lower() in ('true', '1', 'yes', 'on')
+    LANG = os.getenv('PADDLEOCR_LANG', 'ch')

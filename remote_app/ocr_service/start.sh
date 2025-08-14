@@ -12,7 +12,8 @@ fi
 
 # Set default environment variables if not set
 export HOST=${HOST:-"0.0.0.0"}
-export PORT=${PORT:-"5000"}
+export OCR_SERVICE_PORT=${OCR_SERVICE_PORT:-"5001"}
+export PORT=${PORT:-$OCR_SERVICE_PORT}
 export DEBUG=${DEBUG:-"False"}
 export LOG_LEVEL=${LOG_LEVEL:-"INFO"}
 
@@ -28,7 +29,7 @@ export PADDLEOCR_LANG=${PADDLEOCR_LANG:-"ch"}
 
 echo "Configuration:"
 echo "  Host: $HOST"
-echo "  Port: $PORT"
+echo "  Port: $OCR_SERVICE_PORT"
 echo "  Debug: $DEBUG"
 echo "  Max Pages: $OCR_MAX_PAGES"
 echo "  Use GPU: $PADDLEOCR_USE_GPU"
@@ -50,5 +51,5 @@ if [ $? -ne 0 ]; then
 fi
 
 # Start the service
-echo "Starting OCR service on $HOST:$PORT..."
+echo "Starting OCR service on $HOST:$OCR_SERVICE_PORT..."
 python3 app.py
