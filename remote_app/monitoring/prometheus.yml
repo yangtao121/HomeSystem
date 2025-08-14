@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  external_labels:
+    monitor: 'remote-app-monitor'
+
+scrape_configs:
+  - job_name: 'ocr-service'
+    static_configs:
+      - targets: ['ocr-service:5001']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+    scrape_interval: 30s

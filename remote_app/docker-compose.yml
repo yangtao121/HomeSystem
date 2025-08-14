@@ -1,0 +1,174 @@
+# Docker Compose for Remote App Services
+# Complete OCR service deployment with all dependencies
+
+version: '3.8'
+
+services:
+  ocr-service:
+    build:
+      context: ./ocr_service
+      dockerfile: Dockerfile
+    image: remote-app-ocr:latest
+    container_name: remote-ocr-service
+    restart: unless-stopped
+    
+    # Port configuration - use environment variable for flexibility
+    ports:
+      - "${OCR_SERVICE_PORT:-5001}:5001"
+    
+    # Environment variables
+    environment:
+      # Service configuration
+      - HOST=0.0.0.0
+      - OCR_SERVICE_PORT=5001
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=${LOG_FILE:-ocr_service.log}
+      
+      # Request limits
+      - MAX_CONTENT_LENGTH=${MAX_CONTENT_LENGTH:-100}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-300}
+      
+      # OCR processing settings
+      - OCR_MAX_PAGES=${OCR_MAX_PAGES:-25}
+      - OCR_TEMP_DIR=/tmp/ocr_service
+      - OCR_RESULTS_DIR=/tmp/ocr_results
+      
+      # PaddleOCR configuration
+      - PADDLEOCR_USE_ANGLE_CLS=${PADDLEOCR_USE_ANGLE_CLS:-true}
+      - PADDLEOCR_USE_GPU=${PADDLEOCR_USE_GPU:-false}
+      - PADDLEOCR_LANG=${PADDLEOCR_LANG:-ch}
+      - PADDLEOCR_HOME=/app/.paddleocr
+      - HUB_HOME=/app/.paddlehub
+      
+      # Optional API key authentication
+      - API_KEY=${API_KEY:-}
+      
+      # System environment
+      - TZ=${TZ:-Asia/Shanghai}
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+    
+    # Volume mounts for persistence
+    volumes:
+      # PaddleOCR models cache (persist to avoid re-downloading)
+      - ./volumes/models:/app/.paddleocr
+      - ./volumes/hub:/app/.paddlehub
+      
+      # OCR results output
+      - ./volumes/results:/tmp/ocr_results
+      
+      # Temporary files (optional, can be tmpfs for performance)
+      - ./volumes/temp:/tmp/ocr_service
+      
+      # Logs
+      - ./volumes/logs:/app/logs
+      
+      # Optional: custom configuration
+      - ./config:/app/config:ro
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Network
+    networks:
+      - remote-app-network
+    
+    # Labels for management
+    labels:
+      - "com.homesystem.service=ocr"
+      - "com.homesystem.version=1.0"
+      - "traefik.enable=false"  # Disable if using Traefik
+
+  # Optional: Nginx reverse proxy for load balancing
+  nginx:
+    image: nginx:alpine
+    container_name: remote-nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./volumes/logs/nginx:/var/log/nginx
+    depends_on:
+      - ocr-service
+    networks:
+      - remote-app-network
+    profiles:
+      - proxy
+    labels:
+      - "com.homesystem.service=proxy"
+
+  # Optional: Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: remote-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./volumes/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - remote-app-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: remote-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - ./volumes/grafana:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - remote-app-network
+    profiles:
+      - monitoring
+
+# Networks
+networks:
+  remote-app-network:
+    driver: bridge
+    name: remote-app-network
+    labels:
+      - "com.homesystem.network=remote-app"
+
+# Volumes for data persistence
+volumes:
+  models-cache:
+    name: remote-app-models
+    labels:
+      - "com.homesystem.volume=models"
+  
+  results-data:
+    name: remote-app-results
+    labels:
+      - "com.homesystem.volume=results"

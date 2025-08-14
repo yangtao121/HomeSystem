@@ -60,6 +60,20 @@ PADDLEOCR_LANG=ch              # Default: ch
 
 ### Quick Start
 
+#### Option 1: Docker Deployment (Recommended)
+
+1. **Deploy with single command:**
+   ```bash
+   ./deploy.sh
+   ```
+
+2. **Verify service is running:**
+   ```bash
+   curl http://localhost:5001/api/health
+   ```
+
+#### Option 2: Traditional Deployment
+
 1. **Copy configuration template:**
    ```bash
    cd ocr_service
@@ -76,6 +90,49 @@ PADDLEOCR_LANG=ch              # Default: ch
    ```bash
    curl http://localhost:5001/api/health
    ```
+
+## Docker Deployment
+
+For production-ready deployment with all dependencies included, use Docker:
+
+### Quick Docker Start
+
+```bash
+# One-command deployment
+./deploy.sh
+
+# With monitoring and proxy
+./deploy.sh -p full
+
+# Production deployment
+./deploy.sh -p full -e production
+```
+
+### Docker Features
+
+- **Complete Environment**: All dependencies included
+- **Scalable**: Scale to multiple instances
+- **Monitoring**: Prometheus + Grafana integration
+- **Load Balancing**: Nginx reverse proxy
+- **Health Checks**: Automated service monitoring
+- **Persistent Storage**: Models and results saved to volumes
+
+### Docker Management
+
+```bash
+# Scale services
+./scale.sh up 3          # Scale to 3 instances
+./scale.sh down 1        # Scale down to 1 instance
+
+# Monitor health
+./health-check.sh        # Single check
+./health-check.sh monitor # Continuous monitoring
+
+# View logs
+docker-compose logs -f ocr-service
+```
+
+See [README_DOCKER.md](README_DOCKER.md) for complete Docker deployment guide.
 
 ### Usage
 
