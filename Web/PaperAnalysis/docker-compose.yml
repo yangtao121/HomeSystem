@@ -1,0 +1,133 @@
+# Docker Compose for PaperAnalysis Service
+# Supports connecting to remote database and OCR services
+
+services:
+  paper-analysis:
+    build:
+      context: ../..
+      dockerfile: Web/PaperAnalysis/Dockerfile
+    image: homesystem-paper-analysis:latest
+    container_name: homesystem-paper-analysis
+    restart: unless-stopped
+    
+    # Port configuration
+    ports:
+      - "${FLASK_PORT:-5002}:5002"
+    
+    # Environment variables
+    environment:
+      # Flask configuration
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5002
+      - FLASK_DEBUG=${FLASK_DEBUG:-false}
+      - SECRET_KEY=${SECRET_KEY:-paper-analysis-dev-key-change-in-production}
+      
+      # Database configuration (can be remote)
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-15432}
+      - DB_NAME=${DB_NAME:-homesystem}
+      - DB_USER=${DB_USER:-homesystem}
+      - DB_PASSWORD=${DB_PASSWORD:-homesystem123}
+      
+      # Redis configuration (can be remote)
+      - REDIS_HOST=${REDIS_HOST:-localhost}
+      - REDIS_PORT=${REDIS_PORT:-16379}
+      - REDIS_DB=${REDIS_DB:-0}
+      
+      # Remote OCR service configuration
+      - REMOTE_OCR_ENDPOINT=${REMOTE_OCR_ENDPOINT:-http://localhost:5001}
+      - REMOTE_OCR_TIMEOUT=${REMOTE_OCR_TIMEOUT:-300}
+      
+      # Dify configuration (optional)
+      - DIFY_BASE_URL=${DIFY_BASE_URL:-http://localhost:80/v1}
+      - DIFY_KB_API_KEY=${DIFY_KB_API_KEY:-}
+      - DIFY_ENABLED=${DIFY_ENABLED:-false}
+      - DIFY_TIMEOUT=${DIFY_TIMEOUT:-30}
+      - DIFY_MAX_RETRIES=${DIFY_MAX_RETRIES:-3}
+      
+      # System environment
+      - TZ=${TZ:-Asia/Shanghai}
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+    
+    # Volume mounts for persistence
+    volumes:
+      # Application logs
+      - ./logs:/app/logs
+      
+      # Static files and uploads
+      - ./uploads:/app/uploads
+      - ./static/uploads:/app/static/uploads
+      
+      # Optional: configuration overrides
+      - ./config:/app/config:ro
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Network configuration
+    networks:
+      - paper-analysis-network
+    
+    # Labels for management
+    labels:
+      - "com.homesystem.service=paper-analysis"
+      - "com.homesystem.version=1.0"
+      - "traefik.enable=false"  # Disable if using Traefik
+
+  # Optional: Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: paper-analysis-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - paper-analysis
+    networks:
+      - paper-analysis-network
+    profiles:
+      - proxy
+    labels:
+      - "com.homesystem.service=proxy"
+
+# Networks
+networks:
+  paper-analysis-network:
+    driver: bridge
+    name: paper-analysis-network
+    labels:
+      - "com.homesystem.network=paper-analysis"
+
+# Volumes for data persistence
+volumes:
+  logs-data:
+    name: paper-analysis-logs
+    labels:
+      - "com.homesystem.volume=logs"
+  
+  uploads-data:
+    name: paper-analysis-uploads
+    labels:
+      - "com.homesystem.volume=uploads"
