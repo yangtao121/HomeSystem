@@ -62,6 +62,12 @@ services:
       # Data directories for persistent storage
       - ../../data:/app/data
       
+      # Fix path resolution issue - map /HomeSystem to correct location
+      - ../../HomeSystem:/HomeSystem
+      
+      # Map data directory to /data for compatibility  
+      - ../../data:/data
+      
       # Optional: configuration overrides (only if config directory exists)
       # - ./config:/app/config:ro
     
