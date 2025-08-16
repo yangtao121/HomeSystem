@@ -332,7 +332,6 @@ class PaperAnalysisService:
             
             # 设置环境变量（如果使用远程OCR）
             if use_remote_ocr:
-                import os
                 remote_endpoint = effective_config.get('remote_ocr_endpoint', 'http://localhost:5001')
                 remote_timeout = effective_config.get('remote_ocr_timeout', 300)
                 remote_max_pages = effective_config.get('remote_ocr_max_pages', 25)

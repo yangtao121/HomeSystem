@@ -146,6 +146,88 @@ done
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
+## 🔧 全局配置
+
+在开始部署任何模块之前，**必须先配置项目根目录的全局环境变量文件**。
+
+### 配置根目录 .env 文件
+
+```bash
+# 在项目根目录创建全局配置文件
+cd /path/to/homesystem
+cp .env.example .env
+vim .env  # 编辑配置文件
+```
+
+### 必需的全局配置项
+
+根目录 `.env` 文件包含所有模块共享的配置：
+
+**数据库连接配置（所有模块必需）：**
+```env
+# PostgreSQL 数据库配置
+DB_HOST=localhost          # 数据库主机（跨主机部署时修改为实际IP）
+DB_PORT=15432             # 数据库端口
+DB_NAME=homesystem        # 数据库名称
+DB_USER=homesystem        # 数据库用户
+DB_PASSWORD=your_secure_db_password_here  # 数据库密码
+
+# Redis 缓存配置
+REDIS_HOST=localhost       # Redis主机（跨主机部署时修改为实际IP）
+REDIS_PORT=16379          # Redis端口
+REDIS_DB=0                # Redis数据库编号
+```
+
+**LLM API配置（PaperAnalysis模块必需）：**
+```env
+# DeepSeek API
+DEEPSEEK_API_KEY=sk-your_deepseek_api_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+# 硅基流动 API
+SILICONFLOW_API_KEY=sk-your_siliconflow_api_key_here
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+
+# 其他LLM提供商（根据需要配置）
+MOONSHOT_API_KEY=sk-your_moonshot_api_key_here
+ZHIPUAI_API_KEY=your_zhipuai_api_key_here
+DASHSCOPE_API_KEY=sk-your_dashscope_api_key_here
+```
+
+**外部服务配置（可选）：**
+```env
+# SiYuan 笔记系统
+SIYUAN_API_URL=http://your_siyuan_host:6806
+SIYUAN_API_TOKEN=your_siyuan_api_token_here
+
+# Dify 知识库
+DIFY_BASE_URL=http://your_dify_host/v1
+DIFY_KB_API_KEY=your_dify_api_key_here
+
+# Ollama 本地模型
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### 配置文件层次结构
+
+HomeSystem 使用分层配置系统：
+
+1. **根目录 `.env`** - 全局配置，所有模块共享
+2. **模块级 `.env`** - 模块特定配置，覆盖全局配置
+3. **环境变量** - 运行时变量，优先级最高
+
+### 配置验证
+
+配置完成后，使用以下命令验证：
+
+```bash
+# 检查配置是否正确加载
+source .env && echo "DB_HOST: $DB_HOST, REDIS_HOST: $REDIS_HOST"
+
+# 检查必需的API密钥
+source .env && [ -n "$DEEPSEEK_API_KEY" ] && echo "✅ DEEPSEEK_API_KEY 已配置" || echo "❌ DEEPSEEK_API_KEY 缺失"
+```
+
 ## 🚀 快速开始
 
 ### 前置要求
@@ -153,6 +235,7 @@ done
 - Docker 20.10+
 - Docker Compose 2.0+
 - 各模块可部署在不同主机上（支持LAN网络连接）
+- **⚠️ 重要：必须先配置根目录的 `.env` 文件**（参见上方"全局配置"章节）
 - 确保以下默认端口未被占用：15432, 16379, 5001, 5002
   ```bash
   # 快速检查所有必需端口
@@ -259,14 +342,19 @@ EOF
 **在Web主机上：**
 
 ```bash
-cd /path/to/homesystem/Web/PaperAnalysis
+# 确保已配置根目录的全局 .env 文件
+cd /path/to/homesystem
+ls -la .env  # 确认全局配置文件存在
 
-# 第一步：配置环境变量（必需！）
+# 进入 PaperAnalysis 目录
+cd Web/PaperAnalysis
+
+# 可选：创建模块特定配置（用于覆盖全局配置）
 cp .env.example .env
-vim .env  # 配置数据库和OCR服务地址
+vim .env  # 如需覆盖特定配置，如使用不同的OCR服务地址
 
-# 注意：deploy.sh 会自动验证 .env 文件中的关键配置
-# 必需变量：DB_HOST, DB_PORT, REDIS_HOST, REDIS_PORT
+# 注意：如果不创建本地 .env，将使用根目录的全局配置
+# deploy.sh 会自动验证必需的环境变量
 
 # 部署Web服务
 ./deploy.sh --build
@@ -279,27 +367,46 @@ docker compose ps
 - PaperAnalysis: 5002 (可通过 `FLASK_PORT` 修改)
 - Nginx代理: 80/443 (可选，通过 `NGINX_PORT`/`NGINX_SSL_PORT` 修改)
 
-**自定义端口和远程服务示例：**
-```bash
-# 创建环境变量文件
-cd Web/PaperAnalysis
-cat > .env << EOF
-# Flask应用配置
-FLASK_PORT=8002
-SECRET_KEY=your_flask_secret_key_here
+**配置示例：**
 
-# 远程数据库配置
+**方式1：仅使用全局配置**
+```bash
+# 在根目录配置全局 .env
+cd /path/to/homesystem
+cat > .env << EOF
+# 数据库配置
 DB_HOST=192.168.1.100
 DB_PORT=25432
 REDIS_HOST=192.168.1.100
 REDIS_PORT=26379
 
-# 远程OCR服务配置
+# OCR服务配置
 REMOTE_OCR_ENDPOINT=http://192.168.1.101:8080
 
 # LLM API配置
 DEEPSEEK_API_KEY=your_api_key_here
 SILICONFLOW_API_KEY=your_api_key_here
+EOF
+
+# 直接部署（无需创建本地 .env）
+cd Web/PaperAnalysis
+./deploy.sh --build
+```
+
+**方式2：全局配置 + 本地覆盖**
+```bash
+# 全局配置包含通用设置
+cd /path/to/homesystem
+# 编辑 .env 设置数据库和LLM配置
+
+# 本地覆盖特定配置
+cd Web/PaperAnalysis
+cat > .env << EOF
+# 覆盖Web服务端口
+FLASK_PORT=8002
+
+# 覆盖OCR服务地址
+REMOTE_OCR_ENDPOINT=http://192.168.1.101:8080
 EOF
 
 # 部署Web服务
@@ -610,7 +717,31 @@ ls -la database/postgres/data/
 ls -la remote_app/volumes/
 ```
 
-**6. 资源不足**
+**6. 全局配置问题**
+```bash
+# 检查根目录 .env 文件是否存在
+ls -la /path/to/homesystem/.env
+
+# 验证全局配置是否正确加载
+cd /path/to/homesystem
+source .env && echo "DB_HOST: $DB_HOST, DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:0:20}..."
+
+# PaperAnalysis 部署失败：缺少全局配置
+# 解决方案：确保根目录 .env 文件存在并配置正确
+cd /path/to/homesystem
+cp .env.example .env
+vim .env  # 配置必需的数据库和API密钥
+
+# 检查配置文件优先级
+cd Web/PaperAnalysis
+docker compose config | grep -E "(DB_HOST|DEEPSEEK_API_KEY)"
+
+# 清理可能的配置冲突
+# 如果本地 .env 配置错误，可删除以使用全局配置
+rm .env  # 谨慎使用，确保全局配置正确
+```
+
+**7. 资源不足**
 ```bash
 # 检查系统资源
 free -h
