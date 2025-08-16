@@ -1,5 +1,6 @@
 """
-OCR processor using PaddleOCR for remote service.
+OCR processor using PaddleOCR PPStructureV3 for remote service.
+Simplified to match local _performOCR_paddleocr implementation.
 """
 import os
 import tempfile
@@ -8,28 +9,38 @@ import fitz  # PyMuPDF
 from pathlib import Path
 
 # Check if PaddleOCR is available
+print("DEBUG: Testing PaddleOCR import...")
 try:
-    from ppstructure import PPStructureV3
+    from paddleocr import PPStructureV3
+    print("DEBUG: PPStructureV3 import successful")
     OCR_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"DEBUG: PPStructureV3 import failed with ImportError: {e}")
     OCR_AVAILABLE = False
+except Exception as e:
+    print(f"DEBUG: PPStructureV3 import failed with Exception: {e}")
+    OCR_AVAILABLE = False
+
+print(f"DEBUG: Final OCR_AVAILABLE = {OCR_AVAILABLE}")
 
 
 class OCRProcessor:
-    """PaddleOCR processor for document analysis."""
+    """PaddleOCR PPStructureV3 processor for document analysis."""
     
     def __init__(self):
         """Initialize OCR processor."""
         self.pipeline = None
         if OCR_AVAILABLE:
             try:
+                from shared.config import OCRServiceConfig
+                # Initialize PaddleOCR PPStructureV3 - matches local implementation
                 self.pipeline = PPStructureV3()
-                print("PaddleOCR PPStructureV3 initialized successfully")
+                print(f"PPStructureV3 initialized successfully (GPU: {OCRServiceConfig.USE_GPU})")
             except Exception as e:
-                print(f"Failed to initialize PaddleOCR: {e}")
+                print(f"Failed to initialize PPStructureV3: {e}")
                 self.pipeline = None
         else:
-            print("PaddleOCR not available - missing dependencies")
+            print("PPStructureV3 not available - missing dependencies")
     
     def process_pdf(
         self, 
@@ -39,20 +50,20 @@ class OCRProcessor:
         arxiv_id: str = "unknown"
     ) -> Tuple[Optional[str], Dict[str, Any]]:
         """
-        Process PDF using PaddleOCR (equivalent to _performOCR_paddleocr).
+        Process PDF using PaddleOCR PPStructureV3 (matches local _performOCR_paddleocr).
         
         Args:
             pdf_path: Path to PDF file
-            max_pages: Maximum pages to process
+            max_pages: Maximum pages to process (unused but kept for API compatibility)
             output_path: Output directory path
             arxiv_id: ArXiv paper ID for naming
             
         Returns:
-            Tuple of (OCR text, status info dict)
+            Tuple of (OCR markdown text, status info dict)
         """
         if not OCR_AVAILABLE or self.pipeline is None:
             return None, {
-                'error': 'PaddleOCR not available or failed to initialize',
+                'error': 'PPStructureV3 not available or failed to initialize',
                 'total_pages': 0,
                 'processed_pages': 0,
                 'is_oversized': False,
@@ -62,98 +73,106 @@ class OCRProcessor:
             }
         
         try:
-            # Check total pages using PyMuPDF
+            # Check total pages using PyMuPDF - matches local implementation
             pdf_document = fitz.open(pdf_path)
             total_pages = len(pdf_document)
             pdf_document.close()
             
-            print(f"PDF total pages: {total_pages}")
+            print(f"PDF总页数: {total_pages}")
             
-            # Check if document is oversized
+            # Check if document is oversized - matches local implementation
             is_oversized = total_pages > max_pages
             if is_oversized:
-                print(f"Document pages ({total_pages}) exceed limit ({max_pages}), processing first {max_pages} pages only")
+                print(f"文档页数({total_pages})超过限制({max_pages})，将只处理前{max_pages}页")
             
-            # Determine pages to process
             pages_to_process = min(max_pages, total_pages)
             
-            # Create output directory if specified
+            # Create output directory - matches local implementation  
             if output_path:
                 output_dir = Path(output_path)
                 output_dir.mkdir(parents=True, exist_ok=True)
-                imgs_dir = output_dir / "imgs"
-                imgs_dir.mkdir(exist_ok=True)
             else:
-                output_dir = None
-                imgs_dir = None
+                output_dir = Path(tempfile.mkdtemp())
+                
+            print(f"输出目录: {output_dir}")
             
-            # Process PDF with PaddleOCR
-            try:
-                print(f"Starting PaddleOCR processing for {pages_to_process} pages...")
-                
-                # Use a temporary directory for PaddleOCR output
-                with tempfile.TemporaryDirectory() as temp_ocr_dir:
-                    # Process document with PaddleOCR
-                    results = self.pipeline(
-                        pdf_path, 
-                        output=temp_ocr_dir,
-                        page_range=[0, pages_to_process-1] if pages_to_process < total_pages else None
-                    )
-                    
-                    # Extract text and images from results
-                    markdown_text = self._extract_markdown_from_results(
-                        results, 
-                        temp_ocr_dir, 
-                        imgs_dir,
-                        arxiv_id
-                    )
-                    
-                    # Calculate character count
-                    char_count = len(markdown_text) if markdown_text else 0
-                    
-                    # Prepare saved files list
-                    saved_files = []
-                    if output_dir and markdown_text:
-                        # Save main markdown file
-                        markdown_file = output_dir / f"{arxiv_id}_analysis.md"
-                        with open(markdown_file, 'w', encoding='utf-8') as f:
-                            f.write(markdown_text)
-                        saved_files.append(str(markdown_file))
-                        
-                        # Add image files if any
-                        if imgs_dir and imgs_dir.exists():
-                            for img_file in imgs_dir.glob("*.jpg"):
-                                saved_files.append(str(img_file))
-                    
-                    status_info = {
-                        'total_pages': total_pages,
-                        'processed_pages': pages_to_process,
-                        'is_oversized': is_oversized,
-                        'char_count': char_count,
-                        'method': 'paddleocr',
-                        'saved_files': saved_files
-                    }
-                    
-                    print(f"PaddleOCR processing completed: {char_count} characters extracted")
-                    
-                    return markdown_text, status_info
-                    
-            except Exception as e:
-                print(f"PaddleOCR processing failed: {str(e)}")
-                return None, {
-                    'error': f'PaddleOCR processing failed: {str(e)}',
-                    'total_pages': total_pages,
-                    'processed_pages': 0,
-                    'is_oversized': is_oversized,
-                    'char_count': 0,
-                    'method': 'paddleocr',
-                    'saved_files': []
-                }
-                
+            # Execute structured recognition - EXACTLY like local implementation
+            print("开始执行结构化文档识别...")
+            output = self.pipeline.predict(input=pdf_path)
+            
+            # Process results and extract markdown and images - matches local implementation
+            markdown_list = []
+            markdown_images = []
+            
+            for res in output:
+                if hasattr(res, 'markdown'):
+                    md_info = res.markdown
+                    markdown_list.append(md_info)
+                    markdown_images.append(md_info.get("markdown_images", {}))
+            
+            # Merge markdown pages - matches local implementation
+            if hasattr(self.pipeline, 'concatenate_markdown_pages'):
+                markdown_texts = self.pipeline.concatenate_markdown_pages(markdown_list)
+            else:
+                # Backup method: manual merge
+                markdown_texts = "\n\n".join([str(md) for md in markdown_list if md])
+            
+            if not markdown_texts:
+                markdown_texts = f"# OCR Analysis for {arxiv_id}\n\nPPStructureV3 processing completed but no text content was extracted."
+            
+            # Save files - matches local implementation
+            saved_files = []
+            
+            # Use arxiv_id as filename (if available) - matches local implementation
+            base_filename = arxiv_id if (arxiv_id and arxiv_id != "unknown") else "unknown"
+            mkd_file_path = output_dir / f"{base_filename}_paddleocr.md"
+            
+            with open(mkd_file_path, "w", encoding="utf-8") as f:
+                f.write(markdown_texts)
+            saved_files.append(str(mkd_file_path))
+            
+            # Create imgs directory - matches local implementation
+            imgs_dir = output_dir / "imgs"
+            imgs_dir.mkdir(exist_ok=True)
+            
+            # Save images - matches local implementation
+            images_saved = 0
+            for item in markdown_images:
+                if item:
+                    for path, image in item.items():
+                        # Remove redundant imgs/ prefix if present (PPStructureV3 may include it)
+                        clean_path = path.replace('imgs/', '', 1) if path.startswith('imgs/') else path
+                        file_path = imgs_dir / clean_path
+                        file_path.parent.mkdir(parents=True, exist_ok=True)
+                        image.save(file_path)
+                        saved_files.append(str(file_path))
+                        images_saved += 1
+            
+            print(f"Markdown文件和图片已保存到: {output_dir}")
+            print(f"保存了 {images_saved} 张图片")
+            
+            # Build status info - matches local implementation
+            total_chars = len(markdown_texts) if markdown_texts else 0
+            status_info = {
+                'total_pages': total_pages,
+                'processed_pages': pages_to_process,
+                'is_oversized': is_oversized,
+                'char_count': total_chars,
+                'method': 'paddleocr',
+                'images_count': images_saved,
+                'saved_files': saved_files
+            }
+            
+            print(f"PaddleOCR结构化识别完成，处理了 {pages_to_process}/{total_pages} 页，提取Markdown文本 {total_chars} 个字符，提取图片 {images_saved} 张")
+            
+            return markdown_texts, status_info
+            
         except Exception as e:
-            print(f"PDF processing error: {str(e)}")
+            print(f"PPStructureV3 processing error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None, {
-                'error': f'PDF processing error: {str(e)}',
+                'error': f'PPStructureV3 processing error: {str(e)}',
                 'total_pages': 0,
                 'processed_pages': 0,
                 'is_oversized': False,
@@ -161,98 +180,3 @@ class OCRProcessor:
                 'method': 'paddleocr',
                 'saved_files': []
             }
-    
-    def _extract_markdown_from_results(
-        self, 
-        results: Any, 
-        temp_dir: str, 
-        imgs_dir: Optional[Path],
-        arxiv_id: str
-    ) -> str:
-        """
-        Extract markdown text from PaddleOCR results.
-        
-        Args:
-            results: PaddleOCR processing results
-            temp_dir: Temporary directory with OCR output
-            imgs_dir: Directory to save images
-            arxiv_id: ArXiv paper ID
-            
-        Returns:
-            Formatted markdown text
-        """
-        # This is a simplified implementation
-        # In practice, you would need to parse PaddleOCR's structured output
-        # and convert it to the same markdown format as the original implementation
-        
-        markdown_content = []
-        
-        # Add header
-        markdown_content.append(f"# OCR Analysis for {arxiv_id}")
-        markdown_content.append("")
-        
-        # Try to read any generated markdown files from PaddleOCR
-        temp_path = Path(temp_dir)
-        
-        # Look for markdown files generated by PaddleOCR
-        markdown_files = list(temp_path.glob("*.md"))
-        if markdown_files:
-            for md_file in markdown_files:
-                try:
-                    with open(md_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        markdown_content.append(content)
-                except Exception as e:
-                    print(f"Error reading markdown file {md_file}: {e}")
-        else:
-            # If no markdown files, try to extract text from results directly
-            if hasattr(results, '__iter__'):
-                for result in results:
-                    if isinstance(result, dict) and 'text' in result:
-                        markdown_content.append(result['text'])
-                    elif isinstance(result, str):
-                        markdown_content.append(result)
-        
-        # Copy any images to the output directory
-        if imgs_dir:
-            self._copy_images_from_temp(temp_path, imgs_dir)
-        
-        # Join all content
-        full_text = "\n".join(markdown_content)
-        
-        # If no content was extracted, provide a basic message
-        if not full_text.strip():
-            full_text = f"# OCR Analysis for {arxiv_id}\n\nOCR processing completed but no text content was extracted."
-        
-        return full_text
-    
-    def _copy_images_from_temp(self, temp_dir: Path, target_dir: Path) -> None:
-        """
-        Copy images from temporary directory to target directory.
-        
-        Args:
-            temp_dir: Source temporary directory
-            target_dir: Target images directory
-        """
-        try:
-            # Copy any image files generated by PaddleOCR
-            for img_file in temp_dir.rglob("*.jpg"):
-                target_file = target_dir / img_file.name
-                import shutil
-                shutil.copy2(img_file, target_file)
-                
-            for img_file in temp_dir.rglob("*.png"):
-                # Convert PNG to JPG for consistency
-                from PIL import Image
-                img = Image.open(img_file)
-                if img.mode == 'RGBA':
-                    img = img.convert('RGB')
-                target_file = target_dir / f"{img_file.stem}.jpg"
-                img.save(target_file, 'JPEG', quality=95)
-                
-        except Exception as e:
-            print(f"Error copying images: {e}")
-    
-    def is_available(self) -> bool:
-        """Check if OCR processor is available."""
-        return OCR_AVAILABLE and self.pipeline is not None

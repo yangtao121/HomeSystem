@@ -5,11 +5,10 @@ import os
 import sys
 import uuid
 import traceback
+import base64
+from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from werkzeug.utils import secure_filename
-
-# Add shared utilities to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from shared.config import OCRServiceConfig
 from shared.logging import setup_logging
@@ -82,8 +81,8 @@ def process_ocr():
             if not is_valid:
                 return jsonify({'error': error_msg}), 400
             
-            # Create results directory
-            results_dir = file_handler.create_results_directory(job_id)
+            # Create results directory using arxiv_id for consistency
+            results_dir = file_handler.create_results_directory(arxiv_id, job_id)
             
             # Process PDF with OCR
             ocr_result, status_info = ocr_processor.process_pdf(
@@ -99,17 +98,27 @@ def process_ocr():
                     'status_info': status_info
                 }), 500
             
-            # Save results
-            saved_files = file_handler.save_ocr_results(job_id, ocr_result, arxiv_id)
-            status_info['saved_files'] = saved_files
+            # Read and encode images for transmission
+            images_data = {}
+            imgs_dir = Path(results_dir) / "imgs"
+            if imgs_dir.exists():
+                for img_file in imgs_dir.glob("*.jpg"):
+                    try:
+                        with open(img_file, 'rb') as f:
+                            img_base64 = base64.b64encode(f.read()).decode('utf-8')
+                            images_data[img_file.name] = img_base64
+                    except Exception as e:
+                        logger.warning(f"Failed to encode image {img_file}: {e}")
             
-            logger.info(f"OCR processing completed successfully for job {job_id}")
+            logger.info(f"OCR processing completed successfully for job {job_id}, images: {len(images_data)}")
             
-            # Return response in same format as local performOCR
+            # Return response with embedded images for remote transmission
             return jsonify({
                 'job_id': job_id,
+                'arxiv_id': arxiv_id,
                 'ocr_result': ocr_result,
                 'status_info': status_info,
+                'images': images_data,
                 'success': True
             })
             

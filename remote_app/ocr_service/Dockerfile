@@ -1,6 +1,4 @@
-# OCR Service Docker Image
-# This dockerfile creates a complete environment for PaddleOCR processing
-
+# OCR Service Docker Image - Simplified for testing
 FROM python:3.11-slim
 
 # Set environment variables
@@ -10,25 +8,20 @@ ENV LANG=C.UTF-8
 ENV TZ=Asia/Shanghai
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies required for PaddleOCR and OpenCV
+# Install system dependencies for PaddleOCR 3.1.0
 RUN apt-get update && apt-get install -y \
-    # OpenCV and image processing dependencies
-    libgl1-mesa-glx \
+    wget \
+    curl \
+    libgl1-mesa-dev \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    libgcc-s1 \
+    libomp-dev \
+    libopenblas-dev \
     libgeos-dev \
-    # Font support for Chinese text
-    fonts-dejavu-core \
-    fontconfig \
-    # Network and utility tools
-    wget \
-    curl \
-    git \
-    # Build tools (for some Python packages)
-    build-essential \
     # Clean up
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
@@ -36,15 +29,20 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Configure pip to use domestic mirror as default
+RUN mkdir -p /root/.pip && \
+    echo "[global]" > /root/.pip/pip.conf && \
+    echo "index-url = https://pypi.tuna.tsinghua.edu.cn/simple" >> /root/.pip/pip.conf && \
+    echo "trusted-host = pypi.tuna.tsinghua.edu.cn" >> /root/.pip/pip.conf
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 
 # Install Python dependencies
+# Install PaddlePaddle GPU 3.1.0 for CUDA 12.6 first
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/nightly/cu129/ && \
     pip install --no-cache-dir -r requirements.txt
-
-# Copy shared utilities
-COPY ../shared ../shared
 
 # Copy application code
 COPY . .
@@ -52,20 +50,13 @@ COPY . .
 # Create directories for PaddleOCR models and results
 RUN mkdir -p /app/.paddleocr /app/.paddlehub /tmp/ocr_service /tmp/ocr_results /app/logs
 
-# Pre-download PaddleOCR models (optional, can be done at runtime)
-# Uncomment the following lines to pre-download models in the image
-# RUN python -c "
-# import os
-# os.environ['PADDLEOCR_HOME'] = '/app/.paddleocr'
-# from paddleocr import PaddleOCR
-# # Download Chinese + English models
-# PaddleOCR(use_angle_cls=True, lang='ch')
-# print('PaddleOCR models downloaded successfully')
-# " || echo "Model download failed, will download at runtime"
-
 # Create non-root user for security
 RUN useradd -m -u 1000 ocruser && \
-    chown -R ocruser:ocruser /app /tmp/ocr_service /tmp/ocr_results
+    mkdir -p /home/ocruser/.pip && \
+    echo "[global]" > /home/ocruser/.pip/pip.conf && \
+    echo "index-url = https://pypi.tuna.tsinghua.edu.cn/simple" >> /home/ocruser/.pip/pip.conf && \
+    echo "trusted-host = pypi.tuna.tsinghua.edu.cn" >> /home/ocruser/.pip/pip.conf && \
+    chown -R ocruser:ocruser /app /tmp/ocr_service /tmp/ocr_results /home/ocruser/.pip
 USER ocruser
 
 # Set PaddleOCR environment variables

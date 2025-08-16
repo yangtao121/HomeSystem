@@ -71,17 +71,22 @@ class FileHandler:
         except Exception as e:
             return False, f"Invalid PDF file: {str(e)}"
     
-    def create_results_directory(self, job_id: str) -> str:
+    def create_results_directory(self, arxiv_id: str, job_id: str = None) -> str:
         """
         Create directory for storing OCR results.
         
         Args:
-            job_id: Unique job identifier
+            arxiv_id: ArXiv paper ID (used as directory name for consistency)
+            job_id: Unique job identifier (fallback if arxiv_id not available)
             
         Returns:
             Path to results directory
         """
-        results_path = self.results_dir / job_id
+        # Use arxiv_id as directory name for consistency with local behavior
+        # Fall back to job_id if arxiv_id is not available or is "unknown"
+        dir_name = arxiv_id if arxiv_id and arxiv_id != "unknown" else job_id
+        
+        results_path = self.results_dir / dir_name
         results_path.mkdir(parents=True, exist_ok=True)
         
         # Create imgs subdirectory for extracted images

@@ -12,12 +12,17 @@ services:
     container_name: remote-ocr-service
     restart: unless-stopped
     
+    # GPU runtime support for NVIDIA GPUs
+    runtime: nvidia
+    
     # Port configuration - use environment variable for flexibility
     ports:
       - "${OCR_SERVICE_PORT:-5001}:5001"
     
     # Environment variables
     environment:
+      # GPU runtime
+      - NVIDIA_VISIBLE_DEVICES=all
       # Service configuration
       - HOST=0.0.0.0
       - OCR_SERVICE_PORT=5001
@@ -36,7 +41,7 @@ services:
       
       # PaddleOCR configuration
       - PADDLEOCR_USE_ANGLE_CLS=${PADDLEOCR_USE_ANGLE_CLS:-true}
-      - PADDLEOCR_USE_GPU=${PADDLEOCR_USE_GPU:-false}
+      - PADDLEOCR_USE_GPU=${PADDLEOCR_USE_GPU:-true}
       - PADDLEOCR_LANG=${PADDLEOCR_LANG:-ch}
       - PADDLEOCR_HOME=/app/.paddleocr
       - HUB_HOME=/app/.paddlehub
