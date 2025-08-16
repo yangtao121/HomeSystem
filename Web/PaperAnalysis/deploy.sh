@@ -394,7 +394,7 @@ main() {
     deploy_services
     
     # 等待服务就绪
-    wait_for_services
+    # wait_for_services
     
     # 显示状态
     show_status

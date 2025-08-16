@@ -218,7 +218,7 @@ EOF
 cd /path/to/homesystem/remote_app
 
 # 构建并启动OCR服务
-./deploy.sh --build
+./deploy.sh 
 
 # 检查GPU支持
 docker compose logs ocr-service
@@ -261,9 +261,12 @@ EOF
 ```bash
 cd /path/to/homesystem/Web/PaperAnalysis
 
-# 配置环境变量（连接远程服务）
+# 第一步：配置环境变量（必需！）
 cp .env.example .env
 vim .env  # 配置数据库和OCR服务地址
+
+# 注意：deploy.sh 会自动验证 .env 文件中的关键配置
+# 必需变量：DB_HOST, DB_PORT, REDIS_HOST, REDIS_PORT
 
 # 部署Web服务
 ./deploy.sh --build
@@ -662,6 +665,15 @@ curl http://web-host:5002/api/health
 - 使用强API密钥
 - 定期备份数据
 - 监控访问日志
+
+
+## 常见问题解决
+
+### 1. ls: can't open '/docker-entrypoint-initdb.d/': Permission denied
+
+权限问题，使用 ```sudo chmod -R 777 *``` 解决。
+
+
 
 ## 📄 许可证
 
