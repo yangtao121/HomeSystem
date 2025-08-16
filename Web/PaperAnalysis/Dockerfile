@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     git \
     gcc \
     g++ \
+    netcat-openbsd \
+    postgresql-client \
+    redis-tools \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -40,8 +43,12 @@ COPY HomeSystem /app/HomeSystem
 # Copy PaperAnalysis application code
 COPY Web/PaperAnalysis /app
 
-# Create directories for logs and uploads
-RUN mkdir -p /app/logs /app/uploads /app/static/uploads
+# Create directories for logs, uploads, and data
+RUN mkdir -p /app/logs /app/uploads /app/static/uploads \
+    /app/data/paper_analyze \
+    /app/data/paper_gather/task_history \
+    /app/data/paper_gather/config_presets \
+    /app/data/paper_gather/scheduled_tasks
 
 # Create non-root user for security
 RUN useradd -m -u 1000 paperuser && \

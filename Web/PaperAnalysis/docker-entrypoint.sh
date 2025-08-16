@@ -98,7 +98,7 @@ check_database() {
     
     # 测试数据库连接
     export PGPASSWORD="$DB_PASSWORD"
-    if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+    if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" >/dev/null 2>&1; then
         log_success "数据库连接正常"
     else
         log_error "数据库连接失败"
@@ -155,8 +155,17 @@ init_app() {
     # 创建必要的目录
     mkdir -p /app/logs /app/uploads /app/static/uploads
     
+    # 创建数据目录结构
+    log_info "创建数据目录结构..."
+    mkdir -p /app/data/paper_analyze
+    mkdir -p /app/data/paper_gather/task_history
+    mkdir -p /app/data/paper_gather/config_presets
+    mkdir -p /app/data/paper_gather/scheduled_tasks
+    
     # 设置权限
     chmod 755 /app/logs /app/uploads /app/static/uploads
+    chmod 755 /app/data /app/data/paper_analyze /app/data/paper_gather
+    chmod 755 /app/data/paper_gather/task_history /app/data/paper_gather/config_presets /app/data/paper_gather/scheduled_tasks
     
     log_success "应用初始化完成"
 }

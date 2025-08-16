@@ -59,8 +59,11 @@ services:
       - ./uploads:/app/uploads
       - ./static/uploads:/app/static/uploads
       
-      # Optional: configuration overrides
-      - ./config:/app/config:ro
+      # Data directories for persistent storage
+      - ../../data:/app/data
+      
+      # Optional: configuration overrides (only if config directory exists)
+      # - ./config:/app/config:ro
     
     # Resource limits
     deploy:

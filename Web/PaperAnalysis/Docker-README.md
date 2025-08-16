@@ -68,6 +68,24 @@ PaperAnalysis 连接到以下外部服务：
 - **OCR Service**: 文档OCR处理
 - **LLM APIs**: 论文分析和摘要
 
+### 数据持久化
+
+PaperAnalysis 使用以下目录存储持久化数据：
+
+#### 容器内路径
+- `/app/data/paper_analyze/` - 论文分析结果（PDF、分析MD、OCR结果、图片等）
+- `/app/data/paper_gather/` - 论文收集任务数据（历史记录、配置预设、定时任务）
+- `/app/logs/` - 应用日志
+- `/app/uploads/` - 用户上传文件
+- `/app/static/uploads/` - 静态上传文件
+
+#### 宿主机映射
+- `../../data/` ↔ `/app/data/` - 数据目录映射到项目根目录
+- `./logs/` ↔ `/app/logs/` - 日志目录
+- `./uploads/` ↔ `/app/uploads/` - 上传目录
+
+**注意：** 所有数据目录都已在 `.gitignore` 中配置，不会被版本控制跟踪。
+
 ### 网络配置
 
 - 默认网络: `paper-analysis-network`
@@ -266,12 +284,37 @@ docker-compose ps
 
 ### 数据备份
 
+#### 使用自动化备份脚本
 ```bash
-# 备份日志
-tar -czf logs-backup-$(date +%Y%m%d).tar.gz logs/
+# 基本备份（不包含日志）
+./backup-data.sh
 
-# 备份上传文件
-tar -czf uploads-backup-$(date +%Y%m%d).tar.gz uploads/
+# 完整备份（包含日志）
+./backup-data.sh --include-logs
+
+# 自定义备份目录
+./backup-data.sh -d /backup/homesystem
+
+# 查看备份选项
+./backup-data.sh --help
+```
+
+#### 手动备份
+```bash
+# 备份所有数据
+tar -czf paperanalysis-backup-$(date +%Y%m%d).tar.gz \
+    ../../data/ logs/ uploads/ static/uploads/
+
+# 仅备份关键数据（不含日志）
+tar -czf paperanalysis-data-$(date +%Y%m%d).tar.gz \
+    ../../data/ uploads/ static/uploads/
+```
+
+#### 数据恢复
+```bash
+# 恢复备份（在项目根目录执行）
+cd /path/to/homesystem
+tar -xzf /path/to/backup.tar.gz
 ```
 
 ### 更新部署
@@ -312,6 +355,29 @@ docker system prune -f
    - 使用防火墙限制端口访问
    - 配置 VPN 或内网访问
    - 启用访问日志
+
+4. **数据安全**：
+   - 定期备份重要数据
+   - 确保备份文件的安全存储
+   - 监控数据目录的磁盘空间使用
+   - 考虑对敏感数据进行加密
+
+## 数据管理最佳实践
+
+1. **定期备份**：
+   - 建议每日自动备份数据
+   - 保留多个版本的备份文件
+   - 测试备份恢复流程
+
+2. **磁盘空间管理**：
+   - 监控 `data/paper_analyze/` 目录大小（可能包含大量PDF和图片）
+   - 定期清理旧的或不需要的分析结果
+   - 考虑使用外部存储或NFS挂载
+
+3. **版本控制**：
+   - 所有数据目录已配置在 `.gitignore` 中
+   - 不要将数据文件提交到版本控制系统
+   - 配置文件和脚本可以版本控制，但要排除包含敏感信息的文件
 
 ## 支持
 

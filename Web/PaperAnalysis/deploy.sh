@@ -174,16 +174,22 @@ check_environment() {
     # 验证关键环境变量
     source .env
     
+    # 必需的环境变量（连接相关）
     local required_vars=(
         "DB_HOST"
         "DB_PORT"
         "REDIS_HOST" 
         "REDIS_PORT"
+    )
+    
+    # 可选的环境变量（有默认值）
+    local optional_vars=(
         "SECRET_KEY"
     )
     
     local missing_vars=()
     
+    # 检查必需变量
     for var in "${required_vars[@]}"; do
         if [ -z "${!var}" ]; then
             missing_vars+=("$var")
@@ -191,7 +197,7 @@ check_environment() {
     done
     
     if [ ${#missing_vars[@]} -ne 0 ]; then
-        log_error "以下环境变量未配置:"
+        log_error "以下关键环境变量未配置:"
         for var in "${missing_vars[@]}"; do
             log_error "  - $var"
         done
@@ -199,7 +205,35 @@ check_environment() {
         exit 1
     fi
     
+    # 检查可选变量并提供默认值
+    if [ -z "${SECRET_KEY}" ]; then
+        log_info "SECRET_KEY 未设置，使用开发环境默认值"
+        export SECRET_KEY="paper-analysis-dev-key-$(date +%s)"
+        log_info "生成的临时密钥: ${SECRET_KEY:0:20}..."
+    fi
+    
     log_success "环境配置检查通过"
+}
+
+# 检查权限
+check_permissions() {
+    log_info "检查目录权限..."
+    
+    if [ -f "./setup-permissions.sh" ]; then
+        if ./setup-permissions.sh --check > /dev/null 2>&1; then
+            log_success "目录权限检查通过"
+        else
+            log_warning "发现权限问题，尝试自动修复..."
+            log_info "运行权限检查脚本..."
+            ./setup-permissions.sh --check
+            echo
+            log_error "请先解决权限问题，然后重新运行部署"
+            log_info "快速修复命令: ./setup-permissions.sh --fix"
+            exit 1
+        fi
+    else
+        log_warning "权限检查脚本不存在，跳过权限检查"
+    fi
 }
 
 # 构建镜像
@@ -346,6 +380,9 @@ main() {
     
     # 检查环境
     check_environment
+    
+    # 检查权限
+    check_permissions
     
     # 构建镜像
     build_image
