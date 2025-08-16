@@ -273,6 +273,15 @@ providers:
       supports_vision: true
       context_length: 131072
       description: 通义千问2.5系列7B版本，支持视觉和图片分析
+    - name: qwen2.5vl:3b
+      key: ollama.Qwen2_5_VL_3B
+      display_name: 通义千问 2.5-VL-3B (视觉)
+      parameters: 3B
+      max_tokens: 32768
+      supports_functions: false
+      supports_vision: true
+      context_length: 131072
+      description: 通义千问2.5系列3B版本，支持视觉和图片分析
     - name: qwen3:30b
       key: ollama.Qwen3_30B
       display_name: 通义千问3 30B

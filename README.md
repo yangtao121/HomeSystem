@@ -54,6 +54,15 @@ HomeSystem 采用模块化设计，由三个独立的 Docker 服务组成，可�
   ./check-ports.sh  # 检查核心端口
   ```
 
+- 在一台机器上配置好ollama，实现局域网内的访问。
+- ollama要拉取以下模型：
+
+  ```
+  qwen3:30b
+  qwen2.5vl:7b
+  ```
+  VL模型为必须，如果配置不够可以拉取qwen2.5vl:3b。
+
 ### 第一步：全局配置
 
 **⚠️ 重要：所有模块部署前必须先配置根目录的 `.env` 文件**
@@ -211,7 +220,28 @@ EOF
 
 ## 功能介绍
 
-### PaperAnlysis
+### PaperAnalysis
+
+
+<div style="text-align: center;"><img src="./assets/figs/paper_analysis/first_page.png" alt="Image" width="83%" /></div>
+
+
+PaperAnalysis能够根据用户指令，自动持续跟踪相关文献，并提取关键信息，生成摘要和分析报告。
+只需要提供相关论文的中文描述，就能自动生成搜索关键词，和对应的要求。
+增强的Arxiv搜索，能一次性搜索高达3w篇论文进行分析。
+同时也支持通过上传PDF进行论文深度总结。当前具有的功能如下：
+
+ - 领域最新论文持续跟踪（定时搜索任务）。
+ - 支持自动按类别创建dify知识库（需额外部署dify，以及embedding模型）。
+ - 自动论文搜索功能。
+
+推荐模型设置如下：
+
+<div style="text-align: center;"><img src="./assets/figs/paper_analysis/LLM_config.png" alt="Image" width="83%" /></div>
+
+
+
+
 
 
 
