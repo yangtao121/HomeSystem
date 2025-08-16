@@ -240,6 +240,36 @@
             
             <div class="row">
                 <div class="col-md-6 mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enable_remote_ocr" 
+                               name="enable_remote_ocr">
+                        <label class="form-check-label" for="enable_remote_ocr">
+                            <strong>启用远程OCR服务</strong>
+                        </label>
+                    </div>
+                    <div class="form-help">使用远程PaddleOCR服务进行论文文字识别（需要部署远程OCR服务）</div>
+                    
+                    <div id="remote_ocr_options" class="mt-3" style="display: none;">
+                        <label for="remote_ocr_endpoint" class="form-label">远程OCR服务地址</label>
+                        <input type="url" class="form-control" id="remote_ocr_endpoint" 
+                               name="remote_ocr_endpoint" value="http://localhost:5001" 
+                               placeholder="http://localhost:5001">
+                        <div class="form-help mb-2">远程OCR服务的API地址</div>
+                        
+                        <label for="remote_ocr_timeout" class="form-label">OCR超时时间 (秒)</label>
+                        <input type="number" class="form-control" id="remote_ocr_timeout" 
+                               name="remote_ocr_timeout" value="300" 
+                               min="60" max="1800" step="30">
+                        <div class="form-help">远程OCR请求的最大等待时间</div>
+                        
+                        <label for="remote_ocr_max_pages" class="form-label">OCR最大处理页数</label>
+                        <input type="number" class="form-control" id="remote_ocr_max_pages" 
+                               name="remote_ocr_max_pages" value="25" 
+                               min="1" max="100" step="1">
+                        <div class="form-help">远程OCR处理的最大页数（用于元数据提取和完整分析）</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
                     <label for="analysis_timeout" class="form-label">分析超时时间 (秒)</label>
                     <input type="number" class="form-control" id="analysis_timeout" name="analysis_timeout" 
                            min="300" max="1800" value="600" required>
@@ -965,6 +995,15 @@ $(document).ready(function() {
         }
     });
 
+    // 远程OCR开关
+    $('#enable_remote_ocr').change(function() {
+        if ($(this).is(':checked')) {
+            $('#remote_ocr_options').show();
+        } else {
+            $('#remote_ocr_options').hide();
+        }
+    });
+
     // 高级模型配置开关
     $('#enable_advanced_models').change(function() {
         if ($(this).is(':checked')) {
@@ -1094,6 +1133,7 @@ function getSettingsData() {
     // 处理复选框
     formData['enable_deep_analysis'] = $('#enable_deep_analysis').is(':checked');
     formData['enable_video_analysis'] = $('#enable_video_analysis').is(':checked');
+    formData['enable_remote_ocr'] = $('#enable_remote_ocr').is(':checked');
     
     // 处理高级模型配置 - 空值转换为null
     const advancedModelFields = ['abstract_analysis_model', 'full_paper_analysis_model', 
@@ -1190,6 +1230,25 @@ function loadSettings() {
                 }
                 if (config.enable_video_analysis !== undefined) {
                     $('#enable_video_analysis').prop('checked', config.enable_video_analysis);
+                }
+                
+                // 填充远程OCR配置
+                if (config.enable_remote_ocr !== undefined) {
+                    $('#enable_remote_ocr').prop('checked', config.enable_remote_ocr);
+                    if (config.enable_remote_ocr) {
+                        $('#remote_ocr_options').show();
+                    } else {
+                        $('#remote_ocr_options').hide();
+                    }
+                }
+                if (config.remote_ocr_endpoint !== undefined) {
+                    $('#remote_ocr_endpoint').val(config.remote_ocr_endpoint);
+                }
+                if (config.remote_ocr_timeout !== undefined) {
+                    $('#remote_ocr_timeout').val(config.remote_ocr_timeout);
+                }
+                if (config.remote_ocr_max_pages !== undefined) {
+                    $('#remote_ocr_max_pages').val(config.remote_ocr_max_pages);
                 }
                 
                 console.log('设置加载成功:', config);

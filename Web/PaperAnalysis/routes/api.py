@@ -49,6 +49,56 @@ except Exception as e:
     logger.warning(f"API模块Redis连接失败: {e}")
     redis_client = None
 
+
+def apply_remote_ocr_config():
+    """
+    从Redis加载远程OCR配置并设置环境变量
+    
+    Returns:
+        dict: 远程OCR配置信息
+    """
+    config = {
+        'enable_remote_ocr': False,
+        'remote_ocr_endpoint': 'http://localhost:5001',
+        'remote_ocr_timeout': 300,
+        'remote_ocr_max_pages': 25
+    }
+    
+    if redis_client:
+        try:
+            # 从Redis加载系统设置
+            system_settings_key = "system_settings:global"
+            system_settings_data = redis_client.get(system_settings_key)
+            
+            if system_settings_data:
+                system_settings = json.loads(system_settings_data)
+                
+                # 更新配置
+                config['enable_remote_ocr'] = system_settings.get('enable_remote_ocr', False)
+                config['remote_ocr_endpoint'] = system_settings.get('remote_ocr_endpoint', 'http://localhost:5001')
+                config['remote_ocr_timeout'] = system_settings.get('remote_ocr_timeout', 300)
+                config['remote_ocr_max_pages'] = system_settings.get('remote_ocr_max_pages', 25)
+                
+                # 如果启用了远程OCR，设置环境变量
+                if config['enable_remote_ocr']:
+                    import os
+                    os.environ['REMOTE_OCR_ENDPOINT'] = config['remote_ocr_endpoint']
+                    os.environ['REMOTE_OCR_TIMEOUT'] = str(config['remote_ocr_timeout'])
+                    os.environ['REMOTE_OCR_MAX_PAGES'] = str(config['remote_ocr_max_pages'])
+                    logger.info(f"🌐 API已设置远程OCR环境变量: {config['remote_ocr_endpoint']} (超时: {config['remote_ocr_timeout']}秒, 最大页数: {config['remote_ocr_max_pages']})")
+                else:
+                    logger.debug("🔍 API使用本地OCR (远程OCR未启用)")
+            else:
+                logger.debug("未找到系统设置，使用默认OCR配置")
+                
+        except Exception as e:
+            logger.warning(f"加载远程OCR配置失败: {e}")
+    else:
+        logger.debug("Redis未连接，使用默认OCR配置")
+    
+    return config
+
+
 # 初始化分析服务
 paper_analysis_service = PaperAnalysisService()
 
@@ -115,6 +165,14 @@ class AnalysisServiceAdapter:
                         analysis_config['ocr_char_limit_for_analysis'] = system_data['ocr_char_limit_for_analysis']
                     if 'relevance_threshold' in system_data:
                         analysis_config['relevance_threshold'] = system_data['relevance_threshold']
+                    
+                    # 远程OCR配置
+                    if 'enable_remote_ocr' in system_data:
+                        analysis_config['enable_remote_ocr'] = system_data['enable_remote_ocr']
+                    if 'remote_ocr_endpoint' in system_data:
+                        analysis_config['remote_ocr_endpoint'] = system_data['remote_ocr_endpoint']
+                    if 'remote_ocr_timeout' in system_data:
+                        analysis_config['remote_ocr_timeout'] = system_data['remote_ocr_timeout']
                     
                     config.update(analysis_config)
                     logger.info(f"从系统设置加载深度分析配置: {analysis_config}")
@@ -1048,7 +1106,13 @@ def save_settings():
             'enable_video_analysis': data.get('enable_video_analysis', False),
             'deep_analysis_threshold': data.get('deep_analysis_threshold', 0.8),
             'ocr_char_limit_for_analysis': data.get('ocr_char_limit_for_analysis', 10000),
-            'analysis_timeout': data.get('analysis_timeout', 600)
+            'analysis_timeout': data.get('analysis_timeout', 600),
+            
+            # 远程OCR配置
+            'enable_remote_ocr': data.get('enable_remote_ocr', False),
+            'remote_ocr_endpoint': data.get('remote_ocr_endpoint', 'http://localhost:5001'),
+            'remote_ocr_timeout': data.get('remote_ocr_timeout', 300),
+            'remote_ocr_max_pages': data.get('remote_ocr_max_pages', 25)
         }
         
         # 保存到Redis
@@ -2797,15 +2861,47 @@ def api_create_paper_from_pdf():
             temp_pdf_path = temp_pdf.name
         
         try:
-            # 创建ArxivData对象
-            arxiv_data = ArxivData()
+            # 应用远程OCR配置（在OCR处理之前）
+            ocr_config = apply_remote_ocr_config()
             
-            # 设置PDF路径，这会触发OCR和元数据提取
-            arxiv_data.set_pdf_path(temp_pdf_path)
-            
-            # 生成唯一的arxiv_id（使用简化格式加上timestamp）
+            # 先生成唯一的arxiv_id（使用简化格式加上timestamp）
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             generated_id = f"manual_{timestamp}_{str(uuid.uuid4())[:8]}"
+            
+            # 创建ArxivData对象并设置arxiv_id
+            arxiv_data = ArxivData()
+            arxiv_data.arxiv_id = generated_id
+            
+            # 获取标准目录路径并创建目录
+            pdf_dir = arxiv_data.get_paper_directory()
+            pdf_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 设置PDF路径，跳过自动元数据提取（因为我们会手动调用OCR）
+            arxiv_data.set_pdf_path(temp_pdf_path, extract_metadata=False)
+            
+            # 手动执行OCR并保存到正确位置
+            logger.info(f"执行OCR处理，保存到: {pdf_dir}")
+            
+            # 根据OCR类型决定处理页数
+            if ocr_config.get('enable_remote_ocr', False):
+                ocr_max_pages = ocr_config.get('remote_ocr_max_pages', 25)
+                logger.info(f"使用远程OCR处理 {ocr_max_pages} 页")
+            else:
+                ocr_max_pages = 25  # 本地OCR也使用25页，因为这是完整处理
+                logger.info(f"使用本地OCR处理 {ocr_max_pages} 页")
+            
+            ocr_result, ocr_status = arxiv_data.performOCR(
+                max_pages=ocr_max_pages,
+                use_paddleocr=True,
+                use_remote_ocr=ocr_config.get('enable_remote_ocr', False),
+                auto_save=True,
+                save_path=str(pdf_dir)
+            )
+            
+            if ocr_result:
+                logger.info(f"OCR处理成功，提取 {len(ocr_result)} 字符")
+            else:
+                logger.warning("OCR处理失败或未提取到内容")
             
             # 设置基本属性
             if not arxiv_data.title:
@@ -2835,22 +2931,11 @@ def api_create_paper_from_pdf():
             success = db_ops.create(paper_model)
             
             if success:
-                # 保存PDF到标准目录
+                # 复制临时PDF到标准目录（PDF目录已在前面创建）
                 try:
-                    # 设置arxiv_id以便使用标准路径方法
-                    arxiv_data.arxiv_id = generated_id
-                    
-                    # 获取标准目录路径并创建目录
-                    pdf_dir = arxiv_data.get_paper_directory()
-                    pdf_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    # 定义PDF文件路径
                     pdf_file_path = pdf_dir / f"{generated_id}.pdf"
-                    
-                    # 复制临时PDF到标准目录
                     import shutil
                     shutil.copy2(temp_pdf_path, pdf_file_path)
-                    
                     logger.info(f"PDF已保存到标准目录: {pdf_file_path}")
                     
                 except Exception as e:
@@ -2928,6 +3013,9 @@ def api_create_paper_from_arxiv():
                     'redirect_url': f'/explore/paper/{existing_paper.arxiv_id}'
                 }
             }), 409
+        
+        # 应用远程OCR配置（在PDF下载和潜在OCR处理之前）
+        ocr_config = apply_remote_ocr_config()
         
         # 下载PDF到标准目录
         try:

@@ -108,13 +108,15 @@ class ArxivData:
         self.arxiv_id = self._extract_arxiv_id()
         self.published_date = self._extract_published_date()
 
-    def set_pdf_path(self, pdf_path: str):
+    def set_pdf_path(self, pdf_path: str, extract_metadata: bool = True):
         """
         设置PDF文件路径，用于从现有PDF文件创建ArxivData对象
-        增加OCR和LLM功能，自动提取论文标题、作者和摘要
+        可选择是否自动提取论文标题、作者和摘要
         
         :param pdf_path: PDF文件的路径
         :type pdf_path: str
+        :param extract_metadata: 是否自动提取元数据（标题、作者、摘要），默认True
+        :type extract_metadata: bool
         :return: 返回self以支持链式调用
         :rtype: ArxivData
         """
@@ -138,8 +140,11 @@ class ArxivData:
                 self.pdf = f.read()
             logger.info(f"成功加载PDF文件: {pdf_path}")
             
-            # 执行OCR和元数据提取
-            self._extract_metadata_from_pdf()
+            # 根据参数决定是否执行OCR和元数据提取
+            if extract_metadata:
+                self._extract_metadata_from_pdf()
+            else:
+                logger.info("跳过自动元数据提取（extract_metadata=False）")
             
         except Exception as e:
             logger.error(f"加载PDF文件失败: {pdf_path}, 错误: {e}")
@@ -149,7 +154,7 @@ class ArxivData:
     def _extract_metadata_from_pdf(self):
         """
         从PDF中提取元数据（标题、作者、摘要）
-        使用OCR + LLM的方式
+        使用OCR + LLM的方式，支持远程OCR服务
         """
         if not self.pdf:
             logger.warning("PDF内容为空，跳过元数据提取")
@@ -158,8 +163,26 @@ class ArxivData:
         try:
             logger.info("开始从PDF提取元数据...")
             
-            # 执行OCR，只处理前3页
-            ocr_result, ocr_status = self._performOCR_paddleocr(max_pages=3)
+            # 检查是否配置了远程OCR服务
+            remote_endpoint = os.getenv('REMOTE_OCR_ENDPOINT')
+            use_remote_ocr = bool(remote_endpoint)
+            
+            # 根据OCR类型决定处理页数
+            if use_remote_ocr:
+                # 从环境变量获取配置的最大页数
+                ocr_max_pages = int(os.getenv('REMOTE_OCR_MAX_PAGES', '25'))
+                logger.info(f"🌐 元数据提取使用远程OCR服务: {remote_endpoint} (最大页数: {ocr_max_pages})")
+            else:
+                # 本地OCR限制页数以节省资源
+                ocr_max_pages = 3
+                logger.info("🔍 元数据提取使用本地PaddleOCR (限制3页)")
+            
+            # 执行OCR，使用配置的页数和OCR方法
+            ocr_result, ocr_status = self.performOCR(
+                max_pages=ocr_max_pages, 
+                use_paddleocr=True, 
+                use_remote_ocr=use_remote_ocr
+            )
             
             if not ocr_result:
                 logger.warning("OCR提取失败，跳过元数据提取")
@@ -809,16 +832,39 @@ class ArxivData:
                             save_dir = Path(output_path)
                             save_dir.mkdir(parents=True, exist_ok=True)
                             
-                            # 保存主要结果文件
-                            result_file = save_dir / f"{self.arxiv_id or 'unknown'}_analysis.md"
+                            # 保存主要结果文件（使用paddleocr命名保持一致性）
+                            result_file = save_dir / f"{self.arxiv_id or 'unknown'}_paddleocr.md"
                             with open(result_file, 'w', encoding='utf-8') as f:
                                 f.write(ocr_result)
                             
-                            # 更新保存文件列表
+                            # 保存图片（如果远程服务返回了图片）
                             local_saved_files = [str(result_file)]
-                            status_info['saved_files'] = local_saved_files
+                            images_data = result.get('images', {})
                             
-                            logger.info(f"远程OCR结果已保存到本地: {result_file}")
+                            if images_data:
+                                # 创建imgs目录
+                                imgs_dir = save_dir / "imgs"
+                                imgs_dir.mkdir(exist_ok=True)
+                                
+                                # 保存每张图片
+                                for img_name, img_base64 in images_data.items():
+                                    try:
+                                        import base64
+                                        img_data = base64.b64decode(img_base64)
+                                        img_path = imgs_dir / img_name
+                                        with open(img_path, 'wb') as f:
+                                            f.write(img_data)
+                                        local_saved_files.append(str(img_path))
+                                    except Exception as e:
+                                        logger.warning(f"保存图片失败 {img_name}: {e}")
+                                
+                                logger.info(f"远程OCR保存了 {len(images_data)} 张图片到 {imgs_dir}")
+                            
+                            # 更新保存文件列表和图片数量
+                            status_info['saved_files'] = local_saved_files
+                            status_info['images_count'] = len(images_data)
+                            
+                            logger.info(f"远程OCR结果已保存到本地: {result_file} (包含 {len(images_data)} 张图片)")
                             
                         except Exception as e:
                             logger.warning(f"保存远程OCR结果到本地失败: {str(e)}")

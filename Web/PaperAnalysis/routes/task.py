@@ -6,8 +6,25 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from services.task_service import paper_gather_service, TaskMode
 from services.paper_gather_service import paper_data_service
 import logging
+import json
 
 logger = logging.getLogger(__name__)
+
+# 导入Redis配置
+try:
+    import redis
+    from config import REDIS_CONFIG
+    redis_client = redis.Redis(
+        host=REDIS_CONFIG['host'],
+        port=REDIS_CONFIG['port'],
+        db=REDIS_CONFIG['db'],
+        decode_responses=True
+    )
+    redis_client.ping()
+    logger.info("Task模块Redis连接成功")
+except Exception as e:
+    logger.warning(f"Task模块Redis连接失败: {e}")
+    redis_client = None
 
 task_bp = Blueprint('task', __name__)
 
@@ -41,6 +58,30 @@ def execute_task():
                 'success': False,
                 'error': '任务名称长度必须在1-100个字符之间'
             }), 400
+        
+        # 加载系统设置（包括远程OCR配置）
+        if redis_client:
+            try:
+                system_settings_key = "system_settings:global"
+                system_settings_data = redis_client.get(system_settings_key)
+                if system_settings_data:
+                    system_settings = json.loads(system_settings_data)
+                    
+                    # 将远程OCR设置添加到任务配置中
+                    if 'enable_remote_ocr' in system_settings:
+                        config_data['enable_remote_ocr'] = system_settings['enable_remote_ocr']
+                    if 'remote_ocr_endpoint' in system_settings:
+                        config_data['remote_ocr_endpoint'] = system_settings['remote_ocr_endpoint']
+                    if 'remote_ocr_timeout' in system_settings:
+                        config_data['remote_ocr_timeout'] = system_settings['remote_ocr_timeout']
+                    if 'remote_ocr_max_pages' in system_settings:
+                        config_data['remote_ocr_max_pages'] = system_settings['remote_ocr_max_pages']
+                    
+                    logger.info(f"📥 已加载远程OCR配置: enable={config_data.get('enable_remote_ocr', False)}, endpoint={config_data.get('remote_ocr_endpoint', 'N/A')}, max_pages={config_data.get('remote_ocr_max_pages', 25)}")
+                else:
+                    logger.debug("未找到系统设置，使用默认配置")
+            except Exception as e:
+                logger.warning(f"加载系统设置失败: {e}")
         
         # 验证其他配置
         is_valid, error_msg = paper_gather_service.validate_config(config_data)

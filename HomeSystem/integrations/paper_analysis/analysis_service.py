@@ -42,7 +42,11 @@ class PaperAnalysisService:
             'video_analysis_model': 'ollama.Qwen3_30B',
             'enable_user_prompt': False,  # 用户提示词功能开关（默认关闭）
             'user_prompt': None,  # 用户自定义提示词
-            'timeout': 600
+            'timeout': 600,
+            # 远程OCR配置
+            'enable_remote_ocr': False,
+            'remote_ocr_endpoint': 'http://localhost:5001',
+            'remote_ocr_timeout': 300
         }
         
         # 初始化时验证配置
@@ -127,7 +131,7 @@ class PaperAnalysisService:
             logger.info(f"✅ 论文PDF准备完成: {arxiv_id}")
             
             # 第三步：执行OCR处理（如果尚未存在）
-            ocr_result = self._ensure_paper_ocr(arxiv_id, paper_folder_path)
+            ocr_result = self._ensure_paper_ocr(arxiv_id, paper_folder_path, analysis_config)
             if not ocr_result['success']:
                 return ocr_result
             
@@ -275,13 +279,14 @@ class PaperAnalysisService:
                 'error': f'下载PDF失败: {str(e)}'
             }
     
-    def _ensure_paper_ocr(self, arxiv_id: str, paper_folder_path: str) -> Dict[str, Any]:
+    def _ensure_paper_ocr(self, arxiv_id: str, paper_folder_path: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         确保论文OCR处理完成
         
         Args:
             arxiv_id: ArXiv论文ID
             paper_folder_path: 论文文件夹路径
+            config: 配置参数（包含OCR配置）
             
         Returns:
             Dict: 操作结果
@@ -321,9 +326,27 @@ class PaperAnalysisService:
             with open(pdf_path, 'rb') as f:
                 arxiv_data.pdf = f.read()
             
-            # 执行PaddleOCR处理
+            # 获取OCR配置
+            effective_config = {**self.default_config, **(config or {})}
+            use_remote_ocr = effective_config.get('enable_remote_ocr', False)
+            
+            # 设置环境变量（如果使用远程OCR）
+            if use_remote_ocr:
+                import os
+                remote_endpoint = effective_config.get('remote_ocr_endpoint', 'http://localhost:5001')
+                remote_timeout = effective_config.get('remote_ocr_timeout', 300)
+                remote_max_pages = effective_config.get('remote_ocr_max_pages', 25)
+                os.environ['REMOTE_OCR_ENDPOINT'] = remote_endpoint
+                os.environ['REMOTE_OCR_TIMEOUT'] = str(remote_timeout)
+                os.environ['REMOTE_OCR_MAX_PAGES'] = str(remote_max_pages)
+                logger.info(f"🌐 使用远程OCR服务: {remote_endpoint} (超时: {remote_timeout}秒, 最大页数: {remote_max_pages})")
+            else:
+                logger.info("🔍 使用本地PaddleOCR处理")
+            
+            # 执行OCR处理
             ocr_result, status_info = arxiv_data.performOCR(
                 use_paddleocr=True,
+                use_remote_ocr=use_remote_ocr,
                 auto_save=True,
                 save_path=paper_folder_path
             )

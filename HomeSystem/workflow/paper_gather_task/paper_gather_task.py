@@ -37,6 +37,10 @@ class PaperGatherTaskConfig:
                  start_year: Optional[int] = None,
                  end_year: Optional[int] = None,
                  after_year: Optional[int] = None,
+                 # 远程OCR相关参数
+                 enable_remote_ocr: bool = False,
+                 remote_ocr_endpoint: str = 'http://localhost:5001',
+                 remote_ocr_timeout: int = 300,
                  # 任务追踪相关参数
                  task_name: Optional[str] = None,
                  task_id: Optional[str] = None,
@@ -68,6 +72,10 @@ class PaperGatherTaskConfig:
         # 用户提示词配置
         self.enable_user_prompt = enable_user_prompt
         self.user_prompt = user_prompt
+        # 远程OCR配置
+        self.enable_remote_ocr = enable_remote_ocr
+        self.remote_ocr_endpoint = remote_ocr_endpoint
+        self.remote_ocr_timeout = remote_ocr_timeout
         # 新增搜索模式相关属性
         self.search_mode = search_mode
         self.start_year = start_year
@@ -403,14 +411,24 @@ class PaperGatherTask(Task):
             ocr_result = getattr(paper, 'ocr_result', None)
             
             if not ocr_result or len(ocr_result.strip()) < 500:
-                # 下载PDF
+                # 设置远程OCR环境变量（在PDF下载之前，确保元数据提取也使用正确的OCR）
+                if self.config.enable_remote_ocr:
+                    import os
+                    os.environ['REMOTE_OCR_ENDPOINT'] = self.config.remote_ocr_endpoint
+                    os.environ['REMOTE_OCR_TIMEOUT'] = str(self.config.remote_ocr_timeout)
+                    logger.info(f"🌐 使用远程OCR服务: {self.config.remote_ocr_endpoint} (超时: {self.config.remote_ocr_timeout}秒)")
+                else:
+                    logger.debug("🔍 使用本地PaddleOCR处理")
+                
+                # 下载PDF（这可能会触发元数据提取）
                 logger.debug("下载PDF中...")
                 paper.downloadPdf()
                 
-                # 执行PaddleOCR并保存到标准路径
-                logger.debug("执行PaddleOCR识别...")
+                # 执行OCR并保存到标准路径
+                logger.debug("执行OCR识别...")
                 ocr_result, status_info = paper.performOCR(
                     use_paddleocr=True,
+                    use_remote_ocr=self.config.enable_remote_ocr,
                     auto_save=True,
                     save_path=paper_folder_str,
                     max_pages=25
