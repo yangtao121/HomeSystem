@@ -61,10 +61,10 @@ HomeSystem 采用模块化设计，由三个独立的 Docker 服务组成，可�
 - ollama要拉取以下模型：
 
   ```
-  qwen3:30b
+  qwen3:30b 
   qwen2.5vl:7b
   ```
-  VL模型为必须，如果配置不够可以拉取qwen2.5vl:3b。
+  VL模型为必须，如果配置不够可以拉取qwen2.5vl:3b，包括qwen3:4b。
 
 ### 第一步：全局配置
 
