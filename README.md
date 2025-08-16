@@ -204,7 +204,7 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 DASHSCOPE_API_KEY=sk-xxx
 DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 
-# 本地Ollama（可选）
+# 本地Ollama（必须）
 OLLAMA_BASE_URL=http://192.168.5.217:11434
 ```
 
