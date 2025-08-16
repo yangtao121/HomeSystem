@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-HomeSystem is a Python-based intelligent home automation system that integrates local and cloud LLMs for document management, paper collection, and workflow automation.
+HomeSystem is a modular Docker-based intelligent home automation system with three independent deployment modules, integrating local and cloud LLMs for document management, paper collection, and workflow automation. The system supports distributed deployment across multiple machines for optimal resource utilization.
 
 ### Core Components
 
