@@ -27,23 +27,24 @@ mistune>=3.0.0
 requests>=2.28.0
 
 # HomeSystem 核心依赖 - 使用本地环境精确版本
-tqdm==4.67.1
-langchain==0.3.27
-langchain-community==0.3.27
-langchain-core==0.3.72
-langchain-openai==0.3.28
-langchain-ollama==0.3.6
-langchain-text-splitters==0.3.9
-langchain-deepseek==0.1.4
-pydantic==2.11.7
-pydantic-core==2.33.2
-pydantic-settings==2.10.1
+tqdm>=4.67.1
+langchain>=0.3.27
+langchain-community>=0.3.27
+langchain-core>=0.3.72
+langchain-openai>=0.3.28
+langchain-ollama>=0.3.6
+langchain-text-splitters>=0.3.9
+langchain-deepseek>=0.1.4
+langgraph>=0.2.0
+pydantic>=2.11.7
+pydantic-core>=2.33.2
+pydantic-settings>=2.10.1
 PyPDF2>=3.0.0
-PyMuPDF==1.26.3
-pandas==2.3.1
-numpy==2.2.6
-feedparser==6.0.11
-openai==1.97.1
+PyMuPDF>=1.26.3
+pandas>=2.3.1
+numpy>=2.2.6
+feedparser>=6.0.11
+openai>=1.97.1
 
 # 额外模块
 faiss-cpu>=1.7.0

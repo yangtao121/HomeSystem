@@ -353,11 +353,13 @@ cd Web/PaperAnalysis
 cp .env.example .env
 vim .env  # 如需覆盖特定配置，如使用不同的OCR服务地址
 
+./build.sh --no-cache # 更新时使用的构建方式
+
 # 注意：如果不创建本地 .env，将使用根目录的全局配置
 # deploy.sh 会自动验证必需的环境变量
 
 # 部署Web服务
-./deploy.sh --build
+./deploy.sh 
 
 # 检查服务状态
 docker compose ps
