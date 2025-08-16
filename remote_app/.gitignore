@@ -1,0 +1,34 @@
+# Environment files
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Docker volumes
+volumes/
+
+# Configuration
+config/
+
+# Monitoring data
+monitoring/grafana/
+
+# SSL certificates
+nginx/ssl/
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+.DS_Store

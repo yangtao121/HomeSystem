@@ -1,0 +1,60 @@
+# PaperAnalysis 应用特定忽略规则
+
+# 日志文件
+*.log
+logs/
+app.log
+test*.log
+
+# 上传文件和临时文件
+uploads/
+static/uploads/
+temp/
+tmp/
+
+# 环境配置
+.env
+.env.local
+.env.production
+.env.development
+!.env.example
+
+# Python 缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 测试和调试文件
+test_*.py
+debug_*.py
+*.test
+
+# IDE 和编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 数据库和缓存文件
+*.sqlite
+*.sqlite3
+*.db
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# Docker 相关（可选，如果不想跟踪本地Docker文件）
+docker-compose.override.yml
+.dockerignore.local
+
+# 应用特定的临时文件
+cleanup_test_data.py
+manual_*.pdf

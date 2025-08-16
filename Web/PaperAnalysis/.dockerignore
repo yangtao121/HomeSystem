@@ -1,0 +1,151 @@
+# Docker ignore file for PaperAnalysis
+# 排除不需要打包到Docker镜像中的文件
+
+# 环境和配置文件
+.env
+.env.*
+!.env.example
+
+# 日志文件
+*.log
+logs/
+app.log
+test*.log
+
+# Python缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE和编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker相关
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# 测试文件
+test_*.py
+*_test.py
+tests/
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+
+# 临时文件和缓存
+.cache
+.tmp/
+tmp/
+*.tmp
+*.temp
+
+# 上传的文件（运行时生成）
+uploads/
+static/uploads/
+
+# 数据库文件（如果有本地数据库）
+*.db
+*.sqlite
+*.sqlite3
+
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 文档和说明（除了README）
+*.md
+!README.md
+docs/
+
+# 示例和演示文件
+examples/
+demo/
+sample/
+
+# 清理脚本
+cleanup_*.py
+debug_*.py
+
+# Node.js相关（如果有前端构建）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 证书和密钥文件
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# 其他常见的排除项
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/

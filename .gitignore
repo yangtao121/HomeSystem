@@ -1,0 +1,26 @@
+.pytest*
+*.pyc
+.env
+output-md/*
+paddleocr_output/*
+data/*
+.vscode/*
+# Database data directories (persistent data)
+database/postgres/data/*
+database/redis/data/*
+database/backup/*.sql
+database/backup/*.rdb
+database/backup/*.dump
+
+# Remote app specific
+remote_app/__pycache__/
+remote_app/**/__pycache__/
+remote_app/volumes/*
+remote_app/nginx/*
+remote_app/config/
+remote_app/monitoring/grafana/
+remote_app/nginx/ssl/
+remote_app/.env*
+remote_app/**/.dockerignore
+
+*pdf

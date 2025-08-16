@@ -51,7 +51,7 @@ mcp:
       enabled: false
       description: "网页搜索和内容提取"
       headers:
-        Authorization: "Bearer your-api-key"
+        Authorization: "Bearer your_api_key_here"
         Content-Type: "application/json"
       
     # Git 仓库工具服务器 (stdio 模式)
