@@ -33,6 +33,119 @@ HomeSystem 采用模块化设计，由三个独立的 Docker 服务组成，可�
                           跨主机LAN部署
 ```
 
+## 🔌 端口配置指南
+
+### 默认端口映射表
+
+| 服务 | 容器端口 | 主机端口 | 环境变量 | 描述 |
+|------|---------|---------|----------|------|
+| **数据库模块** |
+| PostgreSQL | 5432 | 15432 | `DB_PORT` | 主数据库 |
+| Redis | 6379 | 16379 | `REDIS_PORT` | 缓存数据库 |
+| pgAdmin | 80 | 8080 | - | 数据库管理界面 (可选) |
+| Redis Commander | 8081 | 8081 | - | Redis管理界面 (可选) |
+| **OCR模块** |
+| OCR Service | 5001 | 5001 | `OCR_SERVICE_PORT` | OCR处理API |
+| Nginx Proxy | 80 | 80 | `NGINX_PORT` | 负载均衡器 (可选) |
+| Prometheus | 9090 | 9090 | `PROMETHEUS_PORT` | 监控服务 (可选) |
+| Grafana | 3000 | 3000 | `GRAFANA_PORT` | 指标仪表板 (可选) |
+| **Web模块** |
+| PaperAnalysis | 5002 | 5002 | `FLASK_PORT` | Web应用程序 |
+
+### 自定义端口配置
+
+**所有端口都可通过环境变量配置**。在各模块目录创建 `.env` 文件：
+
+```bash
+# 示例：修改OCR服务端口为8080
+OCR_SERVICE_PORT=8080
+
+# 示例：修改数据库端口
+DB_PORT=25432
+REDIS_PORT=26379
+
+# 示例：修改Web应用端口
+FLASK_PORT=8002
+```
+
+### 端口优先级 (以OCR服务为例)
+
+端口选择优先级：`OCR_SERVICE_PORT` > `PORT` > `5001` (默认)
+
+### 检查端口可用性
+
+部署前，建议检查端口是否被占用：
+
+```bash
+# 检查特定端口
+netstat -tulpn | grep :15432
+lsof -i :15432
+ss -tulpn | grep :15432
+
+# 批量检查所有默认端口
+for port in 15432 16379 8080 8081 5001 5002; do
+  echo "检查端口 $port..."
+  if lsof -i :$port > /dev/null 2>&1; then
+    echo "⚠️  端口 $port 已被占用"
+    lsof -i :$port
+  else
+    echo "✅ 端口 $port 可用"
+  fi
+done
+```
+
+### 端口冲突解决方案
+
+如遇端口冲突，有三种解决方式：
+
+1. **修改环境变量** (推荐)
+   ```bash
+   echo "DB_PORT=25432" >> database/.env
+   echo "OCR_SERVICE_PORT=8080" >> remote_app/.env
+   ```
+
+2. **修改docker-compose.yml端口映射**
+   ```yaml
+   ports:
+     - "25432:5432"  # 修改主机端口
+   ```
+
+3. **停止占用端口的服务** (谨慎使用)
+   ```bash
+   # 查找占用进程
+   lsof -i :15432
+   # 终止进程
+   sudo kill -9 <PID>
+   ```
+
+## 🌐 网络拓扑与通信
+
+### 服务间通信方式
+
+1. **容器内部通信**: 使用容器名和内部端口
+   - 例: `postgres:5432` (Docker网络内)
+   - 例: `redis:6379` (Docker网络内)
+
+2. **跨主机通信**: 使用IP和映射端口
+   - 例: `192.168.1.100:15432` (跨主机访问数据库)
+   - 例: `192.168.1.101:5001` (跨主机访问OCR服务)
+
+3. **本地开发**: 使用localhost和映射端口
+   - 例: `localhost:15432` (本机访问数据库)
+   - 例: `localhost:5002` (本机访问Web界面)
+
+### 网络架构说明
+
+```
+主机A (数据库)          主机B (OCR)           主机C (Web)
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ PostgreSQL:15432│◄───┼─OCR Service:5001│◄───┼─PaperAnalysis   │
+│ Redis:16379     │    │                 │    │ :5002           │
+│ pgAdmin:8080    │    │ Nginx:80        │    │                 │
+│ Redis-UI:8081   │    │ Grafana:3000    │    │ 配置远程服务地址  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
 ## 🚀 快速开始
 
 ### 前置要求
@@ -40,6 +153,20 @@ HomeSystem 采用模块化设计，由三个独立的 Docker 服务组成，可�
 - Docker 20.10+
 - Docker Compose 2.0+
 - 各模块可部署在不同主机上（支持LAN网络连接）
+- 确保以下默认端口未被占用：15432, 16379, 5001, 5002
+  ```bash
+  # 快速检查所有必需端口
+  ./check-ports.sh
+  
+  # 检查所有端口（包括可选服务）
+  ./check-ports.sh -a
+  
+  # 查看端口解决建议
+  ./check-ports.sh -f
+  
+  # 或手动检查核心端口
+  for port in 15432 16379 5001 5002; do lsof -i :$port && echo "端口 $port 被占用"; done
+  ```
 
 ### 1. 数据库服务部署
 
@@ -56,9 +183,30 @@ docker compose ps
 ./check-tables.sh
 ```
 
+**默认端口配置：**
+- PostgreSQL: 15432 (可通过 `DB_PORT` 修改)
+- Redis: 16379 (可通过 `REDIS_PORT` 修改)
+- pgAdmin: 8080 (可选管理界面)
+- Redis Commander: 8081 (可选管理界面)
+
+**自定义端口示例：**
+```bash
+# 创建环境变量文件
+cd database
+cat > .env << EOF
+DB_PASSWORD=your_secure_password_here
+DB_PORT=25432
+REDIS_PORT=26379
+PGADMIN_PASSWORD=your_secure_pgadmin_password
+EOF
+
+# 启动服务
+./start.sh
+```
+
 **服务端点：**
-- PostgreSQL: `localhost:15432`
-- Redis: `localhost:16379`
+- PostgreSQL: `localhost:15432` (或自定义端口)
+- Redis: `localhost:16379` (或自定义端口)
 - pgAdmin: `http://localhost:8080` (admin@homesystem.local / admin123)
 - Redis Commander: `http://localhost:8081`
 
@@ -76,9 +224,35 @@ cd /path/to/homesystem/remote_app
 docker compose logs ocr-service
 ```
 
+**默认端口配置：**
+- OCR Service: 5001 (可通过 `OCR_SERVICE_PORT` 修改)
+- Nginx Proxy: 80 (可选，通过 `NGINX_PORT` 修改)
+- Prometheus: 9090 (可选监控，通过 `PROMETHEUS_PORT` 修改)
+- Grafana: 3000 (可选仪表板，通过 `GRAFANA_PORT` 修改)
+
+**自定义端口示例：**
+```bash
+# 创建环境变量文件
+cd remote_app
+cat > .env << EOF
+OCR_SERVICE_PORT=8080
+NGINX_PORT=8000
+PROMETHEUS_PORT=9091
+GRAFANA_PORT=3001
+PADDLEOCR_USE_GPU=true
+EOF
+
+# 启动服务
+./deploy.sh --build
+```
+
+**端口优先级：** `OCR_SERVICE_PORT` > `PORT` > `5001` (默认)
+
 **服务端点：**
-- OCR API: `http://gpu-host:5001`
+- OCR API: `http://gpu-host:5001` (或自定义端口)
 - 健康检查: `http://gpu-host:5001/api/health`
+- Nginx代理: `http://gpu-host:80` (如果启用)
+- Grafana监控: `http://gpu-host:3000` (如果启用)
 
 ### 3. PaperAnalysis Web服务部署
 
@@ -98,8 +272,39 @@ vim .env  # 配置数据库和OCR服务地址
 docker compose ps
 ```
 
+**默认端口配置：**
+- PaperAnalysis: 5002 (可通过 `FLASK_PORT` 修改)
+- Nginx代理: 80/443 (可选，通过 `NGINX_PORT`/`NGINX_SSL_PORT` 修改)
+
+**自定义端口和远程服务示例：**
+```bash
+# 创建环境变量文件
+cd Web/PaperAnalysis
+cat > .env << EOF
+# Flask应用配置
+FLASK_PORT=8002
+SECRET_KEY=your_flask_secret_key_here
+
+# 远程数据库配置
+DB_HOST=192.168.1.100
+DB_PORT=25432
+REDIS_HOST=192.168.1.100
+REDIS_PORT=26379
+
+# 远程OCR服务配置
+REMOTE_OCR_ENDPOINT=http://192.168.1.101:8080
+
+# LLM API配置
+DEEPSEEK_API_KEY=your_api_key_here
+SILICONFLOW_API_KEY=your_api_key_here
+EOF
+
+# 部署Web服务
+./deploy.sh --build
+```
+
 **服务端点：**
-- Web界面: `http://web-host:5002`
+- Web界面: `http://web-host:5002` (或自定义端口)
 - API接口: `http://web-host:5002/api/`
 
 ## 📦 模块详细部署
@@ -316,39 +521,106 @@ curl http://your-web-host:5002/api/about/llm_models
 
 ### 常见问题
 
-**1. 容器无法启动**
+**1. 端口冲突问题**
 ```bash
-# 检查端口占用
+# 检查端口占用详情
+lsof -i :15432
 netstat -tlnp | grep :15432
+ss -tulpn | grep :15432
 
-# 检查Docker守护进程
-systemctl status docker
+# 批量检查所有默认端口
+for port in 15432 16379 8080 8081 5001 5002; do
+  echo "=== 检查端口 $port ==="
+  lsof -i :$port 2>/dev/null || echo "端口 $port 可用"
+done
+
+# 解决方案：修改端口配置
+echo "DB_PORT=25432" >> database/.env
+echo "OCR_SERVICE_PORT=8080" >> remote_app/.env
+echo "FLASK_PORT=8002" >> Web/PaperAnalysis/.env
 ```
 
 **2. 跨主机连接失败**
 ```bash
 # 测试网络连通性
+ping 192.168.1.100
 telnet 192.168.1.100 15432
+nc -zv 192.168.1.100 15432
 
 # 检查防火墙设置
 sudo ufw status
+sudo ufw allow 15432/tcp
+sudo ufw allow 16379/tcp
+sudo ufw allow 5001/tcp
+sudo ufw allow 5002/tcp
+
+# 检查服务监听状态（在服务器上）
+ss -tulpn | grep -E ":(15432|16379|5001|5002)"
 ```
 
-**3. 权限问题**
+**3. 容器无法启动**
+```bash
+# 检查Docker守护进程
+systemctl status docker
+
+# 检查容器启动日志
+docker compose logs postgres
+docker compose logs redis
+docker compose logs ocr-service
+docker compose logs paper-analysis
+
+# 检查docker-compose文件语法
+docker compose config
+
+# 强制重新创建容器
+docker compose down
+docker compose up -d --force-recreate
+```
+
+**4. 服务无法访问**
+```bash
+# 检查容器内部网络
+docker compose exec postgres netstat -tlnp
+docker compose exec paper-analysis curl -f localhost:5002/api/health
+
+# 检查Docker网络
+docker network ls
+docker network inspect homesystem-network
+
+# 测试服务连接
+curl -f http://localhost:15432/api/health 2>/dev/null || echo "数据库端口无法访问"
+curl -f http://localhost:5001/api/health 2>/dev/null || echo "OCR服务无法访问"
+curl -f http://localhost:5002/api/health 2>/dev/null || echo "Web服务无法访问"
+```
+
+**5. 权限问题**
 ```bash
 # 修复目录权限
 ./setup-permissions.sh --fix
 
 # 检查Docker用户组
 groups $USER | grep docker
+sudo usermod -aG docker $USER  # 添加用户到docker组
+
+# 检查数据目录权限
+ls -la database/postgres/data/
+ls -la remote_app/volumes/
 ```
 
-**4. 资源不足**
+**6. 资源不足**
 ```bash
 # 检查系统资源
 free -h
 df -h
-docker system prune  # 清理未使用的容器和镜像
+docker stats
+
+# 清理Docker资源
+docker system prune -f
+docker volume prune -f
+docker image prune -f
+
+# 检查特定服务资源使用
+docker stats homesystem-postgres homesystem-redis
 ```
 
 ### 服务健康检查
