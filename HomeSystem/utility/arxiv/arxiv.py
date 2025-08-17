@@ -805,15 +805,64 @@ class ArxivData:
             if api_key:
                 headers['X-API-Key'] = api_key
             
-            # 发送请求到远程服务
-            logger.info(f"发送请求到远程OCR服务: {remote_endpoint}")
-            response = requests.post(
-                f"{remote_endpoint.rstrip('/')}/api/ocr/process",
-                files=files,
-                data=data,
-                headers=headers,
-                timeout=remote_timeout
-            )
+            # 发送请求到远程服务（支持重试机制）
+            import time
+            
+            max_retries = 3
+            base_retry_delay = 10  # 基础延迟10秒
+            response = None
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"发送请求到远程OCR服务: {remote_endpoint} (尝试 {attempt + 1}/{max_retries})")
+                    response = requests.post(
+                        f"{remote_endpoint.rstrip('/')}/api/ocr/process",
+                        files=files,
+                        data=data,
+                        headers=headers,
+                        timeout=remote_timeout
+                    )
+                    
+                    # 如果请求成功，跳出重试循环
+                    if response.status_code == 200:
+                        break
+                    else:
+                        logger.warning(f"远程OCR服务返回状态码: {response.status_code}")
+                        if attempt < max_retries - 1:
+                            # 指数退避：10秒、20秒、40秒
+                            retry_delay = base_retry_delay * (2 ** attempt)
+                            logger.info(f"等待{retry_delay}秒后重试...")
+                            time.sleep(retry_delay)
+                            # 重新准备files（因为文件流可能已被消耗）
+                            files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
+                            
+                except requests.exceptions.ConnectionError as e:
+                    if attempt < max_retries - 1:
+                        # 指数退避：10秒、20秒、40秒
+                        retry_delay = base_retry_delay * (2 ** attempt)
+                        error_type = "连接被拒绝" if "Connection refused" in str(e) else "连接中断"
+                        logger.warning(f"{error_type}，{retry_delay}秒后重试... (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                        time.sleep(retry_delay)
+                        # 重新准备files（因为文件流可能已被消耗）
+                        files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
+                    else:
+                        # 最后一次尝试失败，抛出异常
+                        raise
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        # 指数退避：10秒、20秒、40秒
+                        retry_delay = base_retry_delay * (2 ** attempt)
+                        logger.warning(f"请求异常，{retry_delay}秒后重试... (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                        time.sleep(retry_delay)
+                        # 重新准备files（因为文件流可能已被消耗）
+                        files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
+                    else:
+                        # 最后一次尝试失败，抛出异常
+                        raise
+                        
+            # 如果没有response对象（不应该发生，但防御性编程）
+            if response is None:
+                raise Exception("无法获取远程OCR服务响应")
             
             if response.status_code == 200:
                 result = response.json()

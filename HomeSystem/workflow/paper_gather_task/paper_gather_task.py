@@ -317,7 +317,8 @@ class PaperGatherTask(Task):
                 task_id=self.config.task_id,
                 # 完整论文相关性评分字段（保留基础分析结果）
                 full_paper_relevance_score=getattr(paper, 'full_paper_relevance_score', None),
-                full_paper_relevance_justification=self._get_required_field(paper, 'full_paper_analysis_justification', 'full_paper_relevance_justification'),
+                full_paper_relevance_justification=getattr(paper, 'full_paper_analysis_justification', 
+                                                           getattr(paper, 'abstract_analysis_justification', None)),
                 # 深度分析字段
                 deep_analysis_result=deep_analysis_result,
                 deep_analysis_status=deep_analysis_status,
@@ -653,9 +654,17 @@ class PaperGatherTask(Task):
                     else:
                         logger.info(f"完整论文分析判定不相关 (评分: {full_analysis.relevance_score:.2f}): {paper.title}")
                 else:
-                    logger.warning(f"完整论文分析失败，使用摘要分析结果: {paper.title[:50]}...")
+                    logger.warning(f"完整论文分析失败，由于OCR不可用，标记为不相关: {paper.title[:50]}...")
+                    # OCR失败时，采用保守策略：标记为不相关，避免错误保存
+                    paper.final_is_relevant = False
+                    paper.final_relevance_score = 0.0
+                    paper.full_paper_analysis_justification = f"Full paper analysis failed due to OCR service unavailability (abstract score was {abstract_analysis.relevance_score:.2f})"
+                    logger.info(f"OCR失败保护：论文 {paper.arxiv_id} 被标记为不相关，将不会保存到数据库")
             else:
                 logger.debug(f"摘要相关性低 ({abstract_analysis.relevance_score:.2f})，跳过完整分析: {paper.title[:50]}...")
+                # 当跳过完整分析时，也设置默认的justification字段
+                paper.full_paper_analysis_justification = getattr(paper, 'abstract_analysis_justification', 
+                                                                 f"Full paper analysis skipped due to low abstract relevance score ({abstract_analysis.relevance_score:.2f})")
             
             # 第六步：如果论文符合要求（相关性达标），保存到数据库
             if paper.final_is_relevant and paper.final_relevance_score >= self.config.relevance_threshold:

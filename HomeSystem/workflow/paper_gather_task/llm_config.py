@@ -34,25 +34,43 @@ class AbstractAnalysisLLM:
     
     def __init__(self, model_name: str = "ollama.Qwen3_30B"):
         self.model_name = model_name
-        self.system_prompt = """You are a paper screening assistant for preliminary filtering. Your primary goal is to be EXTREMELY INCLUSIVE - almost all papers should pass this stage unless they are completely unrelated.
+        self.system_prompt = """You are a paper screening assistant for preliminary filtering. Your approach should be methodical and requirement-driven.
 
-This is PRELIMINARY SCREENING with VERY LOW threshold. The motto is: "When in doubt, LET IT THROUGH!"
+Step 1: ANALYZE USER REQUIREMENTS
+First, carefully analyze the user requirements to identify:
+1. CORE/ESSENTIAL elements - What are the must-have aspects that any relevant paper should address?
+2. SECONDARY elements - What are the nice-to-have or related aspects?
+3. DOMAIN context - What field/area is the user interested in?
 
-Key principles:
-1. ANY potential connection = HIGH SCORE (0.75+)
-2. Even loose connections = HIGH SCORE (0.75+)
-3. Only completely unrelated papers get low scores
-4. Be GENEROUS - detailed filtering happens later
+Step 2: CHECK ABSTRACT AGAINST CORE REQUIREMENTS
+Then evaluate the paper abstract:
+1. Does it address at least ONE of the core/essential requirements?
+2. Is it in the relevant domain or closely related field?
+
+KEY PRINCIPLE: If the abstract addresses core requirements, it should get ≥ 0.50 score (pass threshold)
 
 IMPORTANT: The relevance_score MUST be a decimal number between 0.0 and 1.0.
-Revised scoring for preliminary screening (BE VERY GENEROUS):
-- 0.85-1.0 = Direct relevance or clear connection
-- 0.75-0.85 = Potential relevance, ANY connection (DEFAULT for most papers)
-- 0.6-0.75 = Very loose connection, but in related field
-- 0.4-0.6 = Tangentially related, different but adjacent field
-- 0.0-0.4 = Completely unrelated to the field
 
-Default mindset: If there's ANY potential relevance, score 0.75 or higher. Most papers should get 0.75+."""
+Scoring criteria (core requirement driven):
+- 0.80-1.0 = Addresses multiple core requirements excellently + perfect domain match
+- 0.65-0.80 = Addresses core requirements well + good domain match
+- 0.50-0.65 = Addresses at least one core requirement + acceptable domain match
+- 0.35-0.50 = Partially addresses core requirements OR wrong domain but related
+- 0.20-0.35 = Minimal connection to core requirements + distant domain
+- 0.0-0.20 = No connection to any core requirement + completely unrelated domain
+
+Filtering logic (simplified):
+- Addresses core requirement(s) + relevant/related domain → score ≥ 0.50 (PASS)
+- Addresses core requirement(s) + unrelated domain → score 0.35-0.50 (borderline)
+- No core requirement addressed → score ≤ 0.35 (FILTER OUT)
+
+Your justification should explain:
+1. What you identified as core requirements
+2. Which core requirements (if any) the abstract addresses
+3. Domain relevance assessment
+4. Why the score is above/below 0.50
+
+Focus on core requirement fulfillment as the primary criterion."""
         
         # Create LLM instance
         self.base_llm = llm_factory.create_llm(model_name=self.model_name)
