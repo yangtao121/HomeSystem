@@ -28,13 +28,19 @@ jobs:
     - name: Install dependencies and check compilation
       run: |
         python -m pip install --upgrade pip
-        # Install project dependencies
+        # Install project dependencies from requirements.txt (excluding heavy GPU packages)
+        if [ -f requirements.txt ]; then
+          # Filter out GPU packages that are not needed for compilation check
+          grep -v "paddlepaddle-gpu" requirements.txt | \
+          grep -v "torch>=2.0.0" | \
+          grep -v "transformers>=4.30.0" | \
+          grep -v "sentence-transformers" > requirements_filtered.txt
+          pip install -r requirements_filtered.txt
+        fi
+        # Install project itself
         if [ -f pyproject.toml ]; then
           pip install -e .
         fi
-        # Install additional dependencies found in the codebase
-        pip install flask beautifulsoup4 lxml asyncpg
-        pip install "langchain>=0.1.0" "langchain-community>=0.0.1" langgraph
 
     - name: Test Python imports
       run: |
