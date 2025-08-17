@@ -18,8 +18,11 @@ RUN apt-get update && apt-get install -y \
     netcat-openbsd \
     postgresql-client \
     redis-tools \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean 
+
 
 # Set working directory
 WORKDIR /app
