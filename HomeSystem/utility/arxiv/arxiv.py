@@ -837,27 +837,30 @@ class ArxivData:
                             files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
                             
                 except requests.exceptions.ConnectionError as e:
+                    error_type = "连接被拒绝" if "Connection refused" in str(e) else "连接中断"
+                    
                     if attempt < max_retries - 1:
-                        # 指数退避：10秒、20秒、40秒
+                        # 不是最后一次，等待后继续
                         retry_delay = base_retry_delay * (2 ** attempt)
-                        error_type = "连接被拒绝" if "Connection refused" in str(e) else "连接中断"
-                        logger.warning(f"{error_type}，{retry_delay}秒后重试... (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                        logger.warning(f"{error_type}，{retry_delay}秒后重试... (尝试 {attempt + 1}/{max_retries})")
                         time.sleep(retry_delay)
                         # 重新准备files（因为文件流可能已被消耗）
                         files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
                     else:
-                        # 最后一次尝试失败，抛出异常
+                        # 是最后一次了，记录详细错误后抛出
+                        logger.error(f"{error_type}，已尝试{max_retries}次，放弃: {str(e)}")
                         raise
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        # 指数退避：10秒、20秒、40秒
+                        # 不是最后一次，等待后继续
                         retry_delay = base_retry_delay * (2 ** attempt)
                         logger.warning(f"请求异常，{retry_delay}秒后重试... (尝试 {attempt + 1}/{max_retries}): {str(e)}")
                         time.sleep(retry_delay)
                         # 重新准备files（因为文件流可能已被消耗）
                         files = {'file': ('paper.pdf', self.pdf, 'application/pdf')}
                     else:
-                        # 最后一次尝试失败，抛出异常
+                        # 是最后一次了，记录详细错误后抛出
+                        logger.error(f"请求异常，已尝试{max_retries}次，放弃: {str(e)}")
                         raise
                         
             # 如果没有response对象（不应该发生，但防御性编程）
