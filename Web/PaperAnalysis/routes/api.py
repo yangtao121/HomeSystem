@@ -335,7 +335,7 @@ class AnalysisServiceAdapter:
                 alt_text = match.group(1)
                 relative_path = match.group(2)
                 filename = relative_path.replace('imgs/', '')
-                new_path = f"/paper/{arxiv_id}/analysis_images/{filename}"
+                new_path = f"/paper/{arxiv_id}/imgs/{filename}"
                 logger.debug(f"  📸 Converting: {relative_path} → {new_path}")
                 return f"![{alt_text}]({new_path})"
             
@@ -2678,7 +2678,7 @@ def _process_markdown_for_download(content: str, arxiv_id: str) -> str:
     """
     try:
         # 将网页URL路径转换为相对路径
-        pattern = rf'/paper/{re.escape(arxiv_id)}/analysis_images/([^)]+)'
+        pattern = rf'/paper/{re.escape(arxiv_id)}/imgs/([^)]+)'
         replacement = r'imgs/\1'
         
         processed_content = re.sub(pattern, replacement, content)

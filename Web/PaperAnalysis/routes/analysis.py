@@ -190,7 +190,7 @@ def config():
         return render_template('error.html', error="分析配置页面加载失败"), 500
 
 
-@images_bp.route('/paper/<arxiv_id>/analysis_images/<filename>')
+@images_bp.route('/paper/<arxiv_id>/imgs/<filename>')
 def serve_analysis_image(arxiv_id, filename):
     """服务分析图片文件"""
     try:
@@ -242,11 +242,11 @@ def serve_analysis_image(arxiv_id, filename):
 def serve_analysis_image_fallback(arxiv_id, filename):
     """
     向后兼容的图片服务路由
-    将旧的 imgs/ 路径重定向到正确的 analysis_images/ 路径
+    将旧的 imgs/ 路径重定向到正确的 imgs/ 路径
     """
     try:
-        logger.info(f"Fallback route accessed for {arxiv_id}/imgs/{filename}, redirecting to analysis_images")
-        # 重定向到正确的analysis_images路由
+        logger.info(f"Fallback route accessed for {arxiv_id}/imgs/{filename}, redirecting to imgs")
+        # 重定向到正确的imgs路由
         from flask import redirect, url_for
         return redirect(url_for('images.serve_analysis_image', arxiv_id=arxiv_id, filename=filename), code=301)
         
@@ -420,7 +420,7 @@ def _process_markdown_for_download(content: str, arxiv_id: str) -> str:
     """
     try:
         # 将网页URL路径转换为相对路径
-        pattern = rf'/paper/{re.escape(arxiv_id)}/analysis_images/([^)]+)'
+        pattern = rf'/paper/{re.escape(arxiv_id)}/imgs/([^)]+)'
         replacement = r'imgs/\1'
         
         processed_content = re.sub(pattern, replacement, content)

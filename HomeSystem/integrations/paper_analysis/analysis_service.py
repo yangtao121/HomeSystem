@@ -521,7 +521,7 @@ class PaperAnalysisService:
                 relative_path = match.group(2)
                 filename = relative_path.replace('imgs/', '')
                 # 生成Web可访问路径（根据具体Web应用需求调整）
-                new_path = f"/paper/{arxiv_id}/analysis_images/{filename}"
+                new_path = f"/paper/{arxiv_id}/imgs/{filename}"
                 logger.debug(f"  📸 转换图片路径: {relative_path} → {new_path}")
                 return f"![{alt_text}]({new_path})"
             
