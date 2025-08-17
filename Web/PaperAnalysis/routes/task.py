@@ -183,6 +183,12 @@ def task_results(task_id):
         return render_template('error.html', error="任务结果页面加载失败"), 500
 
 
+@task_bp.route('/result/<task_id>')
+def task_result(task_id):
+    """任务结果页面 - 别名路由，与 /results/<task_id> 功能相同"""
+    return task_results(task_id)
+
+
 @task_bp.route('/cancel/<task_id>', methods=['POST'])
 def cancel_task(task_id):
     """取消任务"""

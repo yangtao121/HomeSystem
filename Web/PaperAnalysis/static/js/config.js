@@ -264,8 +264,22 @@ $(document).ready(function() {
             API.get(`/api/task/config/${taskId}`)
                 .then(response => {
                     if (response.success) {
-                        this.fillConfigForm(response.data);
-                        $('#historyTaskModal').modal('hide');
+                        // 修复数据访问路径：API返回的数据结构为 {data: {task_id, config}}
+                        this.fillConfigForm(response.data.config);
+                        
+                        // 修复可访问性问题：在隐藏模态框前清除焦点
+                        if (document.activeElement) {
+                            document.activeElement.blur();
+                        }
+                        
+                        // 隐藏模态框，并在完成后设置合适的焦点
+                        const modal = $('#historyTaskModal');
+                        modal.one('hidden.bs.modal', function() {
+                            // 将焦点设置到第一个表单输入字段，提供更好的用户体验
+                            $('#search_query').focus();
+                        });
+                        modal.modal('hide');
+                        
                         showNotification('配置已加载成功', 'success');
                     } else {
                         throw new Error(response.error);
@@ -476,6 +490,11 @@ $(document).ready(function() {
             })
                 .then(response => {
                     if (response.success) {
+                        // 修复可访问性问题：在隐藏模态框前清除焦点
+                        if (document.activeElement) {
+                            document.activeElement.blur();
+                        }
+                        
                         $('#editTaskModal').modal('hide');
                         showNotification('历史任务更新成功', 'success');
                         // 重新加载任务列表
@@ -642,7 +661,20 @@ $(document).ready(function() {
             }
             
             HistoryTaskManager.fillConfigForm(preset.config);
-            $('#presetModal').modal('hide');
+            
+            // 修复可访问性问题：在隐藏模态框前清除焦点
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+            
+            // 隐藏模态框，并在完成后设置合适的焦点
+            const modal = $('#presetModal');
+            modal.one('hidden.bs.modal', function() {
+                // 将焦点设置到第一个表单输入字段，提供更好的用户体验
+                $('#search_query').focus();
+            });
+            modal.modal('hide');
+            
             showNotification('预设配置已加载成功', 'success');
         },
         
@@ -696,6 +728,11 @@ $(document).ready(function() {
             API.post('/api/config/presets', data)
                 .then(response => {
                     if (response.success) {
+                        // 修复可访问性问题：在隐藏模态框前清除焦点
+                        if (document.activeElement) {
+                            document.activeElement.blur();
+                        }
+                        
                         $('#savePresetModal').modal('hide');
                         showNotification('预设保存成功', 'success');
                     } else {

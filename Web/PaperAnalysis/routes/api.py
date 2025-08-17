@@ -2220,6 +2220,72 @@ def api_assign_task_to_paper():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api_bp.route('/assign_task', methods=['POST'])
+def api_assign_task():
+    """为单个论文分配任务"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = data.get('arxiv_id', '').strip()
+        task_name = data.get('task_name', '').strip()
+        task_id = data.get('task_id', '').strip()
+        
+        if not arxiv_id or not task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数: arxiv_id 和 task_name'}), 400
+        
+        # 使用批量分配方法处理单个论文
+        affected_rows = paper_explore_service.batch_assign_task_to_papers(
+            [arxiv_id], task_name, task_id or None
+        )
+        
+        if affected_rows > 0:
+            return jsonify({
+                'success': True, 
+                'message': f'成功为论文 {arxiv_id} 分配任务 {task_name}'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': f'论文 {arxiv_id} 不存在或任务分配失败'
+            }), 404
+    
+    except Exception as e:
+        logger.error(f"分配任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/batch_assign_tasks', methods=['POST'])
+def api_batch_assign_tasks():
+    """批量分配任务 - 与前端期望的路径匹配"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        task_name = data.get('task_name', '').strip()
+        task_id = data.get('task_id', '').strip()
+        
+        if not arxiv_ids or not task_name:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        affected_rows = paper_explore_service.batch_assign_task_to_papers(
+            arxiv_ids, task_name, task_id or None
+        )
+        
+        return jsonify({
+            'success': True, 
+            'affected_rows': affected_rows,
+            'message': f'成功为 {affected_rows} 篇论文分配任务'
+        })
+    
+    except Exception as e:
+        logger.error(f"批量分配任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api_bp.route('/batch_assign_task', methods=['POST'])
 def api_batch_assign_task():
     """批量分配任务"""
@@ -2247,6 +2313,288 @@ def api_batch_assign_task():
     
     except Exception as e:
         logger.error(f"批量分配任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === 相关性评分API ===
+
+@api_bp.route('/update_relevance_score', methods=['POST'])
+def api_update_relevance_score():
+    """更新单个论文的相关性评分"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = data.get('arxiv_id', '').strip()
+        relevance_score = data.get('relevance_score')
+        
+        if not arxiv_id or relevance_score is None:
+            return jsonify({'success': False, 'error': '缺少必要参数: arxiv_id 和 relevance_score'}), 400
+        
+        # 验证评分范围
+        try:
+            score = float(relevance_score)
+            # 如果评分在0-10范围内，转换为0-1范围
+            if 0 <= score <= 10:
+                score_normalized = score / 10.0
+            elif 0 <= score <= 1:
+                score_normalized = score
+            else:
+                return jsonify({'success': False, 'error': '相关性评分必须在0-1或0-10之间'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': '相关性评分必须是有效数字'}), 400
+        
+        # 更新相关性评分
+        success = paper_explore_service.update_paper_relevance(arxiv_id, score_normalized)
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f'成功更新论文 {arxiv_id} 的相关性评分为 {score}'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': f'论文 {arxiv_id} 不存在或更新失败'
+            }), 404
+    
+    except Exception as e:
+        logger.error(f"更新相关性评分失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/update_relevance', methods=['POST'])
+def api_update_relevance():
+    """更新相关性（兼容旧版API）"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_id = data.get('arxiv_id', '').strip()
+        relevance_score = data.get('relevance_score') or data.get('score')
+        
+        if not arxiv_id or relevance_score is None:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        # 验证评分范围
+        try:
+            score = float(relevance_score)
+            # 如果评分在0-10范围内，转换为0-1范围
+            if 0 <= score <= 10:
+                score_normalized = score / 10.0
+            elif 0 <= score <= 1:
+                score_normalized = score
+            else:
+                return jsonify({'success': False, 'error': '相关性评分必须在0-1或0-10之间'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': '相关性评分必须是有效数字'}), 400
+        
+        # 更新相关性评分
+        success = paper_explore_service.update_paper_relevance(arxiv_id, score_normalized)
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f'成功更新论文 {arxiv_id} 的相关性评分为 {score}'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': f'论文 {arxiv_id} 不存在或更新失败'
+            }), 404
+    
+    except Exception as e:
+        logger.error(f"更新相关性失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === 批量操作API ===
+
+@api_bp.route('/batch_delete_papers', methods=['POST'])
+def api_batch_delete_papers():
+    """批量删除论文"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        
+        if not arxiv_ids:
+            return jsonify({'success': False, 'error': '缺少必要参数: arxiv_ids'}), 400
+        
+        # 执行批量删除
+        deleted_count = 0
+        errors = []
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                success = paper_explore_service.delete_paper(arxiv_id)
+                if success:
+                    deleted_count += 1
+                else:
+                    errors.append(f"论文 {arxiv_id} 删除失败")
+            except Exception as e:
+                errors.append(f"论文 {arxiv_id} 删除失败: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'total_requested': len(arxiv_ids),
+            'errors': errors,
+            'message': f'成功删除 {deleted_count}/{len(arxiv_ids)} 篇论文'
+        })
+    
+    except Exception as e:
+        logger.error(f"批量删除论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/batch_remove_from_dify', methods=['POST'])
+def api_batch_remove_from_dify():
+    """批量从Dify知识库移除论文"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        arxiv_ids = data.get('arxiv_ids', [])
+        
+        if not arxiv_ids:
+            return jsonify({'success': False, 'error': '缺少必要参数: arxiv_ids'}), 400
+        
+        # 执行批量移除
+        removed_count = 0
+        errors = []
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                result = dify_service.remove_paper_from_dify(arxiv_id)
+                if result.get('success'):
+                    removed_count += 1
+                else:
+                    errors.append(f"论文 {arxiv_id} 移除失败: {result.get('error', '未知错误')}")
+            except Exception as e:
+                errors.append(f"论文 {arxiv_id} 移除失败: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'removed_count': removed_count,
+            'total_requested': len(arxiv_ids),
+            'errors': errors,
+            'message': f'成功从Dify移除 {removed_count}/{len(arxiv_ids)} 篇论文'
+        })
+    
+    except Exception as e:
+        logger.error(f"批量从Dify移除论文失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/refresh', methods=['POST'])
+def api_refresh():
+    """刷新数据"""
+    try:
+        # 这里可以实现数据刷新逻辑，比如清除缓存等
+        # 目前简单返回成功响应
+        return jsonify({
+            'success': True,
+            'message': '数据刷新成功'
+        })
+    
+    except Exception as e:
+        logger.error(f"数据刷新失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/migration_preview', methods=['POST'])
+def api_migration_preview():
+    """迁移预览"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        source_task = data.get('source_task', '').strip()
+        target_task = data.get('target_task', '').strip()
+        
+        if not source_task or not target_task:
+            return jsonify({'success': False, 'error': '缺少必要参数: source_task 和 target_task'}), 400
+        
+        # 获取源任务的论文列表作为预览
+        papers = paper_explore_service.get_papers_by_task_name(source_task, page=1, per_page=50)
+        
+        preview_info = {
+            'source_task': source_task,
+            'target_task': target_task,
+            'papers_count': papers[1] if isinstance(papers, tuple) else 0,
+            'preview_papers': []
+        }
+        
+        if isinstance(papers, tuple) and papers[0]:
+            preview_info['preview_papers'] = [
+                {
+                    'arxiv_id': paper.get('arxiv_id'),
+                    'title': paper.get('title', '')[:100] + '...' if len(paper.get('title', '')) > 100 else paper.get('title', ''),
+                    'authors': paper.get('authors', '')
+                }
+                for paper in papers[0][:10]  # 只显示前10篇作为预览
+            ]
+        
+        return jsonify({
+            'success': True,
+            'data': preview_info
+        })
+    
+    except Exception as e:
+        logger.error(f"迁移预览失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/one_click_upload', methods=['POST'])
+def api_one_click_upload():
+    """一键上传（批量上传到Dify）"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '无效的请求数据'}), 400
+        
+        # 获取所有符合条件的论文
+        arxiv_ids = data.get('arxiv_ids', [])
+        
+        if not arxiv_ids:
+            # 如果没有指定论文ID，则上传所有符合条件的论文
+            eligible_papers = paper_explore_service.get_eligible_papers_for_upload()
+            arxiv_ids = [paper.get('arxiv_id') for paper in eligible_papers if paper.get('arxiv_id')]
+        
+        if not arxiv_ids:
+            return jsonify({'success': False, 'error': '没有找到符合条件的论文'}), 400
+        
+        # 执行批量上传
+        uploaded_count = 0
+        errors = []
+        
+        for arxiv_id in arxiv_ids:
+            try:
+                result = dify_service.upload_paper_to_dify(arxiv_id)
+                if result.get('success'):
+                    uploaded_count += 1
+                else:
+                    errors.append(f"论文 {arxiv_id} 上传失败: {result.get('error', '未知错误')}")
+            except Exception as e:
+                errors.append(f"论文 {arxiv_id} 上传失败: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'uploaded_count': uploaded_count,
+            'total_requested': len(arxiv_ids),
+            'errors': errors,
+            'message': f'成功上传 {uploaded_count}/{len(arxiv_ids)} 篇论文到Dify'
+        })
+    
+    except Exception as e:
+        logger.error(f"一键上传失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
