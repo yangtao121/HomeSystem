@@ -238,22 +238,6 @@ def serve_analysis_image(arxiv_id, filename):
         return "Server error", 500
 
 
-@images_bp.route('/paper/<arxiv_id>/imgs/<filename>')
-def serve_analysis_image_fallback(arxiv_id, filename):
-    """
-    向后兼容的图片服务路由
-    将旧的 imgs/ 路径重定向到正确的 imgs/ 路径
-    """
-    try:
-        logger.info(f"Fallback route accessed for {arxiv_id}/imgs/{filename}, redirecting to imgs")
-        # 重定向到正确的imgs路由
-        from flask import redirect, url_for
-        return redirect(url_for('images.serve_analysis_image', arxiv_id=arxiv_id, filename=filename), code=301)
-        
-    except Exception as e:
-        logger.error(f"Fallback image redirect failed {arxiv_id}/{filename}: {e}")
-        return "Redirect failed", 500
-
 
 @images_bp.route('/paper/<arxiv_id>/videos/<filename>')
 def serve_analysis_video(arxiv_id, filename):
