@@ -33,7 +33,7 @@ jobs:
           pip install -e .
         fi
         # Install additional dependencies found in the codebase
-        pip install flask beautifulsoup4 lxml
+        pip install flask beautifulsoup4 lxml asyncpg
         pip install "langchain>=0.1.0" "langchain-community>=0.0.1" langgraph
 
     - name: Test Python imports
