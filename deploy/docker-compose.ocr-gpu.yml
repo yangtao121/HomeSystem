@@ -1,0 +1,149 @@
+# HomeSystem OCR 服务 GPU 专用部署
+# PaddleOCR 文档识别服务 - GPU 加速版本
+# 适合部署在 GPU 服务器上，为其他服务提供高性能 OCR 能力
+
+version: '3.8'
+
+services:
+  # OCR 服务 - PaddleOCR文档识别 GPU 加速
+  ocr-service:
+    image: crpi-mjmyb1138k6on8mt.cn-shenzhen.personal.cr.aliyuncs.com/homesystem_1/remote_ocr:latest
+    container_name: homesystem-ocr-gpu
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "5001:5001"
+    environment:
+      # OCR 服务配置
+      HOST: 0.0.0.0
+      OCR_SERVICE_PORT: 5001
+      DEBUG: false
+      LOG_LEVEL: INFO
+      LOG_FILE: ocr_service.log
+      
+      # 请求限制配置
+      MAX_CONTENT_LENGTH: 100  # MB
+      REQUEST_TIMEOUT: 300     # 秒
+      
+      # OCR 处理设置
+      OCR_MAX_PAGES: 25
+      OCR_TEMP_DIR: /tmp/ocr_service
+      OCR_RESULTS_DIR: /tmp/ocr_results
+      
+      # PaddleOCR GPU 配置
+      PADDLEOCR_USE_ANGLE_CLS: true
+      PADDLEOCR_USE_GPU: true         # GPU 加速启用
+      PADDLEOCR_LANG: ch              # 支持中文
+      PADDLEOCR_HOME: /app/.paddleocr
+      HUB_HOME: /app/.paddlehub
+      
+      # NVIDIA GPU 配置
+      NVIDIA_VISIBLE_DEVICES: all
+      CUDA_VISIBLE_DEVICES: 0         # 使用第一块 GPU
+      
+      # 可选：API Key 认证
+      API_KEY:  # 留空表示不启用认证
+      
+      # 系统配置
+      TZ: Asia/Shanghai
+      PYTHONUNBUFFERED: 1
+      PYTHONIOENCODING: utf-8
+    volumes:
+      # PaddleOCR 模型缓存，避免重复下载大模型文件
+      - ocr_models_gpu:/app/.paddleocr
+      - ocr_hub_gpu:/app/.paddlehub
+      
+      # OCR 结果输出目录
+      - ocr_results_gpu:/tmp/ocr_results
+      
+      # 临时文件目录
+      - ocr_temp_gpu:/tmp/ocr_service
+      
+      # 日志目录
+      - ocr_logs_gpu:/app/logs
+    
+    # GPU 资源配置
+    deploy:
+      resources:
+        limits:
+          memory: 4G        # GPU 模式需要更多内存
+          cpus: '4.0'       # 更多 CPU 资源
+        reservations:
+          memory: 1G        # 保留内存
+          cpus: '1.0'       # 保留CPU
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # GPU 初始化需要更长时间
+    
+    networks:
+      - ocr-gpu-network
+
+# GPU 专用数据卷定义
+volumes:
+  ocr_models_gpu:
+    name: homesystem-ocr-models-gpu
+  ocr_hub_gpu:
+    name: homesystem-ocr-hub-gpu
+  ocr_results_gpu:
+    name: homesystem-ocr-results-gpu
+  ocr_temp_gpu:
+    name: homesystem-ocr-temp-gpu
+  ocr_logs_gpu:
+    name: homesystem-ocr-logs-gpu
+
+# 网络定义
+networks:
+  ocr-gpu-network:
+    driver: bridge
+    name: homesystem-ocr-gpu-network
+
+# GPU 服务器部署说明：
+# 
+# 部署前准备：
+# 1. 确保 NVIDIA 驱动已安装：nvidia-smi
+# 2. 安装 Docker GPU 支持：
+#    ```bash
+#    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+#    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+#    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+#      sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+#      sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+#    sudo apt-get update
+#    sudo apt-get install -y nvidia-container-toolkit
+#    sudo systemctl restart docker
+#    ```
+# 
+# 部署步骤：
+# 1. 验证 GPU 可用性：
+#    docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
+# 
+# 2. 启动服务：
+#    docker compose -f docker-compose.ocr-gpu.yml up -d
+# 
+# 3. 验证服务：
+#    docker compose -f docker-compose.ocr-gpu.yml logs -f
+#    docker exec -it homesystem-ocr-gpu nvidia-smi
+#    curl http://localhost:5001/api/health
+# 
+# 服务地址：
+# - OCR API: http://服务器IP:5001
+# - 健康检查: http://服务器IP:5001/api/health
+# 
+# 性能优化：
+# - GPU服务器：建议内存8GB+，CUDA 11.8+
+# - 多 GPU：修改 CUDA_VISIBLE_DEVICES 指定特定 GPU
+# - 并发处理：可根据 GPU 显存调整 OCR_MAX_PAGES
+# 
+# 故障排除：
+# - 如果出现 CUDA 错误，检查 NVIDIA Container Toolkit 安装
+# - 如果 PaddleOCR 初始化失败，检查容器内 nvidia-smi 输出
+# - 模型下载失败时，确保网络连接正常
