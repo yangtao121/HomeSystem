@@ -97,21 +97,6 @@ class ImageAnalysisTool(BaseTool):
             error_msg += f"  - {path}\n"
         raise FileNotFoundError(error_msg)
     
-    def _generate_professional_prompt(self, analysis_query: str) -> str:
-        """
-        生成专业的中文分析提示词
-        
-        Args:
-            analysis_query: 用户的分析要求
-            
-        Returns:
-            str: 完整的专业分析提示词
-        """
-        return f"""
-你是一位专业的学术论文图片分析专家，在计算机科学和机器学习领域具有专业知识。{analysis_query}
-
-请提供详细的分析，用中文进行回答。
-"""
     
     def _run(self, analysis_query: str, image_path: str) -> str:
         """

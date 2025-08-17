@@ -337,13 +337,13 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">设置结果</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
                 <div id="resultContent"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="关闭设置结果对话框">关闭</button>
             </div>
         </div>
     </div>
@@ -1019,6 +1019,27 @@ $(document).ready(function() {
     $('#settingsForm').submit(function(e) {
         e.preventDefault();
         saveSettings();
+    });
+
+    // 模态框焦点管理，修复可访问性问题
+    let modalTriggerElement = null;
+    
+    $('#resultModal').on('show.bs.modal', function (e) {
+        // 保存触发模态框的元素
+        modalTriggerElement = document.activeElement;
+    });
+
+    $('#resultModal').on('hide.bs.modal', function (e) {
+        // 在模态框隐藏前，将焦点从模态框内的元素移开
+        $(this).find('button, [tabindex]').blur();
+    });
+
+    $('#resultModal').on('hidden.bs.modal', function (e) {
+        // 模态框完全隐藏后，将焦点返回到触发元素
+        if (modalTriggerElement && modalTriggerElement.focus) {
+            modalTriggerElement.focus();
+        }
+        modalTriggerElement = null;
     });
 
     // 加载可用模型列表（如果模板中没有加载）

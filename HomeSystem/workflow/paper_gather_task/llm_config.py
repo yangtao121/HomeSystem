@@ -34,21 +34,25 @@ class AbstractAnalysisLLM:
     
     def __init__(self, model_name: str = "ollama.Qwen3_30B"):
         self.model_name = model_name
-        self.system_prompt = """You are a paper screening assistant responsible for quickly analyzing the relevance between paper abstracts and user requirements.
+        self.system_prompt = """You are a paper screening assistant for preliminary filtering. Your primary goal is to be EXTREMELY INCLUSIVE - almost all papers should pass this stage unless they are completely unrelated.
 
-This is the preliminary screening stage. Please quickly determine:
-1. Whether the abstract topic matches the user requirements
-2. Whether the research content is relevant
-3. Provide a concise judgment reasoning
+This is PRELIMINARY SCREENING with VERY LOW threshold. The motto is: "When in doubt, LET IT THROUGH!"
 
-IMPORTANT: The relevance_score MUST be a decimal number between 0.0 and 1.0 (e.g., 0.85, 0.92, 0.15).
-- 0.0 = completely irrelevant
-- 0.5 = moderately relevant  
-- 1.0 = extremely relevant
+Key principles:
+1. ANY potential connection = HIGH SCORE (0.75+)
+2. Even loose connections = HIGH SCORE (0.75+)
+3. Only completely unrelated papers get low scores
+4. Be GENEROUS - detailed filtering happens later
 
-Do NOT use scores like 85, 9, or any number greater than 1.0.
+IMPORTANT: The relevance_score MUST be a decimal number between 0.0 and 1.0.
+Revised scoring for preliminary screening (BE VERY GENEROUS):
+- 0.85-1.0 = Direct relevance or clear connection
+- 0.75-0.85 = Potential relevance, ANY connection (DEFAULT for most papers)
+- 0.6-0.75 = Very loose connection, but in related field
+- 0.4-0.6 = Tangentially related, different but adjacent field
+- 0.0-0.4 = Completely unrelated to the field
 
-Please make a quick and accurate preliminary judgment based on the abstract content."""
+Default mindset: If there's ANY potential relevance, score 0.75 or higher. Most papers should get 0.75+."""
         
         # Create LLM instance
         self.base_llm = llm_factory.create_llm(model_name=self.model_name)
@@ -62,9 +66,7 @@ Please make a quick and accurate preliminary judgment based on the abstract cont
 
 Paper Abstract: {abstract}
 
-Please quickly determine whether this abstract is relevant to the user requirements.
-
-Remember: relevance_score must be between 0.0 and 1.0 (decimal format, not percentage)."""
+Please analyze this abstract against the user requirements and provide your assessment."""
         
         try:
             messages = [
@@ -126,14 +128,7 @@ NOTE: Only analyze papers in English."""
 
 Full Paper Content: {paper_content}
 
-Please conduct a comprehensive analysis of this complete paper to determine its relevance to the user requirements.
-
-Consider all sections of the paper including methodology, results, and conclusions.
-
-Remember: 
-- Only analyze English papers
-- relevance_score must be between 0.0 and 1.0 (decimal format, not percentage)
-- Provide detailed justification based on the full paper content"""
+Please conduct a comprehensive analysis of this complete paper to determine its relevance to the user requirements."""
         
         try:
             messages = [
@@ -184,15 +179,7 @@ class TranslationLLM:
         """将英文文本翻译为中文"""
         prompt = f"""请将以下英文文本翻译成中文：
 
-英文文本：{english_text}
-
-要求：
-- 提供准确流畅的中文翻译
-- 保持学术语调和精确性
-- 评估翻译质量（high/medium/low）
-- 如有特殊术语或翻译难点，请添加注释
-
-请确保翻译自然，适合中文学术读者阅读。"""
+英文文本：{english_text}"""
         
         try:
             messages = [
@@ -231,15 +218,7 @@ class TranslationLLM:
             for field_name, text in texts_with_field_names:
                 prompt = f"""请将以下英文文本翻译成中文：
 
-英文文本：{text}
-
-要求：
-- 提供准确流畅的中文翻译
-- 保持学术语调和精确性
-- 评估翻译质量（high/medium/low）
-- 如有特殊术语或翻译难点，请添加注释
-
-请确保翻译自然，适合中文学术读者阅读。"""
+英文文本：{text}"""
                 
                 messages = [
                     {"role": "system", "content": self.system_prompt},

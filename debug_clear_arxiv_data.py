@@ -12,7 +12,7 @@ from typing import List, Dict, Any
 
 # 数据库配置
 DB_CONFIG = {
-    'host': 'localhost',
+    'host': '192.168.5.54',
     'port': 15432,
     'database': 'homesystem',
     'user': 'homesystem',
@@ -20,7 +20,7 @@ DB_CONFIG = {
 }
 
 REDIS_CONFIG = {
-    'host': 'localhost',
+    'host': '192.168.5.54',
     'port': 16379,
     'db': 0
 }

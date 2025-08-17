@@ -291,7 +291,7 @@ providers:
       supports_vision: false
       context_length: 131072
       description: MoE架构代码专用模型，多语言支持，支持128K上下文
-    - name: qwen3:8b
+    - name: qwen3
       key: ollama.Qwen3_8B
       display_name: 通义千问3 8B
       parameters: 8B

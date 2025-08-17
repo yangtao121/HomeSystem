@@ -140,33 +140,6 @@ class VideoAnalysisTool(BaseTool):
             logger.warning(f"未知的采样方法: {sampling_method}, 使用默认的sequential")
             return SamplingMethod.SEQUENTIAL
     
-    def _generate_professional_prompt(self, analysis_query: str, frame_info: str) -> str:
-        """
-        生成专业的中文视频分析提示词
-        
-        Args:
-            analysis_query: 用户的分析要求
-            frame_info: 帧信息描述
-            
-        Returns:
-            str: 完整的专业分析提示词
-        """
-        return f"""
-你是一位专业的视频内容分析专家，擅长从视频帧中理解和分析视频内容。
-
-当前任务: {analysis_query}
-
-帧信息: {frame_info}
-
-请基于提供的视频帧，提供详细的分析结果。注意：
-1. 描述视频的主要内容和场景
-2. 识别关键对象、人物和活动
-3. 分析视频的整体主题和目的
-4. 如果是教学、演示或技术内容，请重点分析技术要点
-5. 用中文进行详细回答
-
-请提供全面而专业的视频内容分析。
-"""
     
     def _analyze_frame_batch(self, extracted_frames: List[ExtractedFrame], analysis_query: str) -> Dict[str, str]:
         """
