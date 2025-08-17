@@ -206,8 +206,13 @@ def serve_analysis_image(arxiv_id, filename):
             logger.warning(f"Invalid ArXiv ID format: {arxiv_id}")
             return "Invalid ArXiv ID", 400
         
-        # 构建安全的文件路径
-        base_path = os.path.join(PROJECT_ROOT, "data/paper_analyze")
+        # 构建安全的文件路径 - Docker环境适配
+        if os.path.exists("/app/data"):
+            # Docker容器环境，使用绝对路径
+            base_path = "/app/data/paper_analyze"
+        else:
+            # 本地开发环境，使用相对路径
+            base_path = os.path.join(PROJECT_ROOT, "data/paper_analyze")
         image_path = os.path.join(base_path, arxiv_id, "imgs", filename)
         
         # 确保路径在允许的目录内
@@ -255,8 +260,13 @@ def serve_analysis_video(arxiv_id, filename):
             logger.warning(f"Invalid ArXiv ID format: {arxiv_id}")
             return "Invalid ArXiv ID", 400
         
-        # 构建安全的文件路径
-        base_path = os.path.join(PROJECT_ROOT, "data/paper_analyze")
+        # 构建安全的文件路径 - Docker环境适配
+        if os.path.exists("/app/data"):
+            # Docker容器环境，使用绝对路径
+            base_path = "/app/data/paper_analyze"
+        else:
+            # 本地开发环境，使用相对路径
+            base_path = os.path.join(PROJECT_ROOT, "data/paper_analyze")
         video_path = os.path.join(base_path, arxiv_id, "videos", filename)
         
         # 确保路径在允许的目录内
@@ -369,8 +379,13 @@ def download_analysis(arxiv_id):
                 
                 zip_file.writestr(f"{arxiv_id}_analysis.md", processed_markdown)
                 
-                # 添加图片文件
-                images_dir = os.path.join(PROJECT_ROOT, "data/paper_analyze", arxiv_id, "imgs")
+                # 添加图片文件 - Docker环境适配
+                if os.path.exists("/app/data"):
+                    # Docker容器环境，使用绝对路径
+                    images_dir = f"/app/data/paper_analyze/{arxiv_id}/imgs"
+                else:
+                    # 本地开发环境，使用相对路径
+                    images_dir = os.path.join(PROJECT_ROOT, "data/paper_analyze", arxiv_id, "imgs")
                 if os.path.exists(images_dir):
                     for filename in os.listdir(images_dir):
                         if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
