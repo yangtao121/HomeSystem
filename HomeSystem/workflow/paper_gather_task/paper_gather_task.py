@@ -635,7 +635,11 @@ class PaperGatherTask(Task):
                             
                             # 重新计算论文文件夹路径（保持一致性）
                             from pathlib import Path
+                            # For Docker: /app/HomeSystem/workflow/paper_gather_task/paper_gather_task.py -> /app (4 parents) -> /app/data
+                            # For local: workflow/paper_gather_task/paper_gather_task.py -> project root (5 parents) -> project_root/data
                             project_root = Path(__file__).parent.parent.parent.parent
+                            if not (project_root / "data").exists():
+                                project_root = Path(__file__).parent.parent.parent.parent.parent
                             paper_folder = project_root / "data" / "paper_analyze" / paper.arxiv_id
                             paper_folder_str = str(paper_folder)
                             

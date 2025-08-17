@@ -7,7 +7,7 @@ version: '3.8'
 services:
   # OCR 服务 - PaddleOCR文档识别
   ocr-service:
-    image: ghcr.io/yangtao121/remote-app-ocr:main
+    image: crpi-mjmyb1138k6on8mt.cn-shenzhen.personal.cr.aliyuncs.com/homesystem_1/remote_ocr:latest
     container_name: homesystem-ocr
     restart: unless-stopped
     # 如果有 NVIDIA GPU，请取消注释下面一行

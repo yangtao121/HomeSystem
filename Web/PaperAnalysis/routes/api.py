@@ -269,7 +269,11 @@ class AnalysisServiceAdapter:
             analysis_service = PaperAnalysisService(default_config=config)
             
             # 计算论文文件夹路径
-            project_root = Path(__file__).parent.parent.parent.parent
+            # For Docker: /app/routes/api.py -> /app (2 parents) -> /app/data
+            # For local: routes/api.py -> project root (4 parents) -> project_root/data
+            project_root = Path(__file__).parent.parent
+            if not (project_root / "data").exists():
+                project_root = Path(__file__).parent.parent.parent.parent
             paper_folder_path = str(project_root / "data" / "paper_analyze" / arxiv_id)
             
             # 准备论文数据（用于PDF下载）
