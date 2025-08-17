@@ -109,7 +109,16 @@ class ConfigVersionManager:
             "abstract_analysis_model": None,
             "full_paper_analysis_model": None,
             "translation_model": None,
-            "paper_analysis_model": None
+            "paper_analysis_model": None,
+            "deep_analysis_model": None,
+            "vision_model": None,
+            # v1.2.0 新增深度分析配置
+            "enable_deep_analysis": True,
+            "deep_analysis_threshold": 0.8,
+            "ocr_char_limit_for_analysis": 10000,
+            # v1.2.0 新增视频分析配置
+            "enable_video_analysis": False,
+            "video_analysis_model": None
         }
     }
     

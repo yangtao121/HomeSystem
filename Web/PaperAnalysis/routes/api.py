@@ -2876,8 +2876,8 @@ def api_create_paper_from_pdf():
             pdf_dir = arxiv_data.get_paper_directory()
             pdf_dir.mkdir(parents=True, exist_ok=True)
             
-            # 设置PDF路径，跳过自动元数据提取（因为我们会手动调用OCR）
-            arxiv_data.set_pdf_path(temp_pdf_path, extract_metadata=False)
+            # 设置PDF路径，启用元数据提取
+            arxiv_data.set_pdf_path(temp_pdf_path, extract_metadata=True)
             
             # 手动执行OCR并保存到正确位置
             logger.info(f"执行OCR处理，保存到: {pdf_dir}")

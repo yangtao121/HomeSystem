@@ -41,6 +41,9 @@ class PaperGatherTaskConfig:
                  enable_remote_ocr: bool = False,
                  remote_ocr_endpoint: str = 'http://localhost:5001',
                  remote_ocr_timeout: int = 300,
+                 # 视频分析相关参数
+                 enable_video_analysis: bool = False,
+                 video_analysis_model: Optional[str] = None,
                  # 任务追踪相关参数
                  task_name: Optional[str] = None,
                  task_id: Optional[str] = None,
@@ -76,6 +79,11 @@ class PaperGatherTaskConfig:
         self.enable_remote_ocr = enable_remote_ocr
         self.remote_ocr_endpoint = remote_ocr_endpoint
         self.remote_ocr_timeout = remote_ocr_timeout
+        # 视频分析配置
+        self.enable_video_analysis = enable_video_analysis
+        if not video_analysis_model:
+            video_analysis_model = llm_model_name  # 默认使用主LLM模型
+        self.video_analysis_model = video_analysis_model
         # 新增搜索模式相关属性
         self.search_mode = search_mode
         self.start_year = start_year

@@ -854,6 +854,8 @@ class PaperGatherService:
                 'enable_user_prompt', 'user_prompt',
                 # 远程OCR参数
                 'enable_remote_ocr', 'remote_ocr_endpoint', 'remote_ocr_timeout',
+                # 视频分析参数
+                'enable_video_analysis', 'video_analysis_model',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数
@@ -1051,6 +1053,8 @@ class PaperGatherService:
                 'enable_user_prompt', 'user_prompt',
                 # 远程OCR参数
                 'enable_remote_ocr', 'remote_ocr_endpoint', 'remote_ocr_timeout',
+                # 视频分析参数
+                'enable_video_analysis', 'video_analysis_model',
                 # 新增搜索模式相关参数
                 'search_mode', 'start_year', 'end_year', 'after_year',
                 # 任务追踪相关参数

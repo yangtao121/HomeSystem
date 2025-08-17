@@ -292,6 +292,7 @@ $(document).ready(function() {
             if (config.full_paper_analysis_model) $('#full_paper_analysis_model').val(config.full_paper_analysis_model);
             if (config.deep_analysis_model) $('#deep_analysis_model').val(config.deep_analysis_model);
             if (config.vision_model) $('#vision_model').val(config.vision_model);
+            if (config.video_analysis_model) $('#video_analysis_model').val(config.video_analysis_model);
             
             // 高级配置
             if (config.max_papers_per_search !== undefined) $('#max_papers_per_search').val(config.max_papers_per_search);
@@ -328,6 +329,18 @@ $(document).ready(function() {
                 $('.execution-mode-card').removeClass('selected');
                 $('.execution-mode-card[data-mode="scheduled"]').addClass('selected');
                 $('#scheduled_config').show();
+            }
+            
+            // 补充深度分析配置
+            if (config.enable_deep_analysis !== undefined) {
+                $('#enable_deep_analysis').prop('checked', config.enable_deep_analysis);
+            }
+            if (config.ocr_char_limit_for_analysis !== undefined) {
+                $('#ocr_char_limit_for_analysis').val(config.ocr_char_limit_for_analysis);
+            }
+            // 补充视频分析配置
+            if (config.enable_video_analysis !== undefined) {
+                $('#enable_video_analysis').prop('checked', config.enable_video_analysis);
             }
             
             // 触发change事件以更新界面
