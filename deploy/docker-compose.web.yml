@@ -1,0 +1,171 @@
+# HomeSystem Web 应用独立部署
+# PaperAnalysis Web 服务
+# 需要连接到独立部署的数据库和 OCR 服务
+
+version: '3.8'
+
+services:
+  # PaperAnalysis Web 应用
+  paper-analysis:
+    image: ghcr.io/yangtao121/homesystem-paper-analysis:main
+    container_name: homesystem-paper-analysis
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      # Flask 应用配置
+      FLASK_HOST: 0.0.0.0
+      FLASK_PORT: 5002
+      FLASK_DEBUG: false
+      SECRET_KEY: paper-analysis-prod-key-change-me  # ⚠️ 生产环境请修改
+      
+      # ⚠️ 数据库连接配置 - 请修改为实际的数据库服务器地址
+      DB_HOST: 192.168.1.100      # 数据库服务器IP
+      DB_PORT: 15432              # 数据库端口
+      DB_NAME: homesystem
+      DB_USER: homesystem
+      DB_PASSWORD: homesystem123  # ⚠️ 需与数据库服务器密码一致
+      
+      # ⚠️ Redis 连接配置 - 请修改为实际的Redis服务器地址
+      REDIS_HOST: 192.168.1.100   # Redis服务器IP (通常与数据库同一台)
+      REDIS_PORT: 16379           # Redis端口
+      REDIS_DB: 0
+      
+      # ⚠️ OCR 服务配置 - 请修改为实际的OCR服务器地址
+      REMOTE_OCR_ENDPOINT: http://192.168.1.101:5001  # OCR服务器地址
+      REMOTE_OCR_TIMEOUT: 300
+      
+      # ⚠️ LLM API 配置 - 请至少配置一个 API 密钥
+      # DeepSeek (推荐)
+      DEEPSEEK_API_KEY: sk-xxx  # ⚠️ 必填：请填写您的 DeepSeek API 密钥
+      DEEPSEEK_BASE_URL: https://api.deepseek.com
+      
+      # 可选 LLM 配置
+      SILICONFLOW_API_KEY:   # 硅基流动 API 密钥
+      SILICONFLOW_BASE_URL: https://api.siliconflow.cn/v1
+      
+      VOLCANO_API_KEY:       # 火山引擎/豆包 API 密钥
+      VOLCANO_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
+      
+      MOONSHOT_API_KEY:      # 月之暗面/Kimi API 密钥
+      MOONSHOT_BASE_URL: https://api.moonshot.cn/v1
+      
+      ZHIPUAI_API_KEY:       # 智谱AI API 密钥
+      
+      DASHSCOPE_API_KEY:     # 阿里云DashScope API 密钥
+      DASHSCOPE_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+      
+      # Ollama 本地模型配置 (可选)
+      # 如果 Ollama 部署在其他机器，请修改为实际地址
+      OLLAMA_BASE_URL: http://192.168.1.102:11434
+      
+      # LLM 默认配置
+      DEFAULT_LLM_MODEL: deepseek
+      LLM_TEMPERATURE: 0.7
+      LLM_MAX_TOKENS: 4000
+      
+      # 可选服务配置
+      # Dify 知识库 (可选)
+      DIFY_BASE_URL:         # Dify 服务地址
+      DIFY_KB_API_KEY:       # Dify 知识库 API 密钥
+      DIFY_ENABLED: false
+      DIFY_TIMEOUT: 30
+      DIFY_MAX_RETRIES: 3
+      
+      # SiYuan 笔记 (可选)
+      SIYUAN_API_URL:        # SiYuan API 地址 (如: http://192.168.1.103:6806)
+      SIYUAN_API_TOKEN:      # SiYuan API Token
+      SIYUAN_TIMEOUT: 30
+      SIYUAN_MAX_RETRIES: 3
+      
+      # ArXiv 搜索配置
+      ARXIV_MAX_RESULTS: 2000
+      ARXIV_REQUEST_TIMEOUT: 30
+      
+      # 缓存配置
+      CACHE_DEFAULT_EXPIRE: 3600
+      MODEL_CACHE_EXPIRE: 600
+      EXISTS_CACHE_EXPIRE: 300
+      
+      # 系统配置
+      TZ: Asia/Shanghai
+      PYTHONUNBUFFERED: 1
+      PYTHONIOENCODING: utf-8
+    volumes:
+      # 应用数据持久化
+      - paper_logs:/app/logs
+      - paper_uploads:/app/uploads
+      - paper_data:/app/data
+      - paper_static:/app/static/uploads
+    
+    # 资源限制配置
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - web-network
+
+# 数据卷定义
+volumes:
+  paper_logs:
+    name: homesystem-paper-logs
+  paper_uploads:
+    name: homesystem-paper-uploads
+  paper_data:
+    name: homesystem-paper-data
+  paper_static:
+    name: homesystem-paper-static
+
+# 网络定义
+networks:
+  web-network:
+    driver: bridge
+    name: homesystem-web-network
+
+# 分离部署说明：
+# 
+# 部署前准备：
+# 1. 确保数据库服务已启动 (docker-compose.database.yml)
+# 2. 确保 OCR 服务已启动 (docker-compose.ocr.yml)
+# 3. 确保网络连通性 (各服务器之间可以访问)
+# 
+# 配置步骤：
+# 1. 修改 DB_HOST 为数据库服务器IP
+# 2. 修改 REDIS_HOST 为 Redis 服务器IP
+# 3. 修改 REMOTE_OCR_ENDPOINT 为 OCR 服务器地址
+# 4. 配置至少一个 LLM API 密钥 (DEEPSEEK_API_KEY)
+# 5. 可选：配置 OLLAMA_BASE_URL、DIFY_BASE_URL、SIYUAN_API_URL
+# 
+# 启动服务：
+# docker compose -f docker-compose.web.yml up -d
+# 
+# 服务地址：
+# - Web界面: http://服务器IP:5002
+# - API接口: http://服务器IP:5002/api/
+# - 健康检查: http://服务器IP:5002/api/health
+# 
+# 网络要求：
+# - 能访问数据库服务器的 15432 和 16379 端口
+# - 能访问 OCR 服务器的 5001 端口
+# - 能访问互联网 (调用 LLM API)
+# - 能访问 Ollama/Dify/SiYuan 服务器 (如果配置)
+# 
+# 故障排查：
+# 1. 检查服务日志: docker compose logs paper-analysis
+# 2. 检查网络连通性: ping 各服务器IP
+# 3. 检查端口访问: telnet 服务器IP 端口
+# 4. 检查配置: docker compose config

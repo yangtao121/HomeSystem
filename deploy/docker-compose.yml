@@ -1,0 +1,249 @@
+# HomeSystem 云端镜像一体化部署配置
+# 所有服务部署在单台机器上，使用预构建的Docker镜像
+# 使用前请修改: POSTGRES_PASSWORD 和 DEEPSEEK_API_KEY
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库服务 - 预构建镜像包含数据库表结构
+  postgres:
+    image: ghcr.io/yangtao121/homesystem-postgres:main
+    container_name: homesystem-postgres
+    restart: unless-stopped
+    environment:
+      # 数据库配置 - 请修改密码
+      POSTGRES_DB: homesystem
+      POSTGRES_USER: homesystem
+      POSTGRES_PASSWORD: homesystem123  # ⚠️ 请修改为安全密码
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+      TZ: Asia/Shanghai
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homesystem -d homesystem"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: homesystem-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: redis-server --appendonly yes
+
+  # OCR 服务 - PaddleOCR文档识别
+  ocr-service:
+    image: ghcr.io/yangtao121/remote-app-ocr:main
+    container_name: homesystem-ocr
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      # OCR 配置
+      HOST: 0.0.0.0
+      OCR_SERVICE_PORT: 5001
+      DEBUG: false
+      LOG_LEVEL: INFO
+      
+      # PaddleOCR 设置
+      PADDLEOCR_USE_GPU: false  # 如有GPU设置为true，需要安装nvidia-docker
+      PADDLEOCR_USE_ANGLE_CLS: true
+      PADDLEOCR_LANG: ch
+      
+      # 系统配置
+      TZ: Asia/Shanghai
+      PYTHONUNBUFFERED: 1
+    volumes:
+      # PaddleOCR模型缓存，避免重复下载
+      - ocr_models:/app/.paddleocr
+      - ocr_results:/tmp/ocr_results
+      - ocr_temp:/tmp/ocr_service
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PaperAnalysis Web 应用
+  paper-analysis:
+    image: ghcr.io/yangtao121/homesystem-paper-analysis:main
+    container_name: homesystem-paper-analysis
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ocr-service:
+        condition: service_healthy
+    environment:
+      # Flask 应用配置
+      FLASK_HOST: 0.0.0.0
+      FLASK_PORT: 5002
+      FLASK_DEBUG: false
+      SECRET_KEY: paper-analysis-prod-key-change-me  # 生产环境请修改
+      
+      # 数据库连接配置
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: homesystem
+      DB_USER: homesystem
+      DB_PASSWORD: homesystem123  # ⚠️ 需与postgres服务密码一致
+      
+      # Redis 连接配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      
+      # OCR 服务配置
+      REMOTE_OCR_ENDPOINT: http://ocr-service:5001
+      REMOTE_OCR_TIMEOUT: 300
+      
+      # ⚠️ LLM API 配置 - 请至少配置一个 API 密钥
+      # DeepSeek (推荐)
+      DEEPSEEK_API_KEY: sk-xxx  # ⚠️ 必填：请填写您的 DeepSeek API 密钥
+      DEEPSEEK_BASE_URL: https://api.deepseek.com
+      
+      # 可选 LLM 配置
+      SILICONFLOW_API_KEY:   # 硅基流动 API 密钥
+      SILICONFLOW_BASE_URL: https://api.siliconflow.cn/v1
+      
+      VOLCANO_API_KEY:       # 火山引擎/豆包 API 密钥
+      VOLCANO_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
+      
+      MOONSHOT_API_KEY:      # 月之暗面/Kimi API 密钥
+      MOONSHOT_BASE_URL: https://api.moonshot.cn/v1
+      
+      ZHIPUAI_API_KEY:       # 智谱AI API 密钥
+      
+      DASHSCOPE_API_KEY:     # 阿里云DashScope API 密钥
+      DASHSCOPE_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+      
+      # Ollama 本地模型配置 (可选，需要额外部署 Ollama)
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      
+      # LLM 默认配置
+      DEFAULT_LLM_MODEL: deepseek
+      LLM_TEMPERATURE: 0.7
+      LLM_MAX_TOKENS: 4000
+      
+      # 可选服务配置
+      # Dify 知识库 (可选)
+      DIFY_BASE_URL:         # Dify 服务地址
+      DIFY_KB_API_KEY:       # Dify 知识库 API 密钥
+      DIFY_ENABLED: false
+      
+      # SiYuan 笔记 (可选)
+      SIYUAN_API_URL:        # SiYuan API 地址 (如: http://localhost:6806)
+      SIYUAN_API_TOKEN:      # SiYuan API Token
+      
+      # ArXiv 搜索配置
+      ARXIV_MAX_RESULTS: 2000
+      ARXIV_REQUEST_TIMEOUT: 30
+      
+      # 缓存配置
+      CACHE_DEFAULT_EXPIRE: 3600
+      MODEL_CACHE_EXPIRE: 600
+      EXISTS_CACHE_EXPIRE: 300
+      
+      # 系统配置
+      TZ: Asia/Shanghai
+      PYTHONUNBUFFERED: 1
+      PYTHONIOENCODING: utf-8
+    volumes:
+      # 应用数据持久化
+      - paper_logs:/app/logs
+      - paper_uploads:/app/uploads
+      - paper_data:/app/data
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 可选：pgAdmin Web 管理界面
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: homesystem-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@homesystem.local
+      PGADMIN_DEFAULT_PASSWORD: admin123  # Web管理界面密码
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - homesystem-network
+    depends_on:
+      - postgres
+    profiles:
+      - tools  # 使用 docker compose --profile tools up -d 启动
+
+  # 可选：Redis Commander Web 管理界面
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: homesystem-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - homesystem-network
+    depends_on:
+      - redis
+    profiles:
+      - tools  # 使用 docker compose --profile tools up -d 启动
+
+# 数据卷定义
+volumes:
+  postgres_data:
+    name: homesystem-postgres-data
+  redis_data:
+    name: homesystem-redis-data
+  ocr_models:
+    name: homesystem-ocr-models
+  ocr_results:
+    name: homesystem-ocr-results
+  ocr_temp:
+    name: homesystem-ocr-temp
+  paper_logs:
+    name: homesystem-paper-logs
+  paper_uploads:
+    name: homesystem-paper-uploads
+  paper_data:
+    name: homesystem-paper-data
+  pgadmin_data:
+    name: homesystem-pgadmin-data
+
+# 网络定义
+networks:
+  homesystem-network:
+    driver: bridge
+    name: homesystem-network

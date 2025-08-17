@@ -559,7 +559,13 @@ class PaperGatherService:
             from pathlib import Path
             
             # 检查配置文件
-            config_path = Path(__file__).parent.parent.parent / "HomeSystem" / "graph" / "config" / "llm_providers.yaml"
+            # Try Docker path first (2 parents: /app/services/task_service.py -> /app/HomeSystem/...)
+            config_path = Path(__file__).parent.parent / "HomeSystem" / "graph" / "config" / "llm_providers.yaml"
+            
+            # If Docker path doesn't exist, try local development path (3 parents)
+            if not config_path.exists():
+                config_path = Path(__file__).parent.parent.parent / "HomeSystem" / "graph" / "config" / "llm_providers.yaml"
+            
             if not config_path.exists():
                 logger.error(f"❌ LLM配置文件不存在: {config_path}")
             else:

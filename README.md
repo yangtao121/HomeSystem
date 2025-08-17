@@ -49,7 +49,62 @@ HomeSystem 采用模块化设计，由三个独立的 Docker 服务组成，可�
 
 ## 🚀 快速部署
 
-### 前置要求
+### 🌟 推荐：云端镜像部署（无需克隆代码）
+
+使用预构建的Docker镜像，最简单快捷的部署方式。
+
+#### 前置要求
+
+- Docker 20.10+ 和 Docker Compose 2.0+
+- **必须配置Ollama本地模型服务**：
+  - 在一台机器上配置好ollama，实现局域网内的访问
+  - ollama要拉取以下模型：
+    ```
+    qwen3:30b 
+    qwen2.5vl:7b
+    ```
+    VL模型为必须，如果配置不够可以拉取qwen2.5vl:3b，包括qwen3:4b
+
+#### 一体化部署（推荐新用户）
+
+```bash
+# 1. 创建项目目录
+mkdir homesystem && cd homesystem
+
+# 2. 创建配置文件
+curl -o docker-compose.yml https://raw.githubusercontent.com/yangtao121/homesystem/main/deploy/docker-compose.yml
+
+# 3. 修改关键配置
+vim docker-compose.yml
+# 必须修改：
+# - POSTGRES_PASSWORD: 设置安全的数据库密码
+# - DEEPSEEK_API_KEY: 填写您的 DeepSeek API 密钥
+# - OLLAMA_BASE_URL: 修改为您的Ollama服务地址 (如: http://192.168.1.100:11434)
+
+# 4. 启动所有服务
+docker compose up -d
+
+# 5. 访问应用
+# Web界面: http://localhost:5002
+# 数据库: localhost:15432
+# OCR API: http://localhost:5001
+```
+
+#### 分离部署（高级用户）
+
+适合多机器部署，支持GPU加速OCR，详见：[deploy/README.md](deploy/README.md)
+
+| 部署方式 | 适用场景 | 优势 |
+|---------|---------|------|
+| 云端镜像-一体化 | 快速体验、小规模使用 | 🚀 最简单，一键部署 |
+| 云端镜像-分离式 | 生产环境、资源优化 | 🏗️ 灵活分布，性能最佳 |
+| 源码部署 | 开发调试、自定义修改 | 🔧 完全可控，支持定制 |
+
+---
+
+### 源码部署
+
+#### 前置要求
 
 - Docker 20.10+ 和 Docker Compose 2.0+
 - 检查端口是否可用：
@@ -66,7 +121,7 @@ HomeSystem 采用模块化设计，由三个独立的 Docker 服务组成，可�
   ```
   VL模型为必须，如果配置不够可以拉取qwen2.5vl:3b，包括qwen3:4b。
 
-### 第一步：全局配置
+#### 第一步：全局配置
 
 **⚠️ 重要：所有模块部署前必须先配置根目录的 `.env` 文件**
 
@@ -98,7 +153,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 REMOTE_OCR_ENDPOINT=http://localhost:5001  # 跨主机部署时修改为OCR主机IP
 ```
 
-### 第二步：部署数据库服务
+#### 第二步：部署数据库服务
 
 ```bash
 cd database/
@@ -116,7 +171,7 @@ docker compose ps
 - Redis: `localhost:16379`
 - pgAdmin (可选): `http://localhost:8080` (admin@homesystem.local / admin123)
 
-### 第三步：部署OCR服务
+#### 第三步：部署OCR服务
 
 ```bash
 cd remote_app/
@@ -132,7 +187,7 @@ docker compose logs ocr-service
 - OCR API: `http://localhost:5001`
 - 健康检查: `http://localhost:5001/api/health`
 
-### 第四步：部署Web应用
+#### 第四步：部署Web应用
 
 ```bash
 cd Web/PaperAnalysis/

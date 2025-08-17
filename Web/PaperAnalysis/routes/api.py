@@ -1650,7 +1650,13 @@ async def validate_api_token(provider_config: dict, timeout: int = 5) -> bool:
 def load_llm_config() -> dict:
     """加载LLM配置文件"""
     try:
-        config_path = Path(__file__).parent.parent.parent.parent / 'HomeSystem' / 'graph' / 'config' / 'llm_providers.yaml'
+        # Try Docker path first (2 parents: /app/routes/api.py -> /app/HomeSystem/...)
+        config_path = Path(__file__).parent.parent / 'HomeSystem' / 'graph' / 'config' / 'llm_providers.yaml'
+        
+        # If Docker path doesn't exist, try local development path (4 parents)
+        if not config_path.exists():
+            config_path = Path(__file__).parent.parent.parent.parent / 'HomeSystem' / 'graph' / 'config' / 'llm_providers.yaml'
+        
         with open(config_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
     except Exception as e:

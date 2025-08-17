@@ -1,0 +1,109 @@
+# HomeSystem 数据库服务独立部署
+# 包含 PostgreSQL 和 Redis 服务
+# 适合部署在专用数据库服务器上
+
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库服务 - 预构建镜像包含数据库表结构
+  postgres:
+    image: ghcr.io/yangtao121/homesystem-postgres:main
+    container_name: homesystem-postgres
+    restart: unless-stopped
+    environment:
+      # 数据库配置 - 请修改密码
+      POSTGRES_DB: homesystem
+      POSTGRES_USER: homesystem
+      POSTGRES_PASSWORD: homesystem123  # ⚠️ 请修改为安全密码
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+      TZ: Asia/Shanghai
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homesystem -d homesystem"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: homesystem-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - homesystem-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: redis-server --appendonly yes
+
+  # 可选：pgAdmin Web 管理界面
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: homesystem-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@homesystem.local
+      PGADMIN_DEFAULT_PASSWORD: admin123  # Web管理界面密码
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - homesystem-network
+    depends_on:
+      - postgres
+    profiles:
+      - tools  # 使用 docker compose --profile tools up -d 启动
+
+  # 可选：Redis Commander Web 管理界面
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: homesystem-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - homesystem-network
+    depends_on:
+      - redis
+    profiles:
+      - tools  # 使用 docker compose --profile tools up -d 启动
+
+# 数据卷定义
+volumes:
+  postgres_data:
+    name: homesystem-postgres-data
+  redis_data:
+    name: homesystem-redis-data
+  pgadmin_data:
+    name: homesystem-pgadmin-data
+
+# 网络定义
+networks:
+  homesystem-network:
+    driver: bridge
+    name: homesystem-network
+
+# 部署说明：
+# 1. 修改 POSTGRES_PASSWORD 为安全密码
+# 2. 启动服务：docker compose -f docker-compose.database.yml up -d
+# 3. 可选启动管理界面：docker compose -f docker-compose.database.yml --profile tools up -d
+# 4. 服务地址：
+#    - PostgreSQL: localhost:15432
+#    - Redis: localhost:16379
+#    - pgAdmin: http://localhost:8080 (admin@homesystem.local / admin123)
+#    - Redis Commander: http://localhost:8081
