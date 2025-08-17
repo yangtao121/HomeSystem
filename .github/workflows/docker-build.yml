@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
     
     steps:
     - name: Checkout repository
@@ -44,8 +44,12 @@ jobs:
         if [ -f pyproject.toml ]; then
           pip install -e .
         fi
-        # Install additional dependencies found in the codebase
-        pip install langchain langchain-community langgraph flask beautifulsoup4 lxml
+        # Install additional dependencies found in the codebase with version constraints
+        pip install flask beautifulsoup4 lxml
+        # Install langchain ecosystem with version compatibility
+        pip install "langchain>=0.1.0" "langchain-community>=0.0.1"
+        # Install langgraph (Python 3.11+ supported)
+        pip install langgraph
 
     - name: Run Ruff linting
       run: |
