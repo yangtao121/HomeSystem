@@ -1,305 +1,109 @@
-# CLAUDE.md
+# HomeSystem 开发守则
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> 提示：需要了解需求、架构、集成、测试等背景时，可先查看 `docs/README.md` 文档索引；那里列出已登记的相关说明和上下游线索，能更快定位可能复用的代码或设计。
 
 
-## Architecture Overview
+## claude code 从荣八耻 
 
-HomeSystem is a modular Docker-based intelligent home automation system with three independent deployment modules, integrating local and cloud LLMs for document management, paper collection, and workflow automation. The system supports distributed deployment across multiple machines for optimal resource utilization.
+以瞎猜接口为耻，以认真查询为荣
 
-### Core Components
+以模糊执行为耻，以寻求确认为荣
 
-- **HomeSystem/graph/**: LangGraph-based agent system with chat capabilities
-  - `base_graph.py`: Abstract base class for graph agents with chat interface and graph visualization
-  - `chat_agent.py`: Chat agent implementation  
-  - `llm_factory.py`: LLM provider factory (supports multiple providers via YAML config)
-  - `paper_analysis_agent.py`: Specialized agent for paper analysis
-  - `tool/`: Search and web content extraction tools
+以臆想业务为耻，以人类确认为荣
 
-- **HomeSystem/workflow/**: Task scheduling and workflow framework
-  - `engine.py`: Workflow engine with async task management and signal handling
-  - `scheduler.py`: Task scheduler with interval-based execution
-  - `task.py`: Base Task class for creating scheduled tasks
-  - `paper_gather_task/`: Specialized paper collection workflow with LLM integration
+以创造接口为耻，以复用现有为荣
 
-- **HomeSystem/integrations/**: External service integrations
-  - `database/`: PostgreSQL + Redis operations with ORM-like interface
-    - `connection.py`: Database connection management with Docker auto-detection
-    - `operations.py`: CRUD operations for all models
-    - `models.py`: Data models including ArxivPaperModel with structured analysis fields
-  - `paperless/`: Paperless-ngx document management integration
-  - `dify/`: Dify AI workflow platform integration
-  - `siyuan/`: SiYuan Notes API integration for note management
-    - `siyuan.py`: Complete SiYuan API client with CRUD operations, search, SQL queries
-    - `models.py`: Data models for notes, notebooks, search results, sync operations
+以跳过验证为耻，以主动测试为荣
 
-- **HomeSystem/utility/**: Utility modules
-  - `arxiv/`: ArXiv paper search and database integration with duplicate detection
+以破坏架构为耻，以遵循规范为荣
 
-...existing code...
+以假装理解为耻，以诚实无知为荣
 
-### Database Architecture
-- **PostgreSQL**: Primary storage for structured paper data with analysis fields
-- **Redis**: Caching layer for improved performance and processing state tracking
-- **Auto-detection**: System automatically detects Docker container ports
-- **Structured Analysis**: Support for research objectives, methods, key findings, and contributions
+以盲目修改为耻，以谨慎重构为荣
 
-## Development Guidelines
 
-### Core Principles
-- Follow existing patterns and coding standards
-- Use environment variables for configuration
-- Handle errors appropriately with logging
+## 文档索引管理
 
-### Documentation Updates
-- Update documentation only after completing tasks when there are discrepancies with actual implementation
-- Keep documentation changes minimal and focused on essential information
+本项目所有“知识类”资产（需求、设计、架构、集成、分析、测试、术语等）必须在 `docs/` 下以 Markdown 形式存在，并通过 `docs/README.md` 这一“文档总索引”进行统一登记、检索与演进跟踪。严禁在对话、Issue/PR 讨论中留下唯一信息来源而未落地索引。
 
-## Key Development Patterns
+### 1. 权威索引文件
+`docs/README.md` 为唯一权威索引。
 
-### Forward Compatibility Guidelines
+### 2. 索引表字段
+| ID | 路径 | 类型 | 摘要 | 上游依赖 | 下游引用 | 模块 | Owner | 状态 | 创建 | 更新 | 替代 | 废弃原因 |
+|----|------|------|------|----------|----------|------|-------|------|------|------|------|----------|
 
-**CRITICAL**: All major code changes must consider forward compatibility to ensure smooth system evolution and minimize breaking changes for existing users and integrations.
+字段说明：
+- ID：`DOC-<递增序号>`（修订不变，新增才递增）
+- 类型：`integration|api|architecture|deployment|workflow|troubleshooting|analysis|testing|glossary|other`
+- 上游依赖：本文件依赖的其它文档 ID 列表（逗号分隔）
+- 下游引用：当前已知引用本文件的文档 ID（可由工具定期反向生成）
+- 模块：相关代码主模块（如 `graph`, `workflow`, `integrations`, `utility`，多值用逗号）
+- 状态：`draft|reviewing|approved|deprecated`
+- 替代：若已被替换，填入新文档 ID
+- 废弃原因：仅在 deprecated 时填写简要原因（不超过 40 字）
 
-#### Core Principles
-- **API Stability**: Maintain backward compatibility for public APIs, database schemas, and configuration formats
-- **Deprecation Strategy**: Mark old features as deprecated before removal, provide migration paths
-- **Version Management**: Use semantic versioning and clear upgrade documentation
-- **Data Migration**: Ensure database schema changes include migration scripts and rollback procedures
+### 3. 文档文件命名（统一格式）
+`<类型>-<主题>-v<YYYY-MM-DD>[(-r<修订号>)] .md`
+示例：`integration-llm-config-v2025-09-14.md` → 修订：`integration-llm-config-v2025-09-14-r1.md`
 
-#### Implementation Requirements
-- **Database Changes**: Always include migration scripts in `HomeSystem/integrations/database/migrations/`
-- **API Changes**: Maintain existing endpoints while introducing new versions (e.g., `/api/v1/` → `/api/v2/`)
-- **Configuration**: Support old configuration formats with warnings, provide conversion utilities
-- **Dependencies**: Pin major version dependencies, test compatibility before upgrades
-
-#### Testing for Compatibility
-- **Integration Tests**: Verify existing workflows continue to function after changes
-- **Migration Testing**: Test upgrade paths from previous versions
-- **Rollback Testing**: Ensure changes can be safely reverted if issues arise
-- **Documentation**: Update all relevant documentation and migration guides
-
-#### Examples of Forward-Compatible Changes
-```python
-# Good: Adding optional parameters with defaults
-def create_task(name: str, interval: int, config: dict = None):
-    if config is None:
-        config = {}  # Maintain backward compatibility
-
-# Good: Extending data models with optional fields
-class ArxivPaperModel:
-    def __init__(self):
-        self.new_field = None  # Optional, doesn't break existing code
-
-# Avoid: Breaking changes without migration path
-# def create_task(config: TaskConfig):  # Breaks existing code
+### 4. 文档头部建议（YAML Front Matter）
+```yaml
+---
+title: <标题>
+id: DOC-xxx            # 与索引表一致；初稿可留空，由登记人补齐
+type: <见上>
+created: 2025-09-14
+updated: 2025-09-14
+owner: <维护人/团队>
+modules: [graph, workflow]
+upstream: [DOC-001, DOC-010]
+status: draft
+superseded_by: null
+deprecated_reason: null
+---
 ```
 
-### Database Operations
-Use the centralized database operations for all data access:
-```python
-from HomeSystem.integrations.database import DatabaseOperations, ArxivPaperModel
+### 5. 新增 / 更新流程
+1. 创建或修改文档（填写 Front Matter 必需字段：title/type/owner/created）。
+2. 运行（或手工执行）索引更新：在 `docs/README.md` 表格末尾新增或更新该行。
+3. 若为更新：刷新 `updated` 字段，必要时报审查（`draft → reviewing → approved`）。
+4. 在相关代码 PR 描述中列出影响文档 ID/路径。
+5. 合并后由自动化或人工校验：无“未索引”文档。
 
-# Initialize operations
-db_ops = DatabaseOperations()
+### 6. 废弃 / 替代流程
+1. 将文档 `status` 改为 `deprecated`。
+2. 在索引同一行填写 `废弃原因`、如存在替代文档同步填写 `替代` 字段。
+3. 原文顶部添加醒目提示（Deprecated banner），保留原内容供追溯。
 
-# Create and save paper data
-paper = ArxivPaperModel()
-paper.set_data({
-    'id': 'arxiv_id',
-    'title': 'Paper Title',
-    'abstract': 'Abstract content',
-    # ... structured analysis fields
-})
-success = db_ops.create(paper)
-```
+### 7. 引用规范（唯一形式）
+引用任何文档只使用路径或路径 + 锚点：
+`docs/<子路径>/<文件名>#<可选锚点>`
+不得粘贴大段原文；若需指向具体片段，为原文添加二级/三级标题后引用锚点。
 
-### Creating Custom Tasks
-Extend the `Task` base class for scheduled operations:
-```python
-from HomeSystem.workflow.task import Task
-
-class MyTask(Task):
-    def __init__(self):
-        super().__init__("my_task", interval_seconds=60)
-    
-    async def run(self):
-        # Your task logic here
-        return {"status": "completed"}
-```
-
-### LLM Integration
-Use the factory pattern for LLM access:
-```python
-from HomeSystem.graph.llm_factory import LLMFactory
-
-# Initialize factory
-factory = LLMFactory()
-
-# Get available models
-chat_models = factory.get_available_chat_models()
-embedding_models = factory.get_available_embedding_models()
-
-# Create model instance
-llm = factory.create_chat_model("deepseek.DeepSeek_V3")
-embeddings = factory.create_embedding_model("ollama.BGE_M3")
-```
-
-### Graph Agents
-Extend `BaseGraph` for custom LangGraph agents:
-```python
-from HomeSystem.graph.base_graph import BaseGraph
-
-class MyAgent(BaseGraph):
-    def __init__(self):
-        super().__init__()
-        # Initialize your agent with tools and nodes
-```
-
-### SiYuan Notes Integration
-Use the SiYuan client for note management:
-```python
-from HomeSystem.integrations.siyuan import SiYuanClient
-
-# Create client from environment variables
-client = SiYuanClient.from_environment()
-
-# Test connection
-is_connected = await client.test_connection()
-
-# Create a note
-note = await client.create_note(
-    notebook_id="20240101-notebook-id",
-    title="My Note Title",
-    content="Note content in Markdown format",
-    tags=["tag1", "tag2"]
-)
-
-# Search notes
-search_result = await client.search_notes("keyword", limit=10)
-
-# Execute SQL queries
-results = await client.execute_sql("SELECT COUNT(*) FROM blocks WHERE type = 'd'")
-```
-
-## Common Development Commands
-
-db_ops = DatabaseOperations()
-...existing code...
-
-...existing code...
-
-...existing code...
-
-### Database Management Commands
-**Docker service management:**
-```bash
-# Start all services
-docker compose up -d
-
-# Check service status
-docker compose ps
-
-# View logs
-docker compose logs postgres
-docker compose logs redis
-
-# Stop services
-docker compose down
-
-# Start with admin interfaces
-docker compose --profile tools up -d
-```
-
-**Database debugging commands:**
-```bash
-# Connect to PostgreSQL
-psql -h localhost -p 15432 -U homesystem -d homesystem
-
-# Connect to Redis
-redis-cli -p 16379
-
-# Quick paper count check
-python debug_show_arxiv_data.py
-
-# Clear all paper data (use with caution)
-python debug_clear_arxiv_data.py
-```
-
-## Configuration
-
-### LLM Configuration
-LLM providers are configured via YAML in `HomeSystem/graph/config/llm_providers.yaml`:
-- Supports 2025 latest models including DeepSeek V3/R1, Qwen 2.5, Doubao 1.6
-- Multiple providers: DeepSeek, SiliconFlow, Volcano Engine, MoonShot, Ollama
-- Both cloud APIs and local Ollama models (14B+ parameters)
-- Embedding models for semantic search capabilities
-
-...existing code...
-- Caching: 5-minute cache for searches, 15-minute cache for statistics
-- Pagination: 20 papers per page by default
-
-**Docker Service Configuration:**
-Services are accessible at these ports:
-- PostgreSQL: localhost:15432
-- Redis: localhost:16379
-- pgAdmin (optional): localhost:8080 (admin@homesystem.local / admin123)
-- Redis Commander (optional): localhost:8081
+### 8. 任务与文档绑定
+任一开发 / 分析 / 测试任务必须声明：
+- 输入文档（Input Docs：ID 列表或“None + 原因”）
+- 输出文档（Output Docs：预期生成/更新的 ID 或“新建 TBD”）
 
 
-## Architecture and Development Notes
+### 9. 常见违规（直接退回）
+1. 设计只存在于聊天记录 / PR 评论
+2. 代码中出现大量策略说明却无对应 design/analysis 文档
+3. 引用“上一条消息”而非给出 `docs/...` 路径
+4. 新建文档未登记索引
+5. 单文件混写需求+设计+测试且无法拆分
 
-### Web Application Architecture
-- **PaperGather Web**: Modular Flask application with separation of concerns
-  - `routes/`: Route handlers (main.py, task.py, api.py) for different functionality areas
-  - `services/`: Business logic layer (task_service.py, paper_service.py) with thread-safe operations
-  - `templates/`: Jinja2 templates with responsive Bootstrap UI
-  - `static/`: CSS, JavaScript, and asset files
-  - Thread-safe task execution using ThreadPoolExecutor and locks
-  - Real-time status updates via AJAX polling
-  - RESTful API endpoints for programmatic access
+### 10. 自检 Checklist（阶段切换前必过）
+- [ ] 是否有对应需求/设计文档并完成索引登记？
+- [ ] 输入/输出文档是否声明完整？
+- [ ] 索引表是否无重复 ID / 无空占位？
+- [ ] 是否存在被下游引用的 draft 文档（需加速评审）？
+- [ ] 近 7 日高频引用文档是否同步更新 `updated`？
 
-- **ExplorePaperData Web**: Single-file Flask application optimized for data visualization
-  - `app.py`: Main application with route handlers and template filters
-  - `database.py`: Data access layer with `PaperService` and `DatabaseManager` classes
-  - `config.py`: Configuration management with environment variable support
-  - Redis caching with intelligent cache key management and serialization
-  - Advanced search with full-text capabilities across multiple fields
-  - Chart.js integration for interactive data visualizations
-  - Custom template filters for date formatting, text truncation, and status badges
-  - Comprehensive error handling with user-friendly error pages
+### 11. CLAUDE.md 中的引用方式
+若需在本文件中引用具体文档，仅追加到“文档清单”区，不改历史行，格式：
+`docs/<目录>/<文件>.md —— <≤14字摘要>`
 
+（以下为文档引用清单，新增请顺序追加）
 
-### Key Integration Points
-- **LLMFactory**: Unified interface for multiple LLM providers (cloud + local)
-- **DatabaseOperations**: Centralized database access with auto-detection of Docker containers
-- **WorkflowEngine**: Background task scheduling and execution
-- **ArXiv Integration**: Paper search with multiple modes (latest, relevant, date ranges)
-- **SiYuan Integration**: Complete note management with CRUD operations, full-text search, SQL queries, and data sync
-
-### Development Patterns
-- Examples in `examples/` demonstrate usage patterns for each major component
-- Documentation in `docs/` provides detailed integration guides:
-  - `database-integration-guide.md`: Complete PostgreSQL + Redis setup, ArXiv paper management, Docker deployment
-  - `llm-integration-guide.md`: Multi-provider LLM configuration (DeepSeek, SiliconFlow, Volcano, MoonShot, Ollama), embedding models
-  - `vision-integration-guide.md`: Complete vision functionality guide with local model support, image processing, multimodal chat, and cloud model security restrictions
-  - `arxiv-api-documentation.md`: ArXiv API tool usage, paper search and download functionality
-  - `workflow-framework-guide.md`: Task scheduling system, background job management, workflow engine
-  - `project-structure.md`: Detailed module organization and architectural overview
-  - `siyuan-api-integration-guide.md`: Complete SiYuan Notes API integration guide with CRUD operations, search, SQL queries, and best practices
-  - `papergather-web-architecture.md`: PaperGather web application architecture, components, and development patterns
-  - `explore-paper-data-architecture.md`: ExplorePaperData web application architecture, data visualization, and UI components
-  - `mcp-integration-guide.md`: Complete MCP (Model Context Protocol) integration guide for LangGraph agents, supporting stdio and SSE transport modes, with backward compatibility
-  - **`local-services-api.md`**: **IMPORTANT** - Contains API credentials, tokens, and endpoint information for local services (SiYuan Notes, etc.). Always refer to this file when you need to integrate with external local applications or services. This is the central repository for all local service connection details.
-- The system uses async/await patterns extensively for concurrency
-- Database integration supports both PostgreSQL (persistent) and Redis (caching) with automatic Docker detection
-- Workflow system supports signal-based graceful shutdown
-- Web interface provides modern alternative to command-line debugging tools
-- LLM configuration supports both cloud APIs and local models with unified interface
-
-### Testing and Debugging
-- Use the web interface at http://localhost:5001 for interactive task configuration and monitoring
-- Check `Web/PaperGather/app.log` for application logs
-- Database connectivity can be tested using the provided Python snippet
-- Task execution can be monitored in real-time through the web interface
-- **IMPORTANT**: Test files created during development must be deleted after testing is complete to maintain clean codebase
