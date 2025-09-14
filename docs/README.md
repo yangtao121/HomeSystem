@@ -56,3 +56,35 @@ deprecated_reason: null
 | 2025-09-14 | init | - | 创建初始索引文件 | system |
 
 （后续追加）
+
+---
+## Examples 区域（新功能最小示例索引）
+原则：所有可复用新接口 / 能力上线后 24h 内需具备示例与使用文档。示例不复制实现，仅演示调用路径。
+
+索引策略：
+- 本文件表格中 `type=example` 行登记 usage 文档（路径指向 `docs/examples/...`）
+- `examples/` 目录与 `docs/examples/` 中的符号集 == 代码扫描（公开符号）子集 → 不得有孤立
+
+示例命名：
+- 代码：`examples/<模块相对路径>/<symbol>_example.py`
+- 文档：`docs/examples/<symbol>-usage-vYYYY-MM-DD.md`
+
+文档模板字段：
+```
+标题: <Symbol> Usage
+用途: <一句话>
+核心能力: <最多3点>
+最小示例: 引用 examples 路径
+输入参数: name=type 简述（≤6）
+返回: <1~2 行>
+注意: <可选>
+版本: vYYYY-MM-DD
+```
+
+校验（可脚本化）：
+1. 枚举 `examples/**/*.py` → 派生符号名，检查对应 usage 文档存在
+2. usage 文档列出的 examples 路径真实可运行（import 成功 + main 执行无异常）
+3. 统计新功能（新增 public 函数/类）在合并 24h 内是否生成示例 → 覆盖率=100%
+
+自动脚本：`scripts/auto_generate_example.py <module_path> <Symbol>` 生成骨架。
+
