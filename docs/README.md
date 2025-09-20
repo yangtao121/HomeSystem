@@ -12,7 +12,7 @@
 ## 索引表
 | ID | 路径 | 类型 | 摘要 | 上游依赖 | 下游引用 | 模块 | Owner | 状态 | 创建 | 更新 | 替代 | 废弃原因 |
 |----|------|------|------|----------|----------|------|-------|------|------|------|------|----------|
-| DOC-001 | (示例占位，提交前删除) | architecture/project-structure-v2025-09-14.md | 目录与模块划分说明 | - | - | graph,workflow | core-team | draft | 2025-09-14 | 2025-09-14 | - | - |
+| DOC-001 | docs/architecture/paperanalysis-web-structure-v2025-09-20.md | architecture | PaperAnalysis Web架构分析 | - | - | Web, PaperAnalysis | HomeSystem团队 | approved | 2025-09-20 | 2025-09-20 | - | - |
 
 （在此表格末尾顺序追加，不修改历史行；ID 递增且不复用）
 
@@ -54,6 +54,7 @@ deprecated_reason: null
 | 时间 | 操作 | 影响 ID | 说明 | 执行人 |
 |------|------|---------|------|--------|
 | 2025-09-14 | init | - | 创建初始索引文件 | system |
+| 2025-09-20 | add | DOC-001 | 添加PaperAnalysis Web架构分析文档 | system |
 
 （后续追加）
 
